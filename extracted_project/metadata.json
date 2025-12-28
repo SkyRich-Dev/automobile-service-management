@@ -1,0 +1,7 @@
+{
+  "name": "AutoServ Enterprise",
+  "description": "An enterprise-grade Automobile Service Management System for cars and bikes, featuring job cards, inventory tracking, CRM, and role-based dashboards.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
