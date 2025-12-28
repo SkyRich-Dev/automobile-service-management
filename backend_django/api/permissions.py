@@ -1,0 +1,278 @@
+from rest_framework import permissions
+from .models import UserRole, RolePermission
+
+
+class RoleBasedPermission(permissions.BasePermission):
+    """
+    RBAC Permission class that checks user role against required permissions.
+    """
+    
+    ROLE_HIERARCHY = {
+        UserRole.SUPER_ADMIN: 100,
+        UserRole.CEO_OWNER: 95,
+        UserRole.REGIONAL_MANAGER: 90,
+        UserRole.BRANCH_MANAGER: 85,
+        UserRole.SERVICE_ADVISOR: 70,
+        UserRole.SALES_EXECUTIVE: 65,
+        UserRole.INVENTORY_MANAGER: 60,
+        UserRole.ACCOUNTS_OFFICER: 55,
+        UserRole.HR_MANAGER: 50,
+        UserRole.TECHNICIAN: 45,
+        UserRole.CRM_EXECUTIVE: 40,
+        UserRole.CUSTOMER: 10,
+    }
+    
+    RESOURCE_PERMISSIONS = {
+        'branches': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.REGIONAL_MANAGER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+        },
+        'profiles': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.HR_MANAGER],
+            'retrieve': 'all_authenticated',
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.HR_MANAGER],
+            'me': 'all_authenticated',
+            'technicians': 'all_authenticated',
+        },
+        'customers': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.SERVICE_ADVISOR, UserRole.CRM_EXECUTIVE, UserRole.SALES_EXECUTIVE],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                         UserRole.SERVICE_ADVISOR, UserRole.CRM_EXECUTIVE, UserRole.TECHNICIAN,
+                         UserRole.SALES_EXECUTIVE],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR, UserRole.CRM_EXECUTIVE, UserRole.SALES_EXECUTIVE],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
+        'vehicles': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
+        'job-cards': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN],
+            'transition': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                           UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN,
+                           UserRole.ACCOUNTS_OFFICER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
+        'tasks': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN],
+            'start': [UserRole.SUPER_ADMIN, UserRole.TECHNICIAN],
+            'complete': [UserRole.SUPER_ADMIN, UserRole.TECHNICIAN],
+        },
+        'estimates': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR],
+            'approve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'reject': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
+        'parts': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.INVENTORY_MANAGER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.INVENTORY_MANAGER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.INVENTORY_MANAGER],
+        },
+        'invoices': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.ACCOUNTS_OFFICER, UserRole.SERVICE_ADVISOR],
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_OFFICER],
+        },
+        'payments': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.ACCOUNTS_OFFICER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                         UserRole.ACCOUNTS_OFFICER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_OFFICER],
+        },
+        'bays': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'available': 'all_authenticated',
+        },
+        'inspections': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN],
+        },
+        'part-issues': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.INVENTORY_MANAGER, UserRole.TECHNICIAN],
+        },
+        'service-events': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+        },
+        'timeline-events': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+        },
+    }
+    
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+        
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return True
+        
+        resource = getattr(view, 'basename', None)
+        if not resource:
+            return True
+        
+        action = view.action if hasattr(view, 'action') else None
+        if not action:
+            if request.method == 'GET':
+                action = 'list' if not getattr(view, 'detail', True) else 'retrieve'
+            elif request.method == 'POST':
+                action = 'create'
+            elif request.method in ['PUT', 'PATCH']:
+                action = 'update'
+            elif request.method == 'DELETE':
+                action = 'delete'
+        
+        resource_perms = self.RESOURCE_PERMISSIONS.get(resource, {})
+        action_perms = resource_perms.get(action, 'all_authenticated')
+        
+        if action_perms == 'all_authenticated':
+            return True
+        
+        if isinstance(action_perms, list):
+            return profile.role in action_perms
+        
+        return True
+    
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+        
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return True
+        
+        if hasattr(obj, 'branch') and obj.branch:
+            if profile.branch and profile.branch != obj.branch:
+                if profile.role not in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
+                                         UserRole.REGIONAL_MANAGER]:
+                    return False
+        
+        return True
+
+
+class IsAdminOrManager(permissions.BasePermission):
+    """Permission class for admin and manager level access."""
+    
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return True
+        return profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
+                                 UserRole.BRANCH_MANAGER, UserRole.REGIONAL_MANAGER]
+
+
+class IsTechnicianOrAbove(permissions.BasePermission):
+    """Permission for technician level and above."""
+    
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return True
+        return profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
+                                 UserRole.BRANCH_MANAGER, UserRole.REGIONAL_MANAGER,
+                                 UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]
+
+
+class CanTransitionWorkflow(permissions.BasePermission):
+    """Permission class for workflow stage transitions."""
+    
+    TRANSITION_PERMISSIONS = {
+        'APPOINTMENT': [UserRole.SERVICE_ADVISOR, UserRole.CRM_EXECUTIVE],
+        'CHECK_IN': [UserRole.SERVICE_ADVISOR],
+        'INSPECTION': [UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN],
+        'JOB_CARD': [UserRole.SERVICE_ADVISOR],
+        'ESTIMATE': [UserRole.SERVICE_ADVISOR],
+        'APPROVAL': [UserRole.BRANCH_MANAGER, UserRole.SERVICE_ADVISOR],
+        'EXECUTION': [UserRole.TECHNICIAN],
+        'QC': [UserRole.TECHNICIAN, UserRole.SERVICE_ADVISOR],
+        'BILLING': [UserRole.ACCOUNTS_OFFICER, UserRole.SERVICE_ADVISOR],
+        'DELIVERY': [UserRole.SERVICE_ADVISOR],
+        'COMPLETED': [UserRole.SERVICE_ADVISOR, UserRole.BRANCH_MANAGER],
+    }
+    
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        return True
+    
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return True
+        
+        new_stage = request.data.get('new_stage', '')
+        allowed_roles = self.TRANSITION_PERMISSIONS.get(new_stage, [])
+        
+        if profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
+                            UserRole.BRANCH_MANAGER]:
+            return True
+        
+        return profile.role in allowed_roles

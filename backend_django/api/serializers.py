@@ -1,7 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
-    Profile, Customer, Vehicle, Part, JobCard, Task, TaskPart, TimelineEvent
+    Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
+    ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
+    DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
+    WorkflowStage, UserRole
 )
 
 
@@ -12,19 +15,37 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class BranchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = ['id', 'code', 'name', 'address', 'phone', 'email', 'city', 'state', 'country', 'is_headquarters', 'is_active']
+        read_only_fields = ['id']
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
     
     class Meta:
         model = Profile
-        fields = ['id', 'user', 'role', 'branch_id', 'phone', 'utilization', 'avatar']
+        fields = ['id', 'user', 'role', 'branch', 'branch_name', 'employee_id', 'phone', 'avatar', 'skills', 'is_available', 'created_at']
+
+
+class TechnicianMetricsSerializer(serializers.ModelSerializer):
+    utilization_percentage = serializers.FloatField(read_only=True)
+    
+    class Meta:
+        model = TechnicianMetrics
+        fields = ['total_jobs_completed', 'total_productive_hours', 'total_idle_hours', 'rework_count', 'average_rating', 'utilization_percentage']
 
 
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'name', 'phone', 'email', 'loyalty_points', 'address', 'notes', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'alternate_phone', 'address', 'city', 
+                  'customer_type', 'loyalty_points', 'credit_limit', 'outstanding_balance', 'notes', 
+                  'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'customer_id', 'created_at', 'updated_at']
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -32,8 +53,10 @@ class VehicleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Vehicle
-        fields = ['id', 'customer', 'customer_name', 'vin', 'plate_number', 'make', 'model', 'year', 'color']
-        read_only_fields = ['id']
+        fields = ['id', 'vehicle_id', 'customer', 'customer_name', 'vin', 'plate_number', 'make', 'model', 
+                  'variant', 'year', 'color', 'vehicle_type', 'fuel_type', 'transmission', 'current_odometer',
+                  'insurance_expiry', 'warranty_expiry', 'amc_expiry', 'created_at']
+        read_only_fields = ['id', 'vehicle_id', 'created_at']
 
 
 class CustomerWithVehiclesSerializer(serializers.ModelSerializer):
@@ -41,35 +64,65 @@ class CustomerWithVehiclesSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Customer
-        fields = ['id', 'name', 'phone', 'email', 'loyalty_points', 'address', 'notes', 'vehicles', 'created_at', 'updated_at']
+        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'loyalty_points', 'address', 'notes', 'vehicles', 'created_at', 'updated_at']
 
 
 class PartSerializer(serializers.ModelSerializer):
     available_stock = serializers.IntegerField(read_only=True)
     is_low_stock = serializers.BooleanField(read_only=True)
+    price = serializers.DecimalField(source='selling_price', max_digits=12, decimal_places=2)
     
     class Meta:
         model = Part
-        fields = ['id', 'name', 'sku', 'category', 'stock', 'min_stock', 'price', 'reserved', 'location', 'available_stock', 'is_low_stock']
-        read_only_fields = ['id']
+        fields = ['id', 'part_number', 'name', 'sku', 'category', 'subcategory', 'brand', 'is_oem',
+                  'cost_price', 'price', 'mrp', 'stock', 'min_stock', 'max_stock', 'reserved', 
+                  'location', 'available_stock', 'is_low_stock', 'is_active']
+        read_only_fields = ['id', 'part_number']
 
 
-class TaskPartSerializer(serializers.ModelSerializer):
+class PartIssueSerializer(serializers.ModelSerializer):
     part_name = serializers.CharField(source='part.name', read_only=True)
     part_sku = serializers.CharField(source='part.sku', read_only=True)
     
     class Meta:
-        model = TaskPart
-        fields = ['id', 'task', 'part', 'part_name', 'part_sku', 'quantity', 'price', 'is_reserved']
+        model = PartIssue
+        fields = ['id', 'issue_number', 'job_card', 'task', 'part', 'part_name', 'part_sku', 
+                  'quantity', 'unit_price', 'discount', 'total', 'issued_at', 'is_returned']
+        read_only_fields = ['id', 'issue_number', 'issued_at']
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    parts_used = TaskPartSerializer(many=True, read_only=True)
+    part_issues = PartIssueSerializer(many=True, read_only=True)
+    technician_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Task
-        fields = ['id', 'job_card', 'description', 'status', 'is_completed', 'labor_cost', 'start_time', 'end_time', 'parts_used']
-        read_only_fields = ['id']
+        fields = ['id', 'task_number', 'job_card', 'description', 'category', 'assigned_technician',
+                  'technician_name', 'status', 'priority', 'estimated_hours', 'actual_hours',
+                  'labor_rate', 'labor_cost', 'start_time', 'end_time', 'checklist', 
+                  'checklist_completed', 'evidence_photos', 'technician_notes', 'qc_passed', 
+                  'qc_notes', 'is_rework', 'part_issues', 'created_at']
+        read_only_fields = ['id', 'task_number', 'created_at']
+    
+    def get_technician_name(self, obj):
+        if obj.assigned_technician:
+            return f"{obj.assigned_technician.first_name} {obj.assigned_technician.last_name}".strip() or obj.assigned_technician.username
+        return None
+
+
+class ServiceEventSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ServiceEvent
+        fields = ['id', 'job_card', 'event_type', 'actor', 'actor_name', 'actor_role', 
+                  'old_value', 'new_value', 'comment', 'metadata', 'evidence', 'timestamp']
+        read_only_fields = ['id', 'timestamp']
+    
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return f"{obj.actor.first_name} {obj.actor.last_name}".strip() or obj.actor.username
+        return 'System'
 
 
 class TimelineEventSerializer(serializers.ModelSerializer):
@@ -86,44 +139,121 @@ class TimelineEventSerializer(serializers.ModelSerializer):
         return 'System'
 
 
+class BaySerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = Bay
+        fields = ['id', 'branch', 'branch_name', 'bay_number', 'bay_type', 'is_available', 'current_job']
+
+
+class DigitalInspectionSerializer(serializers.ModelSerializer):
+    inspector_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DigitalInspection
+        fields = ['id', 'job_card', 'inspector', 'inspector_name', 'inspection_date', 
+                  'checklist_data', 'findings', 'recommendations', 'photos', 'videos', 'is_completed']
+    
+    def get_inspector_name(self, obj):
+        if obj.inspector:
+            return f"{obj.inspector.first_name} {obj.inspector.last_name}".strip() or obj.inspector.username
+        return None
+
+
+class EstimateLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    
+    class Meta:
+        model = EstimateLine
+        fields = ['id', 'estimate', 'line_type', 'description', 'part', 'part_name', 
+                  'quantity', 'unit_price', 'discount', 'tax_rate', 'total', 'is_approved']
+
+
+class EstimateSerializer(serializers.ModelSerializer):
+    lines = EstimateLineSerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Estimate
+        fields = ['id', 'job_card', 'version', 'estimate_number', 'labor_total', 'parts_total',
+                  'discount', 'tax', 'grand_total', 'approval_status', 'approved_by', 
+                  'approval_date', 'approval_comment', 'created_by', 'created_by_name', 
+                  'created_at', 'is_current', 'lines']
+        read_only_fields = ['id', 'estimate_number', 'version', 'created_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
 class JobCardSerializer(serializers.ModelSerializer):
     vehicle_info = serializers.SerializerMethodField()
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     advisor_name = serializers.SerializerMethodField()
     technician_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
     
     class Meta:
         model = JobCard
         fields = [
-            'id', 'vehicle', 'vehicle_info', 'customer', 'customer_name',
-            'advisor', 'advisor_name', 'technician', 'technician_name',
-            'status', 'estimated_amount', 'actual_amount', 'sla_deadline',
-            'ai_summary', 'created_at', 'updated_at'
+            'id', 'job_card_number', 'service_tracking_id', 'branch', 'branch_name',
+            'vehicle', 'vehicle_info', 'customer', 'customer_name',
+            'service_advisor', 'advisor_name', 'lead_technician', 'technician_name',
+            'workflow_stage', 'job_type', 'priority', 'complaint', 'diagnosis',
+            'odometer_in', 'estimated_hours', 'estimated_amount', 'actual_amount',
+            'is_warranty', 'is_amc', 'is_insurance', 'is_goodwill',
+            'promised_delivery', 'sla_deadline', 'actual_delivery',
+            'ai_summary', 'customer_rating', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'job_card_number', 'service_tracking_id', 'created_at', 'updated_at']
     
     def get_vehicle_info(self, obj):
         return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
     
     def get_advisor_name(self, obj):
-        if obj.advisor:
-            return f"{obj.advisor.first_name} {obj.advisor.last_name}".strip() or obj.advisor.username
+        if obj.service_advisor:
+            return f"{obj.service_advisor.first_name} {obj.service_advisor.last_name}".strip() or obj.service_advisor.username
         return None
     
     def get_technician_name(self, obj):
-        if obj.technician:
-            return f"{obj.technician.first_name} {obj.technician.last_name}".strip() or obj.technician.username
+        if obj.lead_technician:
+            return f"{obj.lead_technician.first_name} {obj.lead_technician.last_name}".strip() or obj.lead_technician.username
         return None
 
 
 class JobCardDetailSerializer(JobCardSerializer):
     tasks = TaskSerializer(many=True, read_only=True)
-    timeline_events = TimelineEventSerializer(many=True, read_only=True)
+    timeline_events = ServiceEventSerializer(many=True, read_only=True)
+    estimates = EstimateSerializer(many=True, read_only=True)
+    inspection = DigitalInspectionSerializer(read_only=True)
     vehicle_detail = VehicleSerializer(source='vehicle', read_only=True)
     customer_detail = CustomerSerializer(source='customer', read_only=True)
     
     class Meta(JobCardSerializer.Meta):
-        fields = JobCardSerializer.Meta.fields + ['tasks', 'timeline_events', 'vehicle_detail', 'customer_detail']
+        fields = JobCardSerializer.Meta.fields + ['tasks', 'timeline_events', 'estimates', 'inspection', 'vehicle_detail', 'customer_detail']
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    
+    class Meta:
+        model = Invoice
+        fields = ['id', 'invoice_number', 'job_card', 'job_card_number', 'customer', 'customer_name',
+                  'branch', 'labor_total', 'parts_total', 'consumables_total', 'subtotal',
+                  'discount', 'tax', 'grand_total', 'amount_paid', 'balance_due', 'payment_status',
+                  'invoice_date', 'due_date', 'notes']
+        read_only_fields = ['id', 'invoice_number', 'invoice_date']
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'payment_number', 'invoice', 'amount', 'payment_method', 
+                  'reference_number', 'payment_date', 'notes']
+        read_only_fields = ['id', 'payment_number', 'payment_date']
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -141,10 +271,15 @@ class RegisterSerializer(serializers.ModelSerializer):
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', '')
         )
-        Profile.objects.create(user=user)
+        Profile.objects.create(user=user, role=UserRole.CUSTOMER)
         return user
 
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+
+
+class WorkflowTransitionSerializer(serializers.Serializer):
+    new_stage = serializers.ChoiceField(choices=WorkflowStage.choices)
+    comment = serializers.CharField(required=False, allow_blank=True)

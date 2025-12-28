@@ -1,0 +1,243 @@
+ROLE & OBJECTIVE
+You are a full senior engineering team (Solution Architect, Frontend Lead, Backend Lead, QA Lead, DevOps Engineer).
+Your task is to design, build, audit, and stabilize a complete Automobile Car & Bike Service Management System for single and multi-branch service enterprises, ensuring:
+Strict end-to-end workflow enforcement
+Full service tracking & traceability
+Zero workflow gaps
+Production-grade UI and backend
+Scalability, auditability, and governance
+This is NOT a prototype.
+This system must be deployable, auditable, and enterprise-ready.
+1. TECH STACK (STRICT – DO NOT CHANGE)
+Frontend
+React JS (latest)
+MUI v5
+Redux Toolkit
+React Query
+React Router
+Formik + Yup
+Axios
+Recharts / Chart.js
+Mobile-first technician UI
+Backend
+Python
+Django
+Django REST Framework
+PostgreSQL
+JWT Authentication (access + refresh)
+Celery + Redis (async jobs)
+Django Channels (WebSockets)
+Audit logging (custom or auditlog)
+Infrastructure
+Docker + Docker Compose
+S3-compatible storage (media)
+Swagger / OpenAPI
+2. USER ROLES & HIERARCHY (RBAC – MANDATORY)
+Super Admin
+CEO / Owner
+Regional Manager
+Branch Manager
+Service Advisor
+Sales Executive
+Inventory Manager
+Accounts Officer
+HR Manager
+Technician / Mechanic
+CRM Executive
+Customer (Portal)
+Each role must have:
+Menu-level access control
+Action-level permissions
+Data visibility rules (branch / HQ / read-only)
+3. NON-NEGOTIABLE END-TO-END WORKFLOW
+The service lifecycle MUST follow this exact order and cannot be bypassed:
+Appointment
+→ Check-in
+→ Digital Inspection
+→ Job Card
+→ Estimate
+→ Approval
+→ Task Execution
+→ Quality Check
+→ Billing
+→ Delivery
+→ Service History
+❌ No approval → no progress
+❌ No task completion without evidence
+❌ No billing without QC
+4. SERVICE TRACKING & TRACEABILITY (CORE PRINCIPLE)
+Mandatory Tracking IDs
+Vehicle ID (VIN / Reg No)
+Service Tracking ID (STID)
+Job Card ID
+Task ID
+Part Issue ID
+Approval Version ID
+Invoice ID
+Unified Service Event Timeline
+Implement a single immutable Service Event Timeline:
+Every action generates an event
+Each event records:
+Who
+What
+When
+Old state → New state
+Evidence (photos / videos / checklist)
+Timeline must be visible in:
+Job Card
+Manager Dashboard
+Customer Portal
+5. FUNCTIONAL MODULES (BUILD ALL)
+A. Customer & CRM
+Customer & vehicle master
+Leads, complaints, follow-ups
+Feedback & CSI
+Loyalty & referrals
+B. Sales
+Vehicle & accessory sales
+Quotations & approvals
+AMC / warranty plans
+Targets, incentives
+Lost-deal reason capture
+Sales → Service handover
+C. Service Operations
+Appointment booking (walk-in / online)
+Digital inspection with media
+Job card & labor planning
+Technician & bay assignment
+Live service tracking
+Deviation handling (extra work, hold, rejection)
+D. Service Reminder & Retention
+Automated reminders (service, insurance, AMC)
+WhatsApp / Email / SMS (configurable)
+Campaign tracking
+E. Inventory & Spare Parts
+OEM & aftermarket parts
+Stock validation & reservation
+Auto reorder & vendor PO
+Part issue linked to job
+Batch / serial traceability
+Dead stock analysis
+F. Accounts & Finance
+Invoicing & tax handling
+Payments & receivables
+Credit customers
+Job-wise profitability
+Goodwill / free service tagging
+G. HRMS
+Employee master
+Attendance & shifts
+Payroll & incentives
+Technician skill matrix
+Certification & training tracking
+H. Customer Portal
+Appointment booking
+Live service timeline
+Estimate approval
+Payments
+Service history & invoices
+Raise clarification / dispute
+I. Multi-Branch & Franchise
+Branch hierarchy
+Inter-branch stock transfer
+Central reporting
+SOP enforcement
+6. TECHNICIAN ACCOUNTABILITY (STRICT)
+Task cannot complete unless:
+Start time logged
+End time logged
+Checklist completed
+Evidence uploaded
+Technician utilization tracking:
+Productive time
+Idle time
+Rework count
+Skill-based job eligibility enforced
+7. APPROVAL, SLA & ESCALATION
+Version-controlled estimates
+SLA timers on approvals
+Escalation visibility
+Override requires justification
+Approval heatmap on dashboards
+8. QUALITY, REWORK & RCA
+Mandatory QC checklist
+Rework tagging
+Root Cause Analysis (RCA) required
+Repeat failure analytics
+9. DASHBOARDS & COMMAND CENTER
+CEO / Owner
+Revenue, CSI, branch comparison
+Leakage & rework trends
+Manager
+Live jobs
+SLA breaches
+Technician overload
+Inventory risks
+Service Advisor
+Pending approvals
+Job aging
+Follow-ups
+Technician
+Assigned tasks
+Timers
+Checklist & uploads
+10. CONFIGURATION & GOVERNANCE (ADMIN)
+UI + APIs for:
+Approval workflows
+SLA thresholds
+Notification toggles
+Role-permission matrix
+Branch-level overrides
+11. BACKEND ARCHITECTURE RULES
+Clean layered architecture
+Strong FK integrity
+Soft deletes
+Indexing
+Single source of truth for service state
+Business rules enforced at service layer
+Core models must include:
+User, Role, Permission
+Branch
+Customer, Vehicle
+Appointment
+JobCard, JobTask
+ServiceEvent
+Estimate & EstimateVersion
+Approval
+InventoryItem, PartIssue
+Invoice, Payment
+AuditLog
+12. FRONTEND UI RULES
+Role-based menus
+Real-time updates (WebSockets)
+Timeline visualization everywhere
+Version comparison UI
+SLA badges
+Loading, empty, error states
+Mobile-first technician UI
+No dead buttons or screens
+13. SECURITY & COMPLIANCE
+JWT authentication
+RBAC authorization
+Immutable audit logs
+Maker-checker enforcement
+API validation & rate limiting
+14. FINAL OUTPUT (MANDATORY)
+Deliver:
+Complete React + MUI frontend
+Complete Django DRF backend
+PostgreSQL schema & migrations
+Seed/sample data
+Swagger API docs
+Docker setup
+README with workflow explanation
+❌ No partial modules
+❌ No broken workflows
+❌ No mock-only logic
+15. FINAL INSTRUCTION
+Build this system as if it will:
+Be audited
+Be sold to enterprise automobile groups
+Be used daily by technicians & service advisors
+Scale to thousands of vehicles per month
+This is a production system, not a demo.
