@@ -1,21 +1,41 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { Box, Typography, Card, CardContent } from "@mui/material";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { Link } from "wouter";
+import { Button } from "@mui/material";
+import HomeIcon from "@mui/icons-material/Home";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
-
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "grey.50",
+      }}
+      data-testid="page-not-found"
+    >
+      <Card sx={{ maxWidth: 400, mx: 2 }} elevation={2}>
+        <CardContent sx={{ pt: 4, textAlign: "center" }}>
+          <ErrorOutlineIcon sx={{ fontSize: 64, color: "error.main", mb: 2 }} />
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            404
+          </Typography>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Page Not Found
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            The page you&apos;re looking for doesn&apos;t exist or has been moved.
+          </Typography>
+          <Link href="/" style={{ textDecoration: "none" }}>
+            <Button variant="contained" startIcon={<HomeIcon />} data-testid="button-go-home">
+              Go to Dashboard
+            </Button>
+          </Link>
         </CardContent>
       </Card>
-    </div>
+    </Box>
   );
 }

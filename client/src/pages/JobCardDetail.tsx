@@ -1,211 +1,289 @@
-import { Sidebar } from "@/components/Sidebar";
+import { useState } from "react";
+import { AppSidebar } from "@/components/AppSidebar";
 import { useJobCard, useJobCardAIInsight, useCreateTask, useUpdateTask } from "@/hooks/use-job-cards";
 import { useParams } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles, CheckSquare, Square, Save } from "lucide-react";
-import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  CircularProgress,
+  Chip,
+  TextField,
+  IconButton,
+  Grid,
+} from "@mui/material";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+import AddIcon from "@mui/icons-material/Add";
+
+const statusColors: Record<string, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"> = {
+  APPOINTED: "info",
+  CHECKED_IN: "info",
+  IN_PROGRESS: "warning",
+  ON_HOLD: "error",
+  QC_PENDING: "secondary",
+  READY_FOR_DELIVERY: "success",
+  DELIVERED: "default",
+};
 
 export default function JobCardDetail() {
   const { id } = useParams<{ id: string }>();
-  const { data: job, isLoading } = useJobCard(Number(id));
+  const { data: job, isLoading, refetch } = useJobCard(Number(id));
   const generateInsight = useJobCardAIInsight();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
-  const { toast } = useToast();
   const [newTaskDesc, setNewTaskDesc] = useState("");
 
   if (isLoading || !job) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <Box sx={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
+        <CircularProgress size={48} />
+      </Box>
     );
   }
 
   const handleGenerateInsight = () => {
     generateInsight.mutate(job.id, {
       onSuccess: () => {
-        toast({ title: "AI Insight Generated", description: "The insight has been added to the job card." });
-        // In a real app, invalidating the query would refresh the data
-        window.location.reload(); 
-      }
+        refetch();
+      },
     });
   };
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskDesc.trim()) return;
-    
-    createTask.mutate({
-      jobCardId: job.id,
-      description: newTaskDesc,
-      status: "PENDING",
-      isCompleted: false,
-    }, {
-      onSuccess: () => setNewTaskDesc("")
-    });
+
+    createTask.mutate(
+      {
+        job_card: job.id,
+        description: newTaskDesc,
+        status: "PENDING",
+      },
+      {
+        onSuccess: () => {
+          setNewTaskDesc("");
+          refetch();
+        },
+      }
+    );
   };
 
-  const toggleTask = (taskId: number, currentStatus: boolean) => {
-    updateTask.mutate({
-      id: taskId,
-      jobCardId: job.id,
-      isCompleted: !currentStatus,
-      status: !currentStatus ? "COMPLETED" : "PENDING"
-    });
+  const toggleTask = (taskId: number, currentCompleted: boolean) => {
+    updateTask.mutate(
+      {
+        id: taskId,
+        jobCardId: job.id,
+        is_completed: !currentCompleted,
+        status: !currentCompleted ? "COMPLETED" : "PENDING",
+      },
+      {
+        onSuccess: () => refetch(),
+      }
+    );
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50/50">
-      <Sidebar />
-      <main className="flex-1 ml-64 p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold tracking-tight">Job Card #{job.id}</h1>
-              <StatusBadge status={job.status} className="text-sm px-3 py-1" />
-            </div>
-            <p className="text-muted-foreground">Created on {format(new Date(job.createdAt || ''), 'PPP')}</p>
-          </div>
-          <Button 
-            onClick={handleGenerateInsight} 
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "grey.50" }} data-testid="page-job-detail">
+      <AppSidebar />
+      <Box component="main" sx={{ flexGrow: 1, p: 4, ml: "240px" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 4 }}>
+          <Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+              <Typography variant="h4" fontWeight="bold">
+                Job Card #{job.id}
+              </Typography>
+              <Chip label={job.status.replace(/_/g, " ")} color={statusColors[job.status] || "default"} />
+            </Box>
+            <Typography variant="body1" color="text.secondary">
+              Created on {job.created_at ? format(new Date(job.created_at), "PPP") : "Unknown"}
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={generateInsight.isPending ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon />}
+            onClick={handleGenerateInsight}
             disabled={generateInsight.isPending}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg border-none"
+            sx={{ background: "linear-gradient(45deg, #6366f1 30%, #8b5cf6 90%)" }}
+            data-testid="button-ai-insight"
           >
-            {generateInsight.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
             Generate AI Insight
           </Button>
-        </div>
+        </Box>
 
-        <div className="grid grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="col-span-2 space-y-6">
-            {/* Vehicle & Customer Info */}
-            <div className="grid grid-cols-2 gap-6">
-              <Card className="border-none shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Vehicle Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Vehicle</span>
-                    <span className="font-medium">{job.vehicle.make} {job.vehicle.model}</span>
-                  </div>
-                  <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Plate</span>
-                    <span className="font-medium">{job.vehicle.plateNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">VIN</span>
-                    <span className="font-medium">{job.vehicle.vin}</span>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-none shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Customer Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Name</span>
-                    <span className="font-medium">{job.customer.name}</span>
-                  </div>
-                  <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Phone</span>
-                    <span className="font-medium">{job.customer.phone}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email</span>
-                    <span className="font-medium">{job.customer.email}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+        <Grid container spacing={3}>
+          <Grid item xs={12} lg={8}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card elevation={2}>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                      Vehicle Details
+                    </Typography>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1, borderBottom: 1, borderColor: "divider" }}>
+                        <Typography variant="body2" color="text.secondary">Vehicle</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.vehicle_detail?.make} {job.vehicle_detail?.model}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1, borderBottom: 1, borderColor: "divider" }}>
+                        <Typography variant="body2" color="text.secondary">Plate</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.vehicle_detail?.plate_number}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1 }}>
+                        <Typography variant="body2" color="text.secondary">VIN</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.vehicle_detail?.vin}</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-            {/* AI Insight */}
-            {job.aiSummary && (
-              <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-100 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center text-indigo-900">
-                    <Sparkles className="w-4 h-4 mr-2 text-indigo-600" />
-                    AI Diagnostics Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-indigo-800 leading-relaxed">{job.aiSummary}</p>
-                </CardContent>
-              </Card>
-            )}
+              <Grid item xs={12} md={6}>
+                <Card elevation={2}>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                      Customer Details
+                    </Typography>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1, borderBottom: 1, borderColor: "divider" }}>
+                        <Typography variant="body2" color="text.secondary">Name</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.customer_detail?.name}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1, borderBottom: 1, borderColor: "divider" }}>
+                        <Typography variant="body2" color="text.secondary">Phone</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.customer_detail?.phone}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", py: 1 }}>
+                        <Typography variant="body2" color="text.secondary">Email</Typography>
+                        <Typography variant="body2" fontWeight="medium">{job.customer_detail?.email}</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-            {/* Tasks */}
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Service Tasks</CardTitle>
-              </CardHeader>
+              {job.ai_summary && (
+                <Grid item xs={12}>
+                  <Card elevation={2} sx={{ background: "linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%)", border: "1px solid #c7d2fe" }}>
+                    <CardContent>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                        <AutoAwesomeIcon sx={{ color: "#6366f1" }} />
+                        <Typography variant="h6" fontWeight="bold" sx={{ color: "#312e81" }}>
+                          AI Diagnostics Summary
+                        </Typography>
+                      </Box>
+                      <Typography variant="body1" sx={{ color: "#3730a3", lineHeight: 1.7 }}>
+                        {job.ai_summary}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}
+
+              <Grid item xs={12}>
+                <Card elevation={2}>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                      Service Tasks
+                    </Typography>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      {job.tasks?.map((task) => (
+                        <Box
+                          key={task.id}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 2,
+                            p: 1.5,
+                            bgcolor: "grey.100",
+                            borderRadius: 1,
+                            cursor: "pointer",
+                            "&:hover": { bgcolor: "grey.200" },
+                          }}
+                          onClick={() => toggleTask(task.id, task.is_completed)}
+                          data-testid={`task-${task.id}`}
+                        >
+                          <IconButton size="small" sx={{ color: task.is_completed ? "primary.main" : "grey.500" }}>
+                            {task.is_completed ? <CheckBoxIcon /> : <CheckBoxOutlineBlankIcon />}
+                          </IconButton>
+                          <Typography
+                            variant="body1"
+                            sx={{ textDecoration: task.is_completed ? "line-through" : "none", color: task.is_completed ? "text.secondary" : "text.primary" }}
+                          >
+                            {task.description}
+                          </Typography>
+                        </Box>
+                      ))}
+
+                      <Box component="form" onSubmit={handleAddTask} sx={{ display: "flex", gap: 1, mt: 2 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="Add a new task..."
+                          value={newTaskDesc}
+                          onChange={(e) => setNewTaskDesc(e.target.value)}
+                        />
+                        <Button type="submit" variant="contained" disabled={!newTaskDesc.trim()} data-testid="button-add-task">
+                          <AddIcon />
+                        </Button>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Grid>
+
+          <Grid item xs={12} lg={4}>
+            <Card elevation={2} sx={{ height: "100%" }}>
               <CardContent>
-                <div className="space-y-4">
-                  {job.tasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg hover:bg-secondary/40 transition-colors">
-                      <button onClick={() => toggleTask(task.id, task.isCompleted || false)}>
-                        {task.isCompleted ? (
-                          <CheckSquare className="w-5 h-5 text-primary" />
-                        ) : (
-                          <Square className="w-5 h-5 text-muted-foreground" />
-                        )}
-                      </button>
-                      <span className={task.isCompleted ? "line-through text-muted-foreground" : ""}>
-                        {task.description}
-                      </span>
-                    </div>
+                <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
+                  Timeline
+                </Typography>
+                <Box sx={{ position: "relative", borderLeft: 2, borderColor: "grey.300", ml: 1, pl: 3 }}>
+                  {job.timeline_events?.map((event, idx) => (
+                    <Box key={idx} sx={{ position: "relative", mb: 3 }}>
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          left: -19,
+                          top: 4,
+                          width: 12,
+                          height: 12,
+                          borderRadius: "50%",
+                          bgcolor: "primary.main",
+                          border: 3,
+                          borderColor: "background.paper",
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {event.timestamp ? format(new Date(event.timestamp), "PP p") : "Unknown"}
+                      </Typography>
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        {event.event_type.replace(/_/g, " ")}
+                      </Typography>
+                      {event.status && (
+                        <Typography variant="body2" color="text.secondary">
+                          Status: {event.status}
+                        </Typography>
+                      )}
+                      {event.comment && (
+                        <Box sx={{ mt: 1, p: 1.5, bgcolor: "grey.100", borderRadius: 1, fontStyle: "italic" }}>
+                          <Typography variant="body2">&ldquo;{event.comment}&rdquo;</Typography>
+                        </Box>
+                      )}
+                    </Box>
                   ))}
-                  
-                  <form onSubmit={handleAddTask} className="flex gap-2 pt-2">
-                    <Input 
-                      placeholder="Add a new task..." 
-                      value={newTaskDesc}
-                      onChange={(e) => setNewTaskDesc(e.target.value)}
-                      className="bg-transparent"
-                    />
-                    <Button type="submit" size="sm" disabled={!newTaskDesc.trim()}>
-                      <Save className="w-4 h-4" />
-                    </Button>
-                  </form>
-                </div>
+                </Box>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Timeline Sidebar */}
-          <div className="col-span-1">
-            <Card className="border-none shadow-sm h-full">
-              <CardHeader>
-                <CardTitle className="text-lg">Timeline</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="relative border-l border-muted ml-2 space-y-6">
-                  {job.timeline.map((event, idx) => (
-                    <div key={idx} className="ml-6 relative">
-                      <span className="absolute -left-[29px] top-1 w-3 h-3 rounded-full bg-primary ring-4 ring-background" />
-                      <p className="text-xs text-muted-foreground mb-1">
-                        {event.timestamp ? format(new Date(event.timestamp), 'PP p') : 'Unknown date'}
-                      </p>
-                      <h4 className="font-semibold text-sm">{event.type.replace('_', ' ')}</h4>
-                      {event.status && <p className="text-sm mt-1 text-muted-foreground">Status: {event.status}</p>}
-                      {event.comment && <p className="text-sm mt-1 bg-muted p-2 rounded italic">"{event.comment}"</p>}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-    </div>
+          </Grid>
+        </Grid>
+      </Box>
+    </Box>
   );
 }

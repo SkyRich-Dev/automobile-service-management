@@ -1,12 +1,18 @@
-import { Sidebar } from "@/components/Sidebar";
-import { useJobCards, useUpdateJobCard } from "@/hooks/use-job-cards";
-import { StatusBadge } from "@/components/StatusBadge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle } from "lucide-react";
-import { CreateJobCardDialog } from "@/components/CreateJobCardDialog";
+import { AppSidebar } from "@/components/AppSidebar";
+import { useJobCards } from "@/hooks/use-job-cards";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
-import { useAuth } from "@/hooks/use-auth";
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Button,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import WarningIcon from "@mui/icons-material/Warning";
 
 const COLUMNS = [
   { id: "APPOINTED", label: "Appointed" },
@@ -16,88 +22,125 @@ const COLUMNS = [
   { id: "READY_FOR_DELIVERY", label: "Ready" },
 ];
 
+const statusColors: Record<string, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"> = {
+  APPOINTED: "info",
+  CHECKED_IN: "info",
+  IN_PROGRESS: "warning",
+  ON_HOLD: "error",
+  QC_PENDING: "secondary",
+  READY_FOR_DELIVERY: "success",
+  DELIVERED: "default",
+};
+
 export default function ServiceOperations() {
   const { data: jobCards, isLoading } = useJobCards();
-  const { user } = useAuth();
-  const updateJobCard = useUpdateJobCard();
-
-  // Handle Drag & Drop (simplified for this iteration - just render columns)
-  // Real D&D would require dnd-kit or react-beautiful-dnd
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <Box sx={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
+        <CircularProgress size={48} />
+      </Box>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50/50">
-      <Sidebar />
-      <main className="flex-1 ml-64 p-8 overflow-x-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Service Operations</h1>
-            <p className="text-muted-foreground mt-1">Manage service workflow and job cards.</p>
-          </div>
-          <CreateJobCardDialog />
-        </div>
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "grey.50" }} data-testid="page-service">
+      <AppSidebar />
+      <Box component="main" sx={{ flexGrow: 1, p: 4, ml: "240px", overflowX: "auto" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 4 }}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold" gutterBottom>
+              Service Operations
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Manage service workflow and job cards.
+            </Typography>
+          </Box>
+          <Button variant="contained" startIcon={<AddIcon />} data-testid="button-add-job">
+            New Job Card
+          </Button>
+        </Box>
 
-        <div className="flex gap-6 pb-8 min-w-max">
+        <Box sx={{ display: "flex", gap: 3, pb: 4, minWidth: "max-content" }}>
           {COLUMNS.map((column) => {
-            const jobsInColumn = jobCards?.filter(j => j.status === column.id) || [];
-            
+            const jobsInColumn = jobCards?.filter((j) => j.status === column.id) || [];
+
             return (
-              <div key={column.id} className="w-80 flex-shrink-0">
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+              <Box key={column.id} sx={{ width: 300, flexShrink: 0 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, px: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 1 }}>
                     {column.label}
-                  </h3>
-                  <span className="bg-secondary text-secondary-foreground text-xs font-bold px-2 py-1 rounded-full">
-                    {jobsInColumn.length}
-                  </span>
-                </div>
-                
-                <div className="space-y-4">
+                  </Typography>
+                  <Chip label={jobsInColumn.length} size="small" color={statusColors[column.id] || "default"} />
+                </Box>
+
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   {jobsInColumn.map((job) => (
-                    <Link key={job.id} href={`/job-cards/${job.id}`}>
-                      <div className="group cursor-pointer">
-                        <Card className="hover-card-effect border-none shadow-sm transition-all">
-                          <CardContent className="p-4">
-                            <div className="flex justify-between items-start mb-3">
-                              <span className="text-xs font-mono text-muted-foreground">#{job.id}</span>
-                              {job.slaDeadline && new Date(job.slaDeadline) < new Date() && (
-                                <AlertCircle className="w-4 h-4 text-destructive" />
-                              )}
-                            </div>
-                            
-                            <h4 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">
-                              {job.vehicle.make} {job.vehicle.model}
-                            </h4>
-                            <p className="text-sm text-muted-foreground mb-3">{job.customer.name}</p>
-                            
-                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t border-border">
-                              <span>{formatDistanceToNow(new Date(job.createdAt || ''), { addSuffix: true })}</span>
-                              <span className="font-medium text-foreground">${job.estimatedAmount}</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
+                    <Link key={job.id} href={`/job-cards/${job.id}`} style={{ textDecoration: "none" }}>
+                      <Card
+                        elevation={1}
+                        sx={{
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                          "&:hover": { elevation: 4, transform: "translateY(-2px)" },
+                        }}
+                        data-testid={`card-job-${job.id}`}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                            <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                              #{job.id}
+                            </Typography>
+                            {job.sla_deadline && new Date(job.sla_deadline) < new Date() && (
+                              <WarningIcon sx={{ fontSize: 16, color: "error.main" }} />
+                            )}
+                          </Box>
+
+                          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
+                            {job.vehicle_info?.split(" - ")[0] || "Vehicle"}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            {job.customer_name}
+                          </Typography>
+
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1, borderTop: 1, borderColor: "divider" }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {job.created_at ? formatDistanceToNow(new Date(job.created_at), { addSuffix: true }) : "Recently"}
+                            </Typography>
+                            <Typography variant="body2" fontWeight="medium">
+                              ${job.estimated_amount}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
                     </Link>
                   ))}
-                  
+
                   {jobsInColumn.length === 0 && (
-                    <div className="h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-sm text-muted-foreground bg-muted/20">
-                      No jobs
-                    </div>
+                    <Box
+                      sx={{
+                        height: 100,
+                        border: 2,
+                        borderStyle: "dashed",
+                        borderColor: "grey.300",
+                        borderRadius: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: "grey.100",
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        No jobs
+                      </Typography>
+                    </Box>
                   )}
-                </div>
-              </div>
+                </Box>
+              </Box>
             );
           })}
-        </div>
-      </main>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }

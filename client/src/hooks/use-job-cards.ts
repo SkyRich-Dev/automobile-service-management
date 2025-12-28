@@ -1,132 +1,194 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
-import { InsertJobCard, InsertTask } from "@shared/schema";
 
-// GET /api/job-cards
+interface Vehicle {
+  id: number;
+  make: string;
+  model: string;
+  year: number | null;
+  plate_number: string;
+  vin: string;
+  color: string | null;
+}
+
+interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+interface Task {
+  id: number;
+  description: string;
+  status: string;
+  is_completed: boolean;
+  labor_cost: string;
+}
+
+interface TimelineEvent {
+  id: number;
+  event_type: string;
+  status: string | null;
+  actor_name: string;
+  role: string | null;
+  comment: string | null;
+  timestamp: string;
+}
+
+interface JobCard {
+  id: number;
+  vehicle: number;
+  vehicle_info: string;
+  customer: number;
+  customer_name: string;
+  advisor: number | null;
+  advisor_name: string | null;
+  technician: number | null;
+  technician_name: string | null;
+  status: string;
+  estimated_amount: string;
+  actual_amount: string | null;
+  sla_deadline: string | null;
+  ai_summary: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface JobCardDetail extends JobCard {
+  tasks: Task[];
+  timeline_events: TimelineEvent[];
+  vehicle_detail: Vehicle;
+  customer_detail: Customer;
+}
+
+const API_BASE = "/api";
+
 export function useJobCards(status?: string) {
-  return useQuery({
-    queryKey: [api.jobCards.list.path, status],
+  return useQuery<JobCard[]>({
+    queryKey: ["job-cards", status],
     queryFn: async () => {
       const url = status 
-        ? buildUrl(api.jobCards.list.path) + `?status=${status}`
-        : api.jobCards.list.path;
+        ? `${API_BASE}/job-cards/?status=${status}`
+        : `${API_BASE}/job-cards/`;
       
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch job cards");
-      return api.jobCards.list.responses[200].parse(await res.json());
+      return res.json();
     },
   });
 }
 
-// GET /api/job-cards/:id
 export function useJobCard(id: number) {
-  return useQuery({
-    queryKey: [api.jobCards.get.path, id],
+  return useQuery<JobCardDetail | null>({
+    queryKey: ["job-cards", id],
     queryFn: async () => {
-      const url = buildUrl(api.jobCards.get.path, { id });
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(`${API_BASE}/job-cards/${id}/`, { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch job card details");
-      return api.jobCards.get.responses[200].parse(await res.json());
+      return res.json();
     },
     enabled: !!id,
   });
 }
 
-// POST /api/job-cards
 export function useCreateJobCard() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: InsertJobCard) => {
-      const res = await fetch(api.jobCards.create.path, {
-        method: api.jobCards.create.method,
+    mutationFn: async (data: {
+      vehicle: number;
+      customer: number;
+      status?: string;
+      estimated_amount?: string;
+    }) => {
+      const res = await fetch(`${API_BASE}/job-cards/`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create job card");
-      return api.jobCards.create.responses[201].parse(await res.json());
+      return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.jobCards.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["job-cards"] });
     },
   });
 }
 
-// PUT /api/job-cards/:id
 export function useUpdateJobCard() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: number } & Partial<InsertJobCard>) => {
-      const url = buildUrl(api.jobCards.update.path, { id });
-      const res = await fetch(url, {
-        method: api.jobCards.update.method,
+    mutationFn: async ({ id, ...updates }: { id: number } & Partial<JobCard>) => {
+      const res = await fetch(`${API_BASE}/job-cards/${id}/`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update job card");
-      return api.jobCards.update.responses[200].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.jobCards.list.path] });
-      queryClient.invalidateQueries({ queryKey: [api.jobCards.get.path, variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["job-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.id] });
     },
   });
 }
 
-// POST /api/job-cards/:id/ai-insight
 export function useJobCardAIInsight() {
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = buildUrl(api.jobCards.aiInsight.path, { id });
-      const res = await fetch(url, {
-        method: api.jobCards.aiInsight.method,
+      const res = await fetch(`${API_BASE}/job-cards/${id}/ai_insight/`, {
+        method: "POST",
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to generate AI insight");
-      return api.jobCards.aiInsight.responses[200].parse(await res.json());
+      return res.json();
     },
   });
 }
 
-// POST /api/tasks
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: InsertTask) => {
-      const res = await fetch(api.tasks.create.path, {
-        method: api.tasks.create.method,
+    mutationFn: async (data: {
+      job_card: number;
+      description: string;
+      status?: string;
+      labor_cost?: string;
+    }) => {
+      const res = await fetch(`${API_BASE}/tasks/`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create task");
-      return api.tasks.create.responses[201].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.jobCards.get.path, variables.jobCardId] });
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.job_card] });
     },
   });
 }
 
-// PUT /api/tasks/:id
 export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, jobCardId, ...updates }: { id: number, jobCardId: number } & Partial<InsertTask>) => {
-      const url = buildUrl(api.tasks.update.path, { id });
-      const res = await fetch(url, {
-        method: api.tasks.update.method,
+    mutationFn: async ({ id, jobCardId, ...updates }: { id: number; jobCardId: number } & Partial<Task>) => {
+      const res = await fetch(`${API_BASE}/tasks/${id}/`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update task");
-      return api.tasks.update.responses[200].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.jobCards.get.path, variables.jobCardId] });
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.jobCardId] });
     },
   });
 }
+
+export type { JobCard, JobCardDetail, Task, TimelineEvent, Vehicle, Customer };
