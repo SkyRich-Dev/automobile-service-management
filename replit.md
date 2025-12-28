@@ -1,10 +1,10 @@
 # Enterprise Automobile Service Management System
 
 ## Overview
-A comprehensive enterprise-grade Automobile Car & Bike Service Management System built with Django REST Framework backend and Material-UI (MUI) frontend. The system implements a strict 11-stage service workflow with comprehensive RBAC (12+ user roles), immutable audit logging, and multi-branch support.
+A comprehensive enterprise-grade Automobile Car & Bike Service Management System built with Django REST Framework backend and Shadcn/UI + Tailwind CSS frontend. The system implements a strict 11-stage service workflow with comprehensive RBAC (12+ user roles), immutable audit logging, multi-branch support, and enterprise features including appointment scheduling, contract management, supplier procurement, and analytics.
 
 ## Current State
-**Status:** Fully functional enterprise service management system with complete workflow enforcement and RBAC.
+**Status:** Fully functional enterprise service management system with complete workflow enforcement, RBAC, and enterprise modules.
 
 ## Recent Changes (December 2024)
 - Implemented 11-stage workflow state machine: Appointment → Check-in → Inspection → Job Card → Estimate → Approval → Execution → QC → Billing → Delivery → Completed
@@ -12,6 +12,11 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - Created immutable ServiceEvent audit log for complete traceability
 - Built visual workflow pipeline in ServiceOperations page
 - Implemented comprehensive Dashboard with real-time metrics
+- Added enterprise modules:
+  - **Appointments:** Customer booking, confirmation, check-in workflow
+  - **Contracts:** Warranty, AMC, service package, and insurance tracking
+  - **Suppliers:** Vendor management with purchase orders
+  - **Analytics:** Business KPIs, revenue trends, stage distribution
 
 ## User Credentials
 - **Branch Manager:** demo / demo123
@@ -41,6 +46,8 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
   - Branch, Customer, Vehicle, JobCard
   - Task, ServiceEvent, Estimate, Invoice, Payment
   - Profile with roles, TechnicianMetrics
+  - Notification, Contract, Supplier, PurchaseOrder
+  - TechnicianSchedule, Appointment, AnalyticsSnapshot
 
 ## Workflow Stages (11 Total)
 1. **APPOINTMENT** - Customer books service
@@ -62,12 +69,24 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - ACCOUNTANT, CASHIER, RECEPTIONIST, CUSTOMER
 
 ## API Endpoints
+### Core Workflow
 - `POST /api/auth/login/` - User authentication
 - `GET /api/job-cards/` - List job cards (filter by stage)
 - `POST /api/job-cards/{id}/transition/` - Workflow transition
 - `GET /api/job-cards/{id}/allowed_transitions/` - Valid transitions
 - `GET /api/workflow/stages/` - List all workflow stages
 - `GET /api/dashboard/stats/` - Dashboard metrics
+
+### Enterprise Features
+- `GET /api/appointments/` - Appointment management
+- `POST /api/appointments/{id}/confirm/` - Confirm appointment
+- `POST /api/appointments/{id}/check_in/` - Check-in and create job card
+- `GET /api/contracts/` - Contract and warranty management
+- `GET /api/contracts/expiring_soon/` - Contracts expiring soon
+- `GET /api/suppliers/` - Supplier management
+- `GET /api/purchase-orders/` - Purchase order management
+- `GET /api/notifications/` - System notifications
+- `GET /api/analytics/summary/` - Analytics summary with KPIs
 
 ## Running the Project
 The application runs via the "Start application" workflow which executes `npm run dev`, starting both the Express proxy server and Django backend on port 5000.
