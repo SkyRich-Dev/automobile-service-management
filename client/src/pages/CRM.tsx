@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useCustomers, useCreateCustomer } from "@/hooks/use-crm";
+import { useCustomers, useCreateCustomer, useCreateVehicle } from "@/hooks/use-crm";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Mail, Phone, Users, Star, Loader2 } from "lucide-react";
+import { Plus, Mail, Phone, Users, Star, Loader2, Car } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 function LoadingSkeleton() {
   return (
@@ -39,6 +41,8 @@ function LoadingSkeleton() {
 export default function CRM() {
   const { data: customers, isLoading } = useCustomers();
   const createCustomer = useCreateCustomer();
+  const createVehicle = useCreateVehicle();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -47,6 +51,15 @@ export default function CRM() {
     loyalty_points: 0,
     address: "",
     notes: "",
+  });
+  const [vehicleData, setVehicleData] = useState({
+    plate_number: "",
+    make: "",
+    model: "",
+    vin: "",
+    year: "",
+    color: "",
+    vehicle_type: "CAR",
   });
 
   const handleChange = (
@@ -60,10 +73,40 @@ export default function CRM() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleVehicleChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setVehicleData({
+      ...vehicleData,
+      [name]: value,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     createCustomer.mutate(formData, {
-      onSuccess: () => {
+      onSuccess: (newCustomer) => {
+        if (vehicleData.plate_number && vehicleData.model) {
+          createVehicle.mutate({
+            customer: newCustomer.id,
+            plate_number: vehicleData.plate_number,
+            make: vehicleData.make || "Unknown",
+            model: vehicleData.model,
+            vin: vehicleData.vin || `VIN-${Date.now()}`,
+            year: vehicleData.year ? parseInt(vehicleData.year) : null,
+            color: vehicleData.color || null,
+          }, {
+            onSuccess: () => {
+              toast({ title: "Customer and vehicle added successfully" });
+            },
+            onError: () => {
+              toast({ title: "Customer added but failed to add vehicle", variant: "destructive" });
+            }
+          });
+        } else {
+          toast({ title: "Customer added successfully" });
+        }
         setOpen(false);
         setFormData({
           name: "",
@@ -73,7 +116,19 @@ export default function CRM() {
           address: "",
           notes: "",
         });
+        setVehicleData({
+          plate_number: "",
+          make: "",
+          model: "",
+          vin: "",
+          year: "",
+          color: "",
+          vehicle_type: "CAR",
+        });
       },
+      onError: () => {
+        toast({ title: "Failed to create customer", variant: "destructive" });
+      }
     });
   };
 
@@ -139,6 +194,19 @@ export default function CRM() {
                     <Phone className="h-4 w-4" />
                     <span>{customer.phone}</span>
                   </div>
+                  {customer.vehicles && customer.vehicles.length > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Car className="h-4 w-4" />
+                      <span className="truncate">
+                        {customer.vehicles[0].plate_number} - {customer.vehicles[0].make} {customer.vehicles[0].model}
+                      </span>
+                      {customer.vehicles.length > 1 && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          +{customer.vehicles.length - 1}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -161,9 +229,10 @@ export default function CRM() {
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Customer</DialogTitle>
+              <DialogDescription>Add customer details and their vehicle information</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -175,6 +244,7 @@ export default function CRM() {
                   onChange={handleChange}
                   placeholder="Customer name"
                   required
+                  data-testid="input-customer-name"
                 />
               </div>
 
@@ -189,6 +259,7 @@ export default function CRM() {
                     onChange={handleChange}
                     placeholder="email@example.com"
                     required
+                    data-testid="input-customer-email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -200,6 +271,7 @@ export default function CRM() {
                     onChange={handleChange}
                     placeholder="+1 (555) 000-0000"
                     required
+                    data-testid="input-customer-phone"
                   />
                 </div>
               </div>
@@ -212,7 +284,91 @@ export default function CRM() {
                   value={formData.address}
                   onChange={handleChange}
                   placeholder="Street address"
+                  data-testid="input-customer-address"
                 />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Car className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Vehicle Details</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="plate_number">Vehicle Number</Label>
+                    <Input
+                      id="plate_number"
+                      name="plate_number"
+                      value={vehicleData.plate_number}
+                      onChange={handleVehicleChange}
+                      placeholder="ABC-1234"
+                      data-testid="input-vehicle-number"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="model">Vehicle Model</Label>
+                    <Input
+                      id="model"
+                      name="model"
+                      value={vehicleData.model}
+                      onChange={handleVehicleChange}
+                      placeholder="Civic, Corolla, etc."
+                      data-testid="input-vehicle-model"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="make">Make / Brand</Label>
+                    <Input
+                      id="make"
+                      name="make"
+                      value={vehicleData.make}
+                      onChange={handleVehicleChange}
+                      placeholder="Honda, Toyota, etc."
+                      data-testid="input-vehicle-make"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="year">Year</Label>
+                    <Input
+                      id="year"
+                      name="year"
+                      type="number"
+                      value={vehicleData.year}
+                      onChange={handleVehicleChange}
+                      placeholder="2024"
+                      data-testid="input-vehicle-year"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="color">Color</Label>
+                    <Input
+                      id="color"
+                      name="color"
+                      value={vehicleData.color}
+                      onChange={handleVehicleChange}
+                      placeholder="Red, Blue, etc."
+                      data-testid="input-vehicle-color"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vin">VIN (optional)</Label>
+                    <Input
+                      id="vin"
+                      name="vin"
+                      value={vehicleData.vin}
+                      onChange={handleVehicleChange}
+                      placeholder="Vehicle identification number"
+                      data-testid="input-vehicle-vin"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -224,15 +380,16 @@ export default function CRM() {
                   onChange={handleChange}
                   placeholder="Any additional notes..."
                   rows={2}
+                  data-testid="input-customer-notes"
                 />
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} data-testid="button-cancel">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createCustomer.isPending}>
-                  {createCustomer.isPending ? (
+                <Button type="submit" disabled={createCustomer.isPending || createVehicle.isPending} data-testid="button-save-customer">
+                  {(createCustomer.isPending || createVehicle.isPending) ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...

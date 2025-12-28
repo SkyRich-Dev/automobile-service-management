@@ -102,7 +102,7 @@ export function useCreateVehicle() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-      queryClient.invalidateQueries({ queryKey: ["customers", variables.customer] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
     },
   });
 }
