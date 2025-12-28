@@ -4,7 +4,7 @@ from .models import (
     Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
-    WorkflowStage, UserRole
+    WorkflowStage, UserRole, WORKFLOW_TRANSITIONS
 )
 
 
@@ -194,6 +194,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     advisor_name = serializers.SerializerMethodField()
     technician_name = serializers.SerializerMethodField()
     branch_name = serializers.CharField(source='branch.name', read_only=True)
+    allowed_transitions = serializers.SerializerMethodField()
     
     class Meta:
         model = JobCard
@@ -205,7 +206,7 @@ class JobCardSerializer(serializers.ModelSerializer):
             'odometer_in', 'estimated_hours', 'estimated_amount', 'actual_amount',
             'is_warranty', 'is_amc', 'is_insurance', 'is_goodwill',
             'promised_delivery', 'sla_deadline', 'actual_delivery',
-            'ai_summary', 'customer_rating', 'created_at', 'updated_at'
+            'ai_summary', 'customer_rating', 'created_at', 'updated_at', 'allowed_transitions'
         ]
         read_only_fields = ['id', 'job_card_number', 'service_tracking_id', 'created_at', 'updated_at']
     
@@ -221,6 +222,11 @@ class JobCardSerializer(serializers.ModelSerializer):
         if obj.lead_technician:
             return f"{obj.lead_technician.first_name} {obj.lead_technician.last_name}".strip() or obj.lead_technician.username
         return None
+    
+    def get_allowed_transitions(self, obj):
+        current_stage = obj.workflow_stage
+        allowed = WORKFLOW_TRANSITIONS.get(current_stage, [])
+        return [{'value': stage.value, 'label': stage.label} for stage in allowed]
 
 
 class JobCardDetailSerializer(JobCardSerializer):
