@@ -81,7 +81,12 @@ export default function Analytics() {
   const [period, setPeriod] = useState("30");
 
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
-    queryKey: ["/api/analytics/summary", { days: period }],
+    queryKey: ["analytics", "summary", period],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/summary/?days=${period}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json();
+    },
   });
 
   const stageData = analytics?.stage_distribution?.map((item) => ({

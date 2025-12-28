@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery } from "@tanstack/react-query";
-import { format, differenceInDays } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   Shield,
   Calendar,
   AlertTriangle,
   CheckCircle,
-  Clock,
   Car,
   User,
   Filter,
@@ -75,11 +74,25 @@ export default function Contracts() {
   const [showExpiring, setShowExpiring] = useState(false);
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
-    queryKey: ["/api/contracts", { type: typeFilter !== "all" ? typeFilter : undefined }],
+    queryKey: ["contracts", typeFilter],
+    queryFn: async () => {
+      let url = "/api/contracts/";
+      if (typeFilter !== "all") {
+        url += `?contract_type=${typeFilter}`;
+      }
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch contracts");
+      return res.json();
+    },
   });
 
   const { data: expiringContracts = [] } = useQuery<Contract[]>({
-    queryKey: ["/api/contracts/expiring_soon", { days: 30 }],
+    queryKey: ["contracts", "expiring_soon"],
+    queryFn: async () => {
+      const res = await fetch("/api/contracts/expiring_soon/?days=30", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   const filteredContracts = (showExpiring ? expiringContracts : contracts).filter((contract) => {
@@ -118,7 +131,7 @@ export default function Contracts() {
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Active</p>
                     <p className="text-2xl font-bold" data-testid="text-total-active">{activeContracts.length}</p>
@@ -129,7 +142,7 @@ export default function Contracts() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Warranties</p>
                     <p className="text-2xl font-bold text-blue-600">{warrantyContracts.length}</p>
@@ -140,7 +153,7 @@ export default function Contracts() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">AMC Contracts</p>
                     <p className="text-2xl font-bold text-green-600">{amcContracts.length}</p>
@@ -151,7 +164,7 @@ export default function Contracts() {
             </Card>
             <Card className={cn(expiringContracts.length > 0 && "border-orange-500")}>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Expiring Soon</p>
                     <p className="text-2xl font-bold text-orange-600" data-testid="text-expiring-count">
@@ -216,7 +229,7 @@ export default function Contracts() {
                 <Card
                   key={contract.id}
                   className={cn(
-                    "overflow-hidden",
+                    "overflow-visible",
                     contract.is_expired && "opacity-60",
                     contract.days_remaining <= 30 && contract.days_remaining > 0 && "border-orange-500"
                   )}

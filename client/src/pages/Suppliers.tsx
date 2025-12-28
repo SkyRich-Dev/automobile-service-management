@@ -77,11 +77,25 @@ export default function Suppliers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<Supplier[]>({
-    queryKey: ["/api/suppliers"],
+    queryKey: ["suppliers"],
+    queryFn: async () => {
+      const res = await fetch("/api/suppliers/", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch suppliers");
+      return res.json();
+    },
   });
 
   const { data: purchaseOrders = [], isLoading: ordersLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ["/api/purchase-orders", { status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["purchase-orders", statusFilter],
+    queryFn: async () => {
+      let url = "/api/purchase-orders/";
+      if (statusFilter !== "all") {
+        url += `?status=${statusFilter}`;
+      }
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch purchase orders");
+      return res.json();
+    },
   });
 
   const activeSuppliers = suppliers.filter((s) => s.is_active);
