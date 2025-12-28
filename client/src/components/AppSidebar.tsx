@@ -12,6 +12,10 @@ import {
   LogOut,
   ChevronRight,
   Car,
+  Calendar,
+  Shield,
+  Truck,
+  BarChart3,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,11 +28,12 @@ import {
 const menuItems = [
   { text: "Dashboard", icon: LayoutDashboard, path: "/" },
   { text: "Service Operations", icon: Wrench, path: "/service" },
+  { text: "Appointments", icon: Calendar, path: "/appointments" },
   { text: "Inventory", icon: Package, path: "/inventory" },
+  { text: "Suppliers", icon: Truck, path: "/suppliers" },
   { text: "CRM", icon: Users, path: "/crm" },
-  { text: "Accounts", icon: Wallet, path: "/accounts" },
-  { text: "HRMS", icon: UserCog, path: "/hrms" },
-  { text: "Settings", icon: Settings, path: "/settings" },
+  { text: "Contracts", icon: Shield, path: "/contracts" },
+  { text: "Analytics", icon: BarChart3, path: "/analytics" },
 ];
 
 export function AppSidebar() {
@@ -51,7 +56,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-          Main Menu
+          Operations
         </div>
         {menuItems.slice(0, 4).map((item) => {
           const isActive = location === item.path;

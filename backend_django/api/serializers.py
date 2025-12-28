@@ -4,7 +4,9 @@ from .models import (
     Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
-    WorkflowStage, UserRole, WORKFLOW_TRANSITIONS
+    WorkflowStage, UserRole, WORKFLOW_TRANSITIONS,
+    Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
+    TechnicianSchedule, Appointment, AnalyticsSnapshot
 )
 
 
@@ -289,3 +291,131 @@ class LoginSerializer(serializers.Serializer):
 class WorkflowTransitionSerializer(serializers.Serializer):
     new_stage = serializers.ChoiceField(choices=WorkflowStage.choices)
     comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    recipient_name = serializers.SerializerMethodField()
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'notification_id', 'recipient', 'recipient_name', 'customer', 'customer_name',
+                  'notification_type', 'channel', 'title', 'message', 'job_card', 'job_card_number',
+                  'is_read', 'is_sent', 'sent_at', 'read_at', 'metadata', 'created_at']
+        read_only_fields = ['id', 'notification_id', 'created_at']
+    
+    def get_recipient_name(self, obj):
+        if obj.recipient:
+            return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip() or obj.recipient.username
+        return None
+
+
+class ContractSerializer(serializers.ModelSerializer):
+    vehicle_info = serializers.SerializerMethodField()
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    days_remaining = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Contract
+        fields = ['id', 'contract_number', 'vehicle', 'vehicle_info', 'customer', 'customer_name',
+                  'contract_type', 'provider', 'policy_number', 'start_date', 'end_date',
+                  'coverage_amount', 'deductible', 'premium', 'services_included', 'services_used',
+                  'max_services', 'terms_conditions', 'is_active', 'is_expired', 'days_remaining',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'contract_number', 'created_at', 'updated_at']
+    
+    def get_vehicle_info(self, obj):
+        return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+
+
+class SupplierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Supplier
+        fields = ['id', 'supplier_id', 'name', 'contact_person', 'phone', 'email', 'address',
+                  'city', 'state', 'gst_number', 'pan_number', 'payment_terms', 'credit_limit',
+                  'outstanding_balance', 'rating', 'categories', 'is_active', 'created_at']
+        read_only_fields = ['id', 'supplier_id', 'created_at']
+
+
+class PurchaseOrderLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    
+    class Meta:
+        model = PurchaseOrderLine
+        fields = ['id', 'purchase_order', 'part', 'part_name', 'part_sku', 'quantity_ordered',
+                  'quantity_received', 'unit_price', 'tax_rate', 'total']
+
+
+class PurchaseOrderSerializer(serializers.ModelSerializer):
+    lines = PurchaseOrderLineSerializer(many=True, read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PurchaseOrder
+        fields = ['id', 'po_number', 'branch', 'branch_name', 'supplier', 'supplier_name',
+                  'status', 'order_date', 'expected_delivery', 'actual_delivery', 'subtotal',
+                  'tax', 'shipping', 'grand_total', 'notes', 'created_by', 'created_by_name',
+                  'approved_by', 'created_at', 'updated_at', 'lines']
+        read_only_fields = ['id', 'po_number', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class TechnicianScheduleSerializer(serializers.ModelSerializer):
+    technician_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    working_hours = serializers.FloatField(read_only=True)
+    
+    class Meta:
+        model = TechnicianSchedule
+        fields = ['id', 'technician', 'technician_name', 'branch', 'branch_name', 'date',
+                  'shift_start', 'shift_end', 'break_start', 'break_end', 'is_available',
+                  'is_on_leave', 'leave_reason', 'notes', 'working_hours', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def get_technician_name(self, obj):
+        return f"{obj.technician.first_name} {obj.technician.last_name}".strip() or obj.technician.username
+
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    vehicle_info = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    advisor_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Appointment
+        fields = ['id', 'appointment_id', 'customer', 'customer_name', 'vehicle', 'vehicle_info',
+                  'branch', 'branch_name', 'service_advisor', 'advisor_name', 'appointment_date',
+                  'appointment_time', 'estimated_duration', 'service_type', 'complaint', 'status',
+                  'job_card', 'reminder_sent', 'confirmation_sent', 'notes', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'appointment_id', 'created_at', 'updated_at']
+    
+    def get_vehicle_info(self, obj):
+        return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+    
+    def get_advisor_name(self, obj):
+        if obj.service_advisor:
+            return f"{obj.service_advisor.first_name} {obj.service_advisor.last_name}".strip() or obj.service_advisor.username
+        return None
+
+
+class AnalyticsSnapshotSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = AnalyticsSnapshot
+        fields = ['id', 'branch', 'branch_name', 'date', 'total_jobs', 'completed_jobs', 'revenue',
+                  'labor_revenue', 'parts_revenue', 'average_job_value', 'average_cycle_time',
+                  'sla_compliance_rate', 'customer_satisfaction', 'technician_utilization',
+                  'first_time_fix_rate', 'new_customers', 'repeat_customers', 'appointments_scheduled',
+                  'appointments_completed', 'created_at']
+        read_only_fields = ['id', 'created_at']

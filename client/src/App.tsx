@@ -11,6 +11,10 @@ import ServiceOperations from "@/pages/ServiceOperations";
 import Inventory from "@/pages/Inventory";
 import CRM from "@/pages/CRM";
 import JobCardDetail from "@/pages/JobCardDetail";
+import Appointments from "@/pages/Appointments";
+import Contracts from "@/pages/Contracts";
+import Suppliers from "@/pages/Suppliers";
+import Analytics from "@/pages/Analytics";
 import NotFound from "@/pages/not-found";
 
 function LoadingScreen() {
@@ -47,6 +51,10 @@ function Router() {
       <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} />} />
       <Route path="/crm" component={() => <ProtectedRoute component={CRM} />} />
       <Route path="/job-cards/:id" component={() => <ProtectedRoute component={JobCardDetail} />} />
+      <Route path="/appointments" component={() => <ProtectedRoute component={Appointments} />} />
+      <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} />} />
+      <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} />} />
+      <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={Dashboard} />} />

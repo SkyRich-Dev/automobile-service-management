@@ -1,0 +1,326 @@
+import { useState } from "react";
+import { AppSidebar } from "@/components/AppSidebar";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Calendar,
+  Clock,
+  Car,
+  User,
+  Phone,
+  Plus,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Filter,
+  Search,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+interface Appointment {
+  id: number;
+  appointment_id: string;
+  customer: number;
+  customer_name: string;
+  vehicle: number;
+  vehicle_info: string;
+  branch: number;
+  branch_name: string;
+  service_advisor: number | null;
+  advisor_name: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  estimated_duration: string;
+  service_type: string;
+  complaint: string;
+  status: string;
+  job_card: number | null;
+  reminder_sent: boolean;
+  confirmation_sent: boolean;
+  notes: string;
+  created_at: string;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  SCHEDULED: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  CONFIRMED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  CHECKED_IN: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  NO_SHOW: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  COMPLETED: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+};
+
+export default function Appointments() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
+    queryKey: ["/api/appointments", { date: selectedDate, status: statusFilter !== "all" ? statusFilter : undefined }],
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/appointments/${id}/confirm/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({ title: "Appointment confirmed" });
+    },
+  });
+
+  const checkInMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/appointments/${id}/check_in/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      toast({ title: "Customer checked in, job card created" });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      apiRequest("POST", `/api/appointments/${id}/cancel/`, { reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({ title: "Appointment cancelled" });
+    },
+  });
+
+  const filteredAppointments = appointments.filter((apt) => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        apt.customer_name?.toLowerCase().includes(query) ||
+        apt.vehicle_info?.toLowerCase().includes(query) ||
+        apt.appointment_id?.toLowerCase().includes(query)
+      );
+    }
+    return true;
+  });
+
+  const groupedByTime = filteredAppointments.reduce((acc, apt) => {
+    const time = apt.appointment_time.slice(0, 5);
+    if (!acc[time]) acc[time] = [];
+    acc[time].push(apt);
+    return acc;
+  }, {} as Record<string, Appointment[]>);
+
+  const sortedTimes = Object.keys(groupedByTime).sort();
+
+  return (
+    <div className="flex h-screen w-full bg-background">
+      <AppSidebar />
+      <main className="flex-1 overflow-auto">
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">Appointments</h1>
+              <p className="text-muted-foreground">Manage service appointments and bookings</p>
+            </div>
+            <Button data-testid="button-new-appointment">
+              <Plus className="h-4 w-4 mr-2" />
+              New Appointment
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search appointments..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
+            </div>
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-40"
+              data-testid="input-date"
+            />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40" data-testid="select-status-filter">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                <SelectItem value="CHECKED_IN">Checked In</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Today</p>
+                    <p className="text-2xl font-bold" data-testid="text-total-appointments">{appointments.length}</p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-primary opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Confirmed</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {appointments.filter((a) => a.status === "CONFIRMED").length}
+                    </p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {appointments.filter((a) => a.status === "SCHEDULED").length}
+                    </p>
+                  </div>
+                  <AlertCircle className="h-8 w-8 text-blue-500 opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Checked In</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {appointments.filter((a) => a.status === "CHECKED_IN").length}
+                    </p>
+                  </div>
+                  <Car className="h-8 w-8 text-purple-500 opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : sortedTimes.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No appointments for this date</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {sortedTimes.map((time) => (
+                <div key={time} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{time}</span>
+                    <Badge variant="outline">{groupedByTime[time].length} appointments</Badge>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {groupedByTime[time].map((apt) => (
+                      <Card key={apt.id} className="overflow-hidden" data-testid={`card-appointment-${apt.id}`}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <CardTitle className="text-sm font-medium">{apt.appointment_id}</CardTitle>
+                              <p className="text-xs text-muted-foreground">{apt.service_type}</p>
+                            </div>
+                            <Badge className={cn("text-xs", STATUS_COLORS[apt.status])}>
+                              {apt.status.replace("_", " ")}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{apt.customer_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Car className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate">{apt.vehicle_info}</span>
+                          </div>
+                          {apt.complaint && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">{apt.complaint}</p>
+                          )}
+                          <div className="flex gap-2 pt-2">
+                            {apt.status === "SCHEDULED" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => confirmMutation.mutate(apt.id)}
+                                disabled={confirmMutation.isPending}
+                                data-testid={`button-confirm-${apt.id}`}
+                              >
+                                Confirm
+                              </Button>
+                            )}
+                            {(apt.status === "SCHEDULED" || apt.status === "CONFIRMED") && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => checkInMutation.mutate(apt.id)}
+                                  disabled={checkInMutation.isPending}
+                                  data-testid={`button-checkin-${apt.id}`}
+                                >
+                                  Check In
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => cancelMutation.mutate({ id: apt.id, reason: "Customer cancelled" })}
+                                  disabled={cancelMutation.isPending}
+                                  data-testid={`button-cancel-${apt.id}`}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

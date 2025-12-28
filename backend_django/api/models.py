@@ -664,3 +664,282 @@ class TimelineEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} - {self.timestamp}"
+
+
+class NotificationType(models.TextChoices):
+    APPOINTMENT_REMINDER = 'APPOINTMENT_REMINDER', 'Appointment Reminder'
+    SERVICE_UPDATE = 'SERVICE_UPDATE', 'Service Update'
+    ESTIMATE_READY = 'ESTIMATE_READY', 'Estimate Ready'
+    APPROVAL_REQUIRED = 'APPROVAL_REQUIRED', 'Approval Required'
+    SERVICE_COMPLETE = 'SERVICE_COMPLETE', 'Service Complete'
+    PAYMENT_RECEIVED = 'PAYMENT_RECEIVED', 'Payment Received'
+    INVOICE_GENERATED = 'INVOICE_GENERATED', 'Invoice Generated'
+    WARRANTY_EXPIRY = 'WARRANTY_EXPIRY', 'Warranty Expiry'
+    AMC_EXPIRY = 'AMC_EXPIRY', 'AMC Expiry'
+    FEEDBACK_REQUEST = 'FEEDBACK_REQUEST', 'Feedback Request'
+    GENERAL = 'GENERAL', 'General'
+
+
+class NotificationChannel(models.TextChoices):
+    EMAIL = 'EMAIL', 'Email'
+    SMS = 'SMS', 'SMS'
+    PUSH = 'PUSH', 'Push Notification'
+    IN_APP = 'IN_APP', 'In-App'
+    WHATSAPP = 'WHATSAPP', 'WhatsApp'
+
+
+class Notification(models.Model):
+    notification_id = models.CharField(max_length=50, unique=True, blank=True)
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    notification_type = models.CharField(max_length=30, choices=NotificationType.choices)
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices, default=NotificationChannel.IN_APP)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    job_card = models.ForeignKey(JobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    is_read = models.BooleanField(default=False)
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.notification_id:
+            self.notification_id = f"NOTIF-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.notification_type} - {self.title}"
+
+
+class ContractType(models.TextChoices):
+    WARRANTY = 'WARRANTY', 'Warranty'
+    EXTENDED_WARRANTY = 'EXTENDED_WARRANTY', 'Extended Warranty'
+    AMC = 'AMC', 'Annual Maintenance Contract'
+    SERVICE_PACKAGE = 'SERVICE_PACKAGE', 'Service Package'
+    INSURANCE = 'INSURANCE', 'Insurance'
+
+
+class Contract(models.Model):
+    contract_number = models.CharField(max_length=50, unique=True, blank=True)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='contracts')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='contracts')
+    contract_type = models.CharField(max_length=30, choices=ContractType.choices)
+    provider = models.CharField(max_length=255, blank=True)
+    policy_number = models.CharField(max_length=100, blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    coverage_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    deductible = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    premium = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    services_included = models.JSONField(default=list)
+    services_used = models.IntegerField(default=0)
+    max_services = models.IntegerField(null=True, blank=True)
+    terms_conditions = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-end_date']
+
+    def save(self, *args, **kwargs):
+        if not self.contract_number:
+            prefix = self.contract_type[:3] if self.contract_type else 'CON'
+            self.contract_number = f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return self.end_date < timezone.now().date()
+
+    @property
+    def days_remaining(self):
+        delta = self.end_date - timezone.now().date()
+        return max(0, delta.days)
+
+    def __str__(self):
+        return f"{self.contract_number} - {self.vehicle}"
+
+
+class Supplier(models.Model):
+    supplier_id = models.CharField(max_length=50, unique=True, blank=True)
+    name = models.CharField(max_length=255)
+    contact_person = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField()
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    gst_number = models.CharField(max_length=50, blank=True)
+    pan_number = models.CharField(max_length=20, blank=True)
+    payment_terms = models.CharField(max_length=100, default='Net 30')
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    outstanding_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    categories = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.supplier_id:
+            self.supplier_id = f"SUP-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.supplier_id} - {self.name}"
+
+
+class PurchaseOrderStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    ORDERED = 'ORDERED', 'Ordered'
+    PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED', 'Partially Received'
+    RECEIVED = 'RECEIVED', 'Received'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class PurchaseOrder(models.Model):
+    po_number = models.CharField(max_length=50, unique=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='purchase_orders')
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='purchase_orders')
+    status = models.CharField(max_length=30, choices=PurchaseOrderStatus.choices, default=PurchaseOrderStatus.DRAFT)
+    order_date = models.DateField(null=True, blank=True)
+    expected_delivery = models.DateField(null=True, blank=True)
+    actual_delivery = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    shipping = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_pos')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_pos')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.po_number:
+            self.po_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.po_number} - {self.supplier.name}"
+
+
+class PurchaseOrderLine(models.Model):
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='lines')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity_ordered = models.IntegerField(default=1)
+    quantity_received = models.IntegerField(default=0)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.part.name} x {self.quantity_ordered}"
+
+
+class TechnicianSchedule(models.Model):
+    technician = models.ForeignKey(User, on_delete=models.CASCADE, related_name='schedules')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='schedules')
+    date = models.DateField()
+    shift_start = models.TimeField()
+    shift_end = models.TimeField()
+    break_start = models.TimeField(null=True, blank=True)
+    break_end = models.TimeField(null=True, blank=True)
+    is_available = models.BooleanField(default=True)
+    is_on_leave = models.BooleanField(default=False)
+    leave_reason = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        unique_together = ['technician', 'date']
+        ordering = ['date', 'shift_start']
+
+    @property
+    def working_hours(self):
+        from datetime import datetime, timedelta
+        start = datetime.combine(self.date, self.shift_start)
+        end = datetime.combine(self.date, self.shift_end)
+        total = (end - start).seconds / 3600
+        if self.break_start and self.break_end:
+            break_start = datetime.combine(self.date, self.break_start)
+            break_end = datetime.combine(self.date, self.break_end)
+            total -= (break_end - break_start).seconds / 3600
+        return round(total, 2)
+
+    def __str__(self):
+        return f"{self.technician.username} - {self.date}"
+
+
+class Appointment(models.Model):
+    class AppointmentStatus(models.TextChoices):
+        SCHEDULED = 'SCHEDULED', 'Scheduled'
+        CONFIRMED = 'CONFIRMED', 'Confirmed'
+        CHECKED_IN = 'CHECKED_IN', 'Checked In'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+        NO_SHOW = 'NO_SHOW', 'No Show'
+        COMPLETED = 'COMPLETED', 'Completed'
+
+    appointment_id = models.CharField(max_length=50, unique=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='appointments')
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='appointments')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='appointments')
+    service_advisor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='appointments')
+    appointment_date = models.DateField()
+    appointment_time = models.TimeField()
+    estimated_duration = models.DecimalField(max_digits=4, decimal_places=2, default=2)
+    service_type = models.CharField(max_length=100)
+    complaint = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=AppointmentStatus.choices, default=AppointmentStatus.SCHEDULED)
+    job_card = models.OneToOneField(JobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='appointment')
+    reminder_sent = models.BooleanField(default=False)
+    confirmation_sent = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['appointment_date', 'appointment_time']
+
+    def save(self, *args, **kwargs):
+        if not self.appointment_id:
+            self.appointment_id = f"APT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.appointment_id} - {self.customer.name}"
+
+
+class AnalyticsSnapshot(models.Model):
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='analytics', null=True, blank=True)
+    date = models.DateField()
+    total_jobs = models.IntegerField(default=0)
+    completed_jobs = models.IntegerField(default=0)
+    revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    labor_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    parts_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    average_job_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    average_cycle_time = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    sla_compliance_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    customer_satisfaction = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    technician_utilization = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    first_time_fix_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    new_customers = models.IntegerField(default=0)
+    repeat_customers = models.IntegerField(default=0)
+    appointments_scheduled = models.IntegerField(default=0)
+    appointments_completed = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        unique_together = ['branch', 'date']
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Analytics {self.date} - {self.branch.name if self.branch else 'All'}"

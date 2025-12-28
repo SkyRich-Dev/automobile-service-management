@@ -18,6 +18,13 @@ router.register(r'invoices', views.InvoiceViewSet, basename='invoices')
 router.register(r'payments', views.PaymentViewSet, basename='payments')
 router.register(r'service-events', views.ServiceEventViewSet, basename='service-events')
 router.register(r'timeline-events', views.TimelineEventViewSet, basename='timeline-events')
+router.register(r'notifications', views.NotificationViewSet, basename='notifications')
+router.register(r'contracts', views.ContractViewSet, basename='contracts')
+router.register(r'suppliers', views.SupplierViewSet, basename='suppliers')
+router.register(r'purchase-orders', views.PurchaseOrderViewSet, basename='purchase-orders')
+router.register(r'technician-schedules', views.TechnicianScheduleViewSet, basename='technician-schedules')
+router.register(r'appointments', views.AppointmentViewSet, basename='appointments')
+router.register(r'analytics-snapshots', views.AnalyticsSnapshotViewSet, basename='analytics-snapshots')
 
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
@@ -27,6 +34,7 @@ urlpatterns = [
     
     path('dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
     path('workflow/stages/', views.workflow_stages, name='workflow_stages'),
+    path('analytics/summary/', views.analytics_summary, name='analytics_summary'),
     
     path('', include(router.urls)),
 ]

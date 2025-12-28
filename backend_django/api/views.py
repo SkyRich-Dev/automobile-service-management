@@ -13,7 +13,9 @@ from .models import (
     Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
-    WorkflowStage, UserRole, ServiceEventType
+    WorkflowStage, UserRole, ServiceEventType,
+    Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
+    TechnicianSchedule, Appointment, AnalyticsSnapshot
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -27,7 +29,10 @@ from .serializers import (
     EstimateSerializer, EstimateLineSerializer,
     InvoiceSerializer, PaymentSerializer,
     DigitalInspectionSerializer, BaySerializer,
-    RegisterSerializer, LoginSerializer, WorkflowTransitionSerializer
+    RegisterSerializer, LoginSerializer, WorkflowTransitionSerializer,
+    NotificationSerializer, ContractSerializer, SupplierSerializer,
+    PurchaseOrderSerializer, TechnicianScheduleSerializer,
+    AppointmentSerializer, AnalyticsSnapshotSerializer
 )
 
 
@@ -571,3 +576,342 @@ def workflow_stages(request):
         {'value': stage.value, 'label': stage.label}
         for stage in WorkflowStage
     ])
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Notification.objects.all()
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(recipient=self.request.user)
+        unread_only = self.request.query_params.get('unread', None)
+        if unread_only == 'true':
+            queryset = queryset.filter(is_read=False)
+        return queryset.order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.read_at = timezone.now()
+        notification.save()
+        return Response(NotificationSerializer(notification).data)
+    
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True, read_at=timezone.now())
+        return Response({'message': 'All notifications marked as read'})
+
+
+class ContractViewSet(viewsets.ModelViewSet):
+    queryset = Contract.objects.all()
+    serializer_class = ContractSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = Contract.objects.all()
+        customer_id = self.request.query_params.get('customer_id', None)
+        vehicle_id = self.request.query_params.get('vehicle_id', None)
+        contract_type = self.request.query_params.get('type', None)
+        active_only = self.request.query_params.get('active', None)
+        
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if vehicle_id:
+            queryset = queryset.filter(vehicle_id=vehicle_id)
+        if contract_type:
+            queryset = queryset.filter(contract_type=contract_type)
+        if active_only == 'true':
+            queryset = queryset.filter(is_active=True, end_date__gte=timezone.now().date())
+        
+        return queryset.order_by('-end_date')
+    
+    @action(detail=False, methods=['get'])
+    def expiring_soon(self, request):
+        from datetime import timedelta
+        days = int(request.query_params.get('days', 30))
+        expiry_date = timezone.now().date() + timedelta(days=days)
+        contracts = self.get_queryset().filter(
+            is_active=True,
+            end_date__lte=expiry_date,
+            end_date__gte=timezone.now().date()
+        )
+        return Response(ContractSerializer(contracts, many=True).data)
+
+
+class SupplierViewSet(viewsets.ModelViewSet):
+    queryset = Supplier.objects.all()
+    serializer_class = SupplierSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = Supplier.objects.all()
+        active_only = self.request.query_params.get('active', None)
+        category = self.request.query_params.get('category', None)
+        
+        if active_only == 'true':
+            queryset = queryset.filter(is_active=True)
+        if category:
+            queryset = queryset.filter(categories__contains=[category])
+        
+        return queryset.order_by('name')
+
+
+class PurchaseOrderViewSet(viewsets.ModelViewSet):
+    queryset = PurchaseOrder.objects.all()
+    serializer_class = PurchaseOrderSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = PurchaseOrder.objects.all()
+        supplier_id = self.request.query_params.get('supplier_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        branch_id = self.request.query_params.get('branch_id', None)
+        
+        if supplier_id:
+            queryset = queryset.filter(supplier_id=supplier_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        po = self.get_object()
+        po.status = 'APPROVED'
+        po.approved_by = request.user
+        po.save()
+        return Response(PurchaseOrderSerializer(po).data)
+    
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        po = self.get_object()
+        lines = request.data.get('lines', [])
+        
+        for line_data in lines:
+            line = PurchaseOrderLine.objects.get(id=line_data['id'])
+            line.quantity_received = line_data.get('quantity_received', line.quantity_ordered)
+            line.save()
+            
+            part = line.part
+            part.stock += line.quantity_received
+            part.last_purchase_date = timezone.now().date()
+            part.save()
+        
+        all_received = all(
+            line.quantity_received >= line.quantity_ordered 
+            for line in po.lines.all()
+        )
+        po.status = 'RECEIVED' if all_received else 'PARTIALLY_RECEIVED'
+        po.actual_delivery = timezone.now().date()
+        po.save()
+        
+        return Response(PurchaseOrderSerializer(po).data)
+
+
+class TechnicianScheduleViewSet(viewsets.ModelViewSet):
+    queryset = TechnicianSchedule.objects.all()
+    serializer_class = TechnicianScheduleSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = TechnicianSchedule.objects.all()
+        technician_id = self.request.query_params.get('technician_id', None)
+        branch_id = self.request.query_params.get('branch_id', None)
+        date = self.request.query_params.get('date', None)
+        date_from = self.request.query_params.get('date_from', None)
+        date_to = self.request.query_params.get('date_to', None)
+        
+        if technician_id:
+            queryset = queryset.filter(technician_id=technician_id)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if date:
+            queryset = queryset.filter(date=date)
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
+        
+        return queryset.order_by('date', 'shift_start')
+    
+    @action(detail=False, methods=['get'])
+    def available_technicians(self, request):
+        date = request.query_params.get('date', timezone.now().date())
+        branch_id = request.query_params.get('branch_id', None)
+        
+        schedules = self.get_queryset().filter(
+            date=date,
+            is_available=True,
+            is_on_leave=False
+        )
+        if branch_id:
+            schedules = schedules.filter(branch_id=branch_id)
+        
+        return Response(TechnicianScheduleSerializer(schedules, many=True).data)
+
+
+class AppointmentViewSet(viewsets.ModelViewSet):
+    queryset = Appointment.objects.all()
+    serializer_class = AppointmentSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = Appointment.objects.all()
+        customer_id = self.request.query_params.get('customer_id', None)
+        branch_id = self.request.query_params.get('branch_id', None)
+        date = self.request.query_params.get('date', None)
+        date_from = self.request.query_params.get('date_from', None)
+        date_to = self.request.query_params.get('date_to', None)
+        status_filter = self.request.query_params.get('status', None)
+        
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if date:
+            queryset = queryset.filter(appointment_date=date)
+        if date_from:
+            queryset = queryset.filter(appointment_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(appointment_date__lte=date_to)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('appointment_date', 'appointment_time')
+    
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        appointment = self.get_object()
+        appointment.status = 'CONFIRMED'
+        appointment.confirmation_sent = True
+        appointment.save()
+        return Response(AppointmentSerializer(appointment).data)
+    
+    @action(detail=True, methods=['post'])
+    def check_in(self, request, pk=None):
+        appointment = self.get_object()
+        appointment.status = 'CHECKED_IN'
+        appointment.save()
+        
+        job_card = JobCard.objects.create(
+            vehicle=appointment.vehicle,
+            customer=appointment.customer,
+            branch=appointment.branch,
+            service_advisor=appointment.service_advisor,
+            workflow_stage=WorkflowStage.CHECK_IN,
+            job_type=appointment.service_type,
+            complaint=appointment.complaint,
+            created_by=request.user
+        )
+        appointment.job_card = job_card
+        appointment.save()
+        
+        return Response({
+            'appointment': AppointmentSerializer(appointment).data,
+            'job_card': JobCardSerializer(job_card).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        appointment = self.get_object()
+        appointment.status = 'CANCELLED'
+        appointment.notes = request.data.get('reason', appointment.notes)
+        appointment.save()
+        return Response(AppointmentSerializer(appointment).data)
+
+
+class AnalyticsSnapshotViewSet(viewsets.ModelViewSet):
+    queryset = AnalyticsSnapshot.objects.all()
+    serializer_class = AnalyticsSnapshotSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = AnalyticsSnapshot.objects.all()
+        branch_id = self.request.query_params.get('branch_id', None)
+        date_from = self.request.query_params.get('date_from', None)
+        date_to = self.request.query_params.get('date_to', None)
+        
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
+        
+        return queryset.order_by('-date')
+
+
+@api_view(['GET'])
+def analytics_summary(request):
+    from datetime import timedelta
+    
+    today = timezone.now().date()
+    days = int(request.query_params.get('days', 30))
+    start_date = today - timedelta(days=days)
+    branch_id = request.query_params.get('branch_id', None)
+    
+    job_cards = JobCard.objects.filter(
+        is_deleted=False,
+        created_at__date__gte=start_date
+    )
+    if branch_id:
+        job_cards = job_cards.filter(branch_id=branch_id)
+    
+    total_jobs = job_cards.count()
+    completed_jobs = job_cards.filter(workflow_stage=WorkflowStage.COMPLETED).count()
+    
+    invoices = Invoice.objects.filter(invoice_date__date__gte=start_date)
+    if branch_id:
+        invoices = invoices.filter(branch_id=branch_id)
+    
+    total_revenue = invoices.aggregate(total=Sum('grand_total'))['total'] or 0
+    labor_revenue = invoices.aggregate(total=Sum('labor_total'))['total'] or 0
+    parts_revenue = invoices.aggregate(total=Sum('parts_total'))['total'] or 0
+    
+    avg_job_value = total_revenue / completed_jobs if completed_jobs > 0 else 0
+    
+    sla_met = job_cards.filter(
+        workflow_stage=WorkflowStage.COMPLETED,
+        actual_delivery__lte=F('sla_deadline')
+    ).count()
+    sla_compliance = (sla_met / completed_jobs * 100) if completed_jobs > 0 else 0
+    
+    new_customers = Customer.objects.filter(created_at__date__gte=start_date).count()
+    
+    appointments = Appointment.objects.filter(appointment_date__gte=start_date)
+    if branch_id:
+        appointments = appointments.filter(branch_id=branch_id)
+    appointments_scheduled = appointments.count()
+    appointments_completed = appointments.filter(status='COMPLETED').count()
+    
+    stage_distribution = job_cards.values('workflow_stage').annotate(count=Count('id'))
+    
+    daily_revenue = invoices.extra(
+        select={'day': 'DATE(invoice_date)'}
+    ).values('day').annotate(revenue=Sum('grand_total')).order_by('day')
+    
+    return Response({
+        'period_days': days,
+        'total_jobs': total_jobs,
+        'completed_jobs': completed_jobs,
+        'completion_rate': round(completed_jobs / total_jobs * 100, 2) if total_jobs > 0 else 0,
+        'total_revenue': float(total_revenue),
+        'labor_revenue': float(labor_revenue),
+        'parts_revenue': float(parts_revenue),
+        'average_job_value': float(avg_job_value),
+        'sla_compliance_rate': round(sla_compliance, 2),
+        'new_customers': new_customers,
+        'appointments_scheduled': appointments_scheduled,
+        'appointments_completed': appointments_completed,
+        'stage_distribution': list(stage_distribution),
+        'daily_revenue': list(daily_revenue)
+    })
