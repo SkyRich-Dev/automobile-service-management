@@ -246,7 +246,8 @@ class RoleBasedPermission(permissions.BasePermission):
             return True
         
         if isinstance(action_perms, list):
-            return profile.role in action_perms
+            allowed_roles = [r.value if hasattr(r, 'value') else r for r in action_perms]
+            return profile.role in allowed_roles
         
         return True
     
@@ -263,8 +264,8 @@ class RoleBasedPermission(permissions.BasePermission):
         
         if hasattr(obj, 'branch') and obj.branch:
             if profile.branch and profile.branch != obj.branch:
-                if profile.role not in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
-                                         UserRole.REGIONAL_MANAGER]:
+                if profile.role not in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, 
+                                         UserRole.REGIONAL_MANAGER.value]:
                     return False
         
         return True
@@ -281,8 +282,8 @@ class IsAdminOrManager(permissions.BasePermission):
         profile = getattr(request.user, 'profile', None)
         if not profile:
             return True
-        return profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
-                                 UserRole.BRANCH_MANAGER, UserRole.REGIONAL_MANAGER]
+        return profile.role in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, 
+                                 UserRole.BRANCH_MANAGER.value, UserRole.REGIONAL_MANAGER.value]
 
 
 class IsTechnicianOrAbove(permissions.BasePermission):
@@ -296,9 +297,9 @@ class IsTechnicianOrAbove(permissions.BasePermission):
         profile = getattr(request.user, 'profile', None)
         if not profile:
             return True
-        return profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
-                                 UserRole.BRANCH_MANAGER, UserRole.REGIONAL_MANAGER,
-                                 UserRole.SERVICE_ADVISOR, UserRole.TECHNICIAN]
+        return profile.role in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, 
+                                 UserRole.BRANCH_MANAGER.value, UserRole.REGIONAL_MANAGER.value,
+                                 UserRole.SERVICE_ADVISOR.value, UserRole.TECHNICIAN.value]
 
 
 class CanTransitionWorkflow(permissions.BasePermission):
@@ -336,10 +337,11 @@ class CanTransitionWorkflow(permissions.BasePermission):
             return True
         
         new_stage = request.data.get('new_stage', '')
-        allowed_roles = self.TRANSITION_PERMISSIONS.get(new_stage, [])
+        allowed_roles_enum = self.TRANSITION_PERMISSIONS.get(new_stage, [])
+        allowed_roles = [r.value if hasattr(r, 'value') else r for r in allowed_roles_enum]
         
-        if profile.role in [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, 
-                            UserRole.BRANCH_MANAGER]:
+        if profile.role in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, 
+                            UserRole.BRANCH_MANAGER.value]:
             return True
         
         return profile.role in allowed_roles
