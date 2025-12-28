@@ -1,238 +1,299 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useJobCards } from "@/hooks/use-job-cards";
 import { AppSidebar } from "@/components/AppSidebar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  CircularProgress,
-  Chip,
-  LinearProgress,
-  Grid,
-} from "@mui/material";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import BuildIcon from "@mui/icons-material/Build";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PeopleIcon from "@mui/icons-material/People";
-import WarningIcon from "@mui/icons-material/Warning";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+  TrendingUp,
+  Wrench,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  ArrowUpRight,
+  Activity,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
 
-const stageColors: Record<string, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"> = {
-  APPOINTMENT: "info",
-  CHECK_IN: "info",
-  INSPECTION: "primary",
-  JOB_CARD: "primary",
-  ESTIMATE: "secondary",
-  APPROVAL: "warning",
-  EXECUTION: "warning",
-  QC: "secondary",
-  BILLING: "success",
-  DELIVERY: "success",
-  COMPLETED: "default",
-};
-
-const STAGE_COLORS = [
-  "#64b5f6", "#4fc3f7", "#4dd0e1", "#4db6ac", "#81c784",
-  "#aed581", "#dce775", "#fff176", "#ffb74d", "#ff8a65", "#90a4ae"
+const WORKFLOW_STAGES = [
+  { id: "APPOINTMENT", label: "Appt", color: "from-blue-400 to-blue-500" },
+  { id: "CHECK_IN", label: "Check-in", color: "from-cyan-400 to-cyan-500" },
+  { id: "INSPECTION", label: "Inspect", color: "from-teal-400 to-teal-500" },
+  { id: "JOB_CARD", label: "Job Card", color: "from-emerald-400 to-emerald-500" },
+  { id: "ESTIMATE", label: "Estimate", color: "from-green-400 to-green-500" },
+  { id: "APPROVAL", label: "Approval", color: "from-lime-400 to-lime-500" },
+  { id: "EXECUTION", label: "Exec", color: "from-yellow-400 to-yellow-500" },
+  { id: "QC", label: "QC", color: "from-amber-400 to-amber-500" },
+  { id: "BILLING", label: "Billing", color: "from-orange-400 to-orange-500" },
+  { id: "DELIVERY", label: "Delivery", color: "from-red-400 to-red-500" },
+  { id: "COMPLETED", label: "Done", color: "from-slate-400 to-slate-500" },
 ];
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  trend,
+  color,
+}: {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: React.ElementType;
+  trend?: string;
+  color: string;
+}) {
+  return (
+    <Card className="card-hover stat-glow border-border/50">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight">{value}</span>
+              {trend && (
+                <span className="flex items-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <ArrowUpRight className="h-3 w-3" />
+                  {trend}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+          <div className={cn("rounded-xl p-2.5", color)}>
+            <Icon className="h-5 w-5 text-white" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar />
+      <main className="ml-64 flex-1 p-6">
+        <div className="mb-8">
+          <div className="skeleton mb-2 h-8 w-48" />
+          <div className="skeleton h-4 w-72" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="skeleton h-32 rounded-xl" />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { data: jobCards, isLoading } = useJobCards();
 
   if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
-        <CircularProgress size={48} />
-      </Box>
-    );
+    return <LoadingSkeleton />;
   }
 
   const totalJobs = jobCards?.length || 0;
-  const inExecution = jobCards?.filter((j) => j.workflow_stage === "EXECUTION" || j.status === "EXECUTION").length || 0;
-  const completed = jobCards?.filter((j) => j.workflow_stage === "COMPLETED" || j.status === "COMPLETED").length || 0;
-  const pendingApproval = jobCards?.filter((j) => j.workflow_stage === "APPROVAL" || j.status === "APPROVAL").length || 0;
-  const inQC = jobCards?.filter((j) => j.workflow_stage === "QC" || j.status === "QC").length || 0;
+  const inExecution = jobCards?.filter((j) => j.workflow_stage === "EXECUTION").length || 0;
+  const pendingApproval = jobCards?.filter((j) => j.workflow_stage === "APPROVAL").length || 0;
+  const inQC = jobCards?.filter((j) => j.workflow_stage === "QC").length || 0;
+  const completed = jobCards?.filter((j) => j.workflow_stage === "COMPLETED").length || 0;
   const revenue = jobCards?.reduce((acc, curr) => acc + Number(curr.estimated_amount || 0), 0) || 0;
 
-  const stageData = [
-    { name: "Appointment", value: jobCards?.filter((j) => j.workflow_stage === "APPOINTMENT").length || 0 },
-    { name: "Check-in", value: jobCards?.filter((j) => j.workflow_stage === "CHECK_IN").length || 0 },
-    { name: "Inspection", value: jobCards?.filter((j) => j.workflow_stage === "INSPECTION").length || 0 },
-    { name: "Job Card", value: jobCards?.filter((j) => j.workflow_stage === "JOB_CARD").length || 0 },
-    { name: "Estimate", value: jobCards?.filter((j) => j.workflow_stage === "ESTIMATE").length || 0 },
-    { name: "Approval", value: jobCards?.filter((j) => j.workflow_stage === "APPROVAL").length || 0 },
-    { name: "Execution", value: jobCards?.filter((j) => j.workflow_stage === "EXECUTION").length || 0 },
-    { name: "QC", value: jobCards?.filter((j) => j.workflow_stage === "QC").length || 0 },
-    { name: "Billing", value: jobCards?.filter((j) => j.workflow_stage === "BILLING").length || 0 },
-    { name: "Delivery", value: jobCards?.filter((j) => j.workflow_stage === "DELIVERY").length || 0 },
-    { name: "Completed", value: jobCards?.filter((j) => j.workflow_stage === "COMPLETED").length || 0 },
-  ].filter(d => d.value > 0);
+  const stageData = WORKFLOW_STAGES.map((stage) => ({
+    name: stage.label,
+    value: jobCards?.filter((j) => j.workflow_stage === stage.id).length || 0,
+  })).filter((d) => d.value > 0);
 
   const statsCards = [
-    { title: "Total Revenue", value: `$${revenue.toLocaleString()}`, subtitle: "From all job cards", icon: TrendingUpIcon, color: "#10b981" },
-    { title: "In Execution", value: inExecution, subtitle: "Jobs being worked on", icon: BuildIcon, color: "#3b82f6" },
-    { title: "Pending Approval", value: pendingApproval, subtitle: "Awaiting customer approval", icon: WarningIcon, color: "#f59e0b" },
-    { title: "In QC", value: inQC, subtitle: "Quality check pending", icon: CheckCircleIcon, color: "#8b5cf6" },
+    {
+      title: "Total Revenue",
+      value: `$${revenue.toLocaleString()}`,
+      subtitle: "From all service jobs",
+      icon: TrendingUp,
+      trend: "+12%",
+      color: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+    },
+    {
+      title: "In Execution",
+      value: inExecution,
+      subtitle: "Jobs being worked on",
+      icon: Wrench,
+      color: "bg-gradient-to-br from-blue-500 to-blue-600",
+    },
+    {
+      title: "Pending Approval",
+      value: pendingApproval,
+      subtitle: "Awaiting customer OK",
+      icon: Clock,
+      color: "bg-gradient-to-br from-amber-500 to-amber-600",
+    },
+    {
+      title: "Quality Check",
+      value: inQC,
+      subtitle: "Inspection pending",
+      icon: CheckCircle,
+      color: "bg-gradient-to-br from-violet-500 to-violet-600",
+    },
   ];
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "grey.50" }} data-testid="page-dashboard">
+    <div className="flex min-h-screen bg-background gradient-mesh" data-testid="page-dashboard">
       <AppSidebar />
-      <Box component="main" sx={{ flexGrow: 1, p: 4, ml: "240px" }}>
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" fontWeight="bold" gutterBottom data-testid="text-dashboard-title">
+      <main className="ml-64 flex-1 p-6">
+        <header className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
             Dashboard
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Welcome back, {user?.first_name || user?.username}. Here&apos;s your service operations overview.
-          </Typography>
-        </Box>
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Welcome back, {user?.first_name || user?.username}. Here's your operations overview.
+          </p>
+        </header>
 
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {statsCards.map((stat, index) => (
-            <Grid item key={stat.title} xs={12} sm={6} md={3}>
-              <Card elevation={2} data-testid={`card-stat-${index}`}>
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.title}
-                    </Typography>
-                    <stat.icon sx={{ color: stat.color, fontSize: 20 }} />
-                  </Box>
-                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 0.5 }}>
-                    {stat.value}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {stat.subtitle}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+            <StatCard key={stat.title} {...stat} data-testid={`card-stat-${index}`} />
           ))}
-        </Grid>
+        </div>
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} lg={8}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" fontWeight="medium" sx={{ mb: 2 }}>
-                  Jobs by Workflow Stage
-                </Typography>
-                <Box sx={{ height: 300 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stageData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E2E8F0" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#64748B" }} />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#64748B" }} width={80} />
-                      <Tooltip
-                        cursor={{ fill: "#F1F5F9" }}
-                        contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
-                      />
-                      <Bar dataKey="value" fill="#1976d2" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} lg={4}>
-            <Card elevation={2} sx={{ height: "100%" }}>
-              <CardContent>
-                <Typography variant="h6" fontWeight="medium" sx={{ mb: 2 }}>
-                  Recent Job Cards
-                </Typography>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {jobCards?.slice(0, 6).map((job) => (
-                    <Box
-                      key={job.id}
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        p: 1.5,
-                        bgcolor: "grey.100",
-                        borderRadius: 1,
+        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2 border-border/50">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-base font-semibold">Jobs by Stage</CardTitle>
+              <Badge variant="secondary" className="text-xs">
+                {totalJobs} Total
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stageData} layout="vertical" margin={{ left: 0, right: 20 }}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={true}
+                      vertical={false}
+                      stroke="hsl(var(--border))"
+                    />
+                    <XAxis
+                      type="number"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                      width={70}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid hsl(var(--border))",
+                        background: "hsl(var(--card))",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                       }}
-                      data-testid={`card-job-${job.id}`}
-                    >
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography variant="body2" fontWeight="medium" noWrap>
-                          {job.job_card_number || `#${job.id}`}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap>
-                          {job.customer_name}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        label={(job.workflow_stage || job.status || "").replace(/_/g, " ")}
-                        size="small"
-                        color={stageColors[job.workflow_stage || job.status || ""] || "default"}
-                        sx={{ fontSize: 10, height: 22 }}
-                      />
-                    </Box>
-                  ))}
-                  {(!jobCards || jobCards.length === 0) && (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
-                      No recent jobs found.
-                    </Typography>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="hsl(var(--primary))"
+                      radius={[0, 6, 6, 0]}
+                      maxBarSize={32}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Grid item xs={12}>
-            <Card elevation={2}>
-              <CardContent>
-                <Typography variant="h6" fontWeight="medium" sx={{ mb: 2 }}>
-                  Workflow Pipeline Overview
-                </Typography>
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                  {[
-                    { stage: "APPOINTMENT", label: "Appointment" },
-                    { stage: "CHECK_IN", label: "Check-in" },
-                    { stage: "INSPECTION", label: "Inspection" },
-                    { stage: "JOB_CARD", label: "Job Card" },
-                    { stage: "ESTIMATE", label: "Estimate" },
-                    { stage: "APPROVAL", label: "Approval" },
-                    { stage: "EXECUTION", label: "Execution" },
-                    { stage: "QC", label: "QC" },
-                    { stage: "BILLING", label: "Billing" },
-                    { stage: "DELIVERY", label: "Delivery" },
-                    { stage: "COMPLETED", label: "Complete" },
-                  ].map((item, index) => {
-                    const count = jobCards?.filter((j) => j.workflow_stage === item.stage || j.status === item.stage).length || 0;
-                    return (
-                      <Box
-                        key={item.stage}
-                        sx={{
-                          flex: 1,
-                          minWidth: 80,
-                          p: 1.5,
-                          bgcolor: STAGE_COLORS[index],
-                          borderRadius: 1,
-                          textAlign: "center",
-                        }}
-                      >
-                        <Typography variant="h5" fontWeight="bold" sx={{ color: index < 8 ? "black" : "white" }}>
-                          {count}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: index < 8 ? "black" : "white", opacity: 0.8 }}>
-                          {item.label}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-    </Box>
+          <Card className="border-border/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">Recent Jobs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {jobCards?.slice(0, 6).map((job) => (
+                  <div
+                    key={job.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
+                    data-testid={`card-job-${job.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {job.job_card_number || `#${job.id}`}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {job.customer_name}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0 text-[10px] font-semibold",
+                        job.workflow_stage === "COMPLETED" && "badge-success",
+                        job.workflow_stage === "EXECUTION" && "badge-info",
+                        job.workflow_stage === "APPROVAL" && "badge-warning"
+                      )}
+                    >
+                      {(job.workflow_stage || "").replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                ))}
+                {(!jobCards || jobCards.length === 0) && (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No recent jobs found
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="mt-6 border-border/50">
+          <CardHeader className="flex flex-row items-center gap-2 pb-3">
+            <Activity className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base font-semibold">Workflow Pipeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {WORKFLOW_STAGES.map((stage) => {
+                const count = jobCards?.filter((j) => j.workflow_stage === stage.id).length || 0;
+                return (
+                  <div
+                    key={stage.id}
+                    className={cn(
+                      "flex min-w-[90px] flex-1 flex-col items-center rounded-xl p-4 text-white",
+                      `bg-gradient-to-br ${stage.color}`
+                    )}
+                  >
+                    <span className="text-2xl font-bold">{count}</span>
+                    <span className="mt-0.5 text-[11px] font-medium opacity-90">
+                      {stage.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
   );
 }

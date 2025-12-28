@@ -1,41 +1,34 @@
-import { Box, Typography, Card, CardContent } from "@mui/material";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { Link } from "wouter";
-import { Button } from "@mui/material";
-import HomeIcon from "@mui/icons-material/Home";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Home } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        bgcolor: "grey.50",
-      }}
+    <div
+      className="flex min-h-screen w-full items-center justify-center bg-background gradient-mesh p-4"
       data-testid="page-not-found"
     >
-      <Card sx={{ maxWidth: 400, mx: 2 }} elevation={2}>
-        <CardContent sx={{ pt: 4, textAlign: "center" }}>
-          <ErrorOutlineIcon sx={{ fontSize: 64, color: "error.main", mb: 2 }} />
-          <Typography variant="h4" fontWeight="bold" gutterBottom>
-            404
-          </Typography>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
+      <Card className="max-w-md border-border/50 shadow-xl">
+        <CardContent className="flex flex-col items-center py-10 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+            <AlertCircle className="h-8 w-8 text-destructive" />
+          </div>
+          <h1 className="mb-2 text-4xl font-bold">404</h1>
+          <h2 className="mb-2 text-lg font-semibold text-muted-foreground">
             Page Not Found
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            The page you&apos;re looking for doesn&apos;t exist or has been moved.
-          </Typography>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <Button variant="contained" startIcon={<HomeIcon />} data-testid="button-go-home">
+          </h2>
+          <p className="mb-6 text-sm text-muted-foreground">
+            The page you're looking for doesn't exist or has been moved.
+          </p>
+          <Link href="/">
+            <Button className="gap-2" data-testid="button-go-home">
+              <Home className="h-4 w-4" />
               Go to Dashboard
             </Button>
           </Link>
         </CardContent>
       </Card>
-    </Box>
+    </div>
   );
 }

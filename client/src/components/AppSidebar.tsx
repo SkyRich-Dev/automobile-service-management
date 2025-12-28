@@ -1,157 +1,156 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 import {
-  Box,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Typography,
-  Avatar,
-  Divider,
-  Button,
-} from "@mui/material";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import BuildIcon from "@mui/icons-material/Build";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import PeopleIcon from "@mui/icons-material/People";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
-import BadgeIcon from "@mui/icons-material/Badge";
-import SettingsIcon from "@mui/icons-material/Settings";
-import LogoutIcon from "@mui/icons-material/Logout";
-
-const drawerWidth = 240;
+  LayoutDashboard,
+  Wrench,
+  Package,
+  Users,
+  Wallet,
+  UserCog,
+  Settings,
+  LogOut,
+  ChevronRight,
+  Car,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const menuItems = [
-  { text: "Dashboard", icon: DashboardIcon, path: "/" },
-  { text: "Service", icon: BuildIcon, path: "/service" },
-  { text: "Inventory", icon: InventoryIcon, path: "/inventory" },
-  { text: "CRM", icon: PeopleIcon, path: "/crm" },
-  { text: "Accounts", icon: AccountBalanceIcon, path: "/accounts" },
-  { text: "HRMS", icon: BadgeIcon, path: "/hrms" },
-  { text: "Settings", icon: SettingsIcon, path: "/settings" },
+  { text: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { text: "Service Operations", icon: Wrench, path: "/service" },
+  { text: "Inventory", icon: Package, path: "/inventory" },
+  { text: "CRM", icon: Users, path: "/crm" },
+  { text: "Accounts", icon: Wallet, path: "/accounts" },
+  { text: "HRMS", icon: UserCog, path: "/hrms" },
+  { text: "Settings", icon: Settings, path: "/settings" },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
 
   return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-        "& .MuiDrawer-paper": {
-          width: drawerWidth,
-          boxSizing: "border-box",
-          bgcolor: "grey.900",
-          color: "white",
-        },
-      }}
-    >
-      <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            bgcolor: "primary.main",
-            borderRadius: 1.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <BuildIcon sx={{ color: "white" }} />
-        </Box>
-        <Box>
-          <Typography variant="subtitle1" fontWeight="bold">
-            AutoServ
-          </Typography>
-          <Typography variant="caption" sx={{ color: "grey.400" }}>
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
+          <Car className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-base font-bold tracking-tight">AutoServ</span>
+          <span className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/50">
             Enterprise
-          </Typography>
-        </Box>
-      </Box>
+          </span>
+        </div>
+      </div>
 
-      <Divider sx={{ borderColor: "grey.700" }} />
-
-      <List sx={{ px: 1, py: 2, flexGrow: 1 }}>
-        {menuItems.map((item) => {
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+          Main Menu
+        </div>
+        {menuItems.slice(0, 4).map((item) => {
           const isActive = location === item.path;
+          const Icon = item.icon;
           return (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
-              <Link href={item.path} style={{ width: "100%", textDecoration: "none" }}>
-                <ListItemButton
-                  selected={isActive}
-                  sx={{
-                    borderRadius: 1,
-                    "&.Mui-selected": {
-                      bgcolor: "primary.main",
-                      "&:hover": {
-                        bgcolor: "primary.dark",
-                      },
-                    },
-                    "&:hover": {
-                      bgcolor: "grey.800",
-                    },
-                  }}
-                  data-testid={`nav-${item.text.toLowerCase()}`}
-                >
-                  <ListItemIcon sx={{ color: isActive ? "white" : "grey.400", minWidth: 40 }}>
-                    <item.icon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={item.text}
-                    primaryTypographyProps={{
-                      fontSize: 14,
-                      color: isActive ? "white" : "grey.300",
-                    }}
-                  />
-                </ListItemButton>
-              </Link>
-            </ListItem>
+            <Link key={item.text} href={item.path}>
+              <div
+                className={cn(
+                  "sidebar-item group cursor-pointer",
+                  isActive && "active"
+                )}
+                data-testid={`nav-${item.text.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <Icon className={cn(
+                  "h-4.5 w-4.5 transition-colors",
+                  isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground"
+                )} />
+                <span className={cn(
+                  "flex-1 transition-colors",
+                  !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
+                )}>
+                  {item.text}
+                </span>
+                {isActive && (
+                  <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
+                )}
+              </div>
+            </Link>
           );
         })}
-      </List>
 
-      <Divider sx={{ borderColor: "grey.700" }} />
+        <div className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+          Management
+        </div>
+        {menuItems.slice(4).map((item) => {
+          const isActive = location === item.path;
+          const Icon = item.icon;
+          return (
+            <Link key={item.text} href={item.path}>
+              <div
+                className={cn(
+                  "sidebar-item group cursor-pointer",
+                  isActive && "active"
+                )}
+                data-testid={`nav-${item.text.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <Icon className={cn(
+                  "h-4.5 w-4.5 transition-colors",
+                  isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground"
+                )} />
+                <span className={cn(
+                  "flex-1 transition-colors",
+                  !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
+                )}>
+                  {item.text}
+                </span>
+                {isActive && (
+                  <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
 
-      <Box sx={{ p: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
-          <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main" }}>
-            {user?.first_name?.[0] || user?.username?.[0] || "U"}
+      <div className="border-t border-sidebar-border p-4">
+        <div className="mb-3 flex items-center gap-3">
+          <Avatar className="h-10 w-10 border-2 border-sidebar-border">
+            <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-sm font-semibold text-white">
+              {user?.first_name?.[0] || user?.username?.[0]?.toUpperCase() || "U"}
+            </AvatarFallback>
           </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" fontWeight="medium" noWrap>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">
               {user?.first_name || user?.username || "User"}
-            </Typography>
-            <Typography variant="caption" sx={{ color: "grey.400" }} noWrap>
-              {user?.email || ""}
-            </Typography>
-          </Box>
-        </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          fullWidth
-          startIcon={<LogoutIcon />}
-          onClick={() => logout()}
-          sx={{
-            borderColor: "grey.600",
-            color: "grey.300",
-            "&:hover": {
-              borderColor: "grey.500",
-              bgcolor: "grey.800",
-            },
-          }}
-          data-testid="button-logout"
-        >
-          Logout
-        </Button>
-      </Box>
-    </Drawer>
+            </p>
+            <p className="truncate text-xs text-sidebar-foreground/50">
+              {profile?.role?.replace(/_/g, " ") || "Team Member"}
+            </p>
+          </div>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={() => logout()}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            Sign out of your account
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </aside>
   );
 }

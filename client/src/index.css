@@ -1,74 +1,141 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-sans: 'Inter', sans-serif;
-  --font-display: 'Inter', sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
 
-  /* Professional Enterprise Palette - Blue/Gray/White */
-  --background: 210 40% 98%;
+  /* Modern Automotive Enterprise Palette - Light Mode */
+  --background: 220 20% 97%;
   --foreground: 222 47% 11%;
 
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
+  --card-border: 220 13% 91%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
+  --popover-border: 220 13% 91%;
 
-  /* Primary Blue - Trustworthy & Professional */
+  /* Primary - Cobalt Blue */
   --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 221 83% 43%;
 
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222 47% 11.2%;
+  /* Secondary - Slate */
+  --secondary: 215 20% 95%;
+  --secondary-foreground: 222 47% 11%;
+  --secondary-border: 215 20% 88%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --muted-border: 220 13% 91%;
 
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222 47% 11.2%;
+  /* Accent - Azure */
+  --accent: 199 89% 48%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: 199 89% 38%;
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 0 84% 50%;
 
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
   --ring: 221 83% 53%;
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
+
+  /* Sidebar - Dark Navy */
+  --sidebar: 222 47% 11%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 217 33% 17%;
+  --sidebar-primary: 221 83% 53%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 221 83% 43%;
+  --sidebar-accent: 217 33% 17%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-accent-border: 217 33% 22%;
+  --sidebar-ring: 221 83% 53%;
+
+  /* Chart Colors - Modern Automotive */
+  --chart-1: 221 83% 53%;
+  --chart-2: 172 66% 50%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 280 67% 55%;
+  --chart-5: 0 84% 60%;
+
+  /* Status Colors */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
 }
 
 .dark {
-  --background: 222.2 84% 4.9%;
+  --background: 222 47% 8%;
   --foreground: 210 40% 98%;
 
-  --card: 222.2 84% 4.9%;
+  --card: 222 47% 11%;
   --card-foreground: 210 40% 98%;
+  --card-border: 217 33% 17%;
 
-  --popover: 222.2 84% 4.9%;
+  --popover: 222 47% 11%;
   --popover-foreground: 210 40% 98%;
+  --popover-border: 217 33% 17%;
 
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --primary-border: 217 91% 50%;
 
-  --secondary: 217.2 32.6% 17.5%;
+  --secondary: 217 33% 17%;
   --secondary-foreground: 210 40% 98%;
+  --secondary-border: 217 33% 22%;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --muted-border: 217 33% 22%;
 
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 199 89% 48%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: 199 89% 38%;
 
-  --destructive: 0 62.8% 30.6%;
+  --destructive: 0 63% 31%;
   --destructive-foreground: 210 40% 98%;
+  --destructive-border: 0 63% 41%;
 
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 217 91% 60%;
+
+  --sidebar: 222 47% 6%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 217 33% 12%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 217 91% 50%;
+  --sidebar-accent: 217 33% 12%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-accent-border: 217 33% 17%;
+  --sidebar-ring: 217 91% 60%;
+
+  --chart-1: 217 91% 60%;
+  --chart-2: 172 66% 50%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 280 67% 55%;
+  --chart-5: 0 84% 60%;
+
+  --success: 142 76% 46%;
+  --success-foreground: 0 0% 0%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 0%;
 }
 
 @layer base {
@@ -81,31 +148,156 @@
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-bold tracking-tight text-foreground;
+    @apply font-semibold tracking-tight text-foreground;
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Sleek */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/20 rounded-full;
+  @apply bg-foreground/10 rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/40;
+  @apply bg-foreground/20;
 }
 
-/* Card Hover Effects */
-.hover-card-effect {
-  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/20;
+/* Glassmorphism Effects */
+.glass {
+  @apply bg-white/80 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10;
 }
 
-/* Glassmorphism */
-.glass-panel {
-  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+.glass-dark {
+  @apply bg-black/20 backdrop-blur-xl border border-white/10;
+}
+
+/* Modern Card Effects */
+.card-hover {
+  @apply transition-all duration-300 ease-out;
+}
+.card-hover:hover {
+  @apply shadow-lg shadow-primary/5 -translate-y-0.5 border-primary/20;
+}
+
+/* Gradient Backgrounds */
+.gradient-primary {
+  @apply bg-gradient-to-br from-primary to-primary/80;
+}
+
+.gradient-subtle {
+  @apply bg-gradient-to-br from-background via-background to-muted/50;
+}
+
+.gradient-mesh {
+  background: 
+    radial-gradient(at 40% 20%, hsl(221 83% 53% / 0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsl(199 89% 48% / 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsl(172 66% 50% / 0.05) 0px, transparent 50%);
+}
+
+/* Workflow Stage Pills */
+.stage-pill {
+  @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider;
+}
+
+/* Kanban Column */
+.kanban-column {
+  @apply flex flex-col gap-3 min-w-[280px] max-w-[280px];
+}
+
+.kanban-header {
+  @apply flex items-center justify-between px-3 py-2 rounded-lg font-semibold text-sm;
+}
+
+.kanban-card {
+  @apply p-4 rounded-xl bg-card border border-border/50 transition-all duration-200;
+}
+.kanban-card:hover {
+  @apply shadow-md -translate-y-0.5 border-primary/30;
+}
+
+/* Stats Card Glow */
+.stat-glow {
+  @apply relative overflow-hidden;
+}
+.stat-glow::before {
+  content: '';
+  @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+  background: radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.15) 0%, transparent 70%);
+}
+.stat-glow:hover::before {
+  @apply opacity-100;
+}
+
+/* Sidebar Animation */
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200;
+}
+.sidebar-item:hover {
+  @apply bg-sidebar-accent text-sidebar-accent-foreground;
+}
+.sidebar-item.active {
+  @apply bg-sidebar-primary text-sidebar-primary-foreground;
+}
+
+/* Loading Skeleton Shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  @apply bg-muted rounded-md;
+  background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Smooth Page Transitions */
+.page-enter {
+  @apply opacity-0 translate-y-2;
+}
+.page-enter-active {
+  @apply opacity-100 translate-y-0 transition-all duration-300 ease-out;
+}
+
+/* Badge Styles */
+.badge-success {
+  @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20;
+}
+.badge-warning {
+  @apply bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20;
+}
+.badge-info {
+  @apply bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20;
+}
+.badge-error {
+  @apply bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20;
+}
+
+/* Hover Elevate Utilities */
+.hover-elevate {
+  @apply transition-all duration-200;
+}
+.hover-elevate:hover {
+  @apply bg-foreground/5;
+}
+
+.active-elevate-2 {
+  @apply transition-all duration-100;
+}
+.active-elevate-2:active {
+  @apply bg-foreground/10 scale-[0.98];
+}
+
+/* Toggle Elevate */
+.toggle-elevate {
+  @apply transition-all duration-200;
+}
+.toggle-elevate.toggle-elevated {
+  @apply bg-primary/10 border-primary/30;
 }
