@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Filter,
   Search,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +65,26 @@ interface Appointment {
   created_at: string;
 }
 
+interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+interface Vehicle {
+  id: number;
+  customer: number;
+  plate_number: string;
+  make: string;
+  model: string;
+}
+
+interface Branch {
+  id: number;
+  name: string;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   SCHEDULED: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   CONFIRMED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -72,20 +94,118 @@ const STATUS_COLORS: Record<string, string> = {
   COMPLETED: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
+const SERVICE_TYPES = [
+  "REGULAR_SERVICE",
+  "MAJOR_SERVICE",
+  "REPAIR",
+  "INSPECTION",
+  "WARRANTY_WORK",
+  "BODY_WORK",
+  "EMERGENCY",
+];
+
 export default function Appointments() {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+
+  const [formData, setFormData] = useState({
+    customer: "",
+    vehicle: "",
+    branch: "1",
+    appointment_date: format(new Date(), "yyyy-MM-dd"),
+    appointment_time: "09:00",
+    service_type: "REGULAR_SERVICE",
+    complaint: "",
+    notes: "",
+  });
 
   const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
-    queryKey: ["/api/appointments", { date: selectedDate, status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["appointments", selectedDate, statusFilter],
+    queryFn: async () => {
+      let url = `/api/appointments/?date=${selectedDate}`;
+      if (statusFilter !== "all") {
+        url += `&status=${statusFilter}`;
+      }
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch appointments");
+      return res.json();
+    },
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const res = await fetch("/api/customers/", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch customers");
+      return res.json();
+    },
+  });
+
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+    queryKey: ["vehicles", selectedCustomerId],
+    queryFn: async () => {
+      const url = selectedCustomerId
+        ? `/api/vehicles/?customer_id=${selectedCustomerId}`
+        : "/api/vehicles/";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch vehicles");
+      return res.json();
+    },
+    enabled: !!selectedCustomerId || isDialogOpen,
+  });
+
+  const { data: branches = [] } = useQuery<Branch[]>({
+    queryKey: ["branches"],
+    queryFn: async () => {
+      const res = await fetch("/api/branches/", { credentials: "include" });
+      if (!res.ok) return [{ id: 1, name: "Main Branch" }];
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await fetch("/api/appointments/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer: parseInt(data.customer),
+          vehicle: parseInt(data.vehicle),
+          branch: parseInt(data.branch),
+          appointment_date: data.appointment_date,
+          appointment_time: data.appointment_time,
+          service_type: data.service_type,
+          complaint: data.complaint,
+          notes: data.notes,
+        }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Failed to create appointment");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({ title: "Appointment booked successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to book appointment", description: error.message, variant: "destructive" });
+    },
   });
 
   const confirmMutation = useMutation({
     mutationFn: (id: number) => apiRequest("POST", `/api/appointments/${id}/confirm/`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
       toast({ title: "Appointment confirmed" });
     },
   });
@@ -93,8 +213,8 @@ export default function Appointments() {
   const checkInMutation = useMutation({
     mutationFn: (id: number) => apiRequest("POST", `/api/appointments/${id}/check_in/`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["job-cards"] });
       toast({ title: "Customer checked in, job card created" });
     },
   });
@@ -103,10 +223,38 @@ export default function Appointments() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       apiRequest("POST", `/api/appointments/${id}/cancel/`, { reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
       toast({ title: "Appointment cancelled" });
     },
   });
+
+  const resetForm = () => {
+    setFormData({
+      customer: "",
+      vehicle: "",
+      branch: "1",
+      appointment_date: format(new Date(), "yyyy-MM-dd"),
+      appointment_time: "09:00",
+      service_type: "REGULAR_SERVICE",
+      complaint: "",
+      notes: "",
+    });
+    setSelectedCustomerId("");
+  };
+
+  const handleCustomerChange = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    setFormData({ ...formData, customer: customerId, vehicle: "" });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.customer || !formData.vehicle) {
+      toast({ title: "Please select customer and vehicle", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate(formData);
+  };
 
   const filteredAppointments = appointments.filter((apt) => {
     if (searchQuery) {
@@ -129,6 +277,10 @@ export default function Appointments() {
 
   const sortedTimes = Object.keys(groupedByTime).sort();
 
+  const customerVehicles = vehicles.filter(
+    (v) => v.customer === parseInt(selectedCustomerId)
+  );
+
   return (
     <div className="flex h-screen w-full bg-background">
       <AppSidebar />
@@ -139,7 +291,7 @@ export default function Appointments() {
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Appointments</h1>
               <p className="text-muted-foreground">Manage service appointments and bookings</p>
             </div>
-            <Button data-testid="button-new-appointment">
+            <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-appointment">
               <Plus className="h-4 w-4 mr-2" />
               New Appointment
             </Button>
@@ -181,7 +333,7 @@ export default function Appointments() {
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Today</p>
                     <p className="text-2xl font-bold" data-testid="text-total-appointments">{appointments.length}</p>
@@ -192,7 +344,7 @@ export default function Appointments() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Confirmed</p>
                     <p className="text-2xl font-bold text-green-600">
@@ -205,7 +357,7 @@ export default function Appointments() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Pending</p>
                     <p className="text-2xl font-bold text-blue-600">
@@ -218,7 +370,7 @@ export default function Appointments() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Checked In</p>
                     <p className="text-2xl font-bold text-purple-600">
@@ -240,6 +392,10 @@ export default function Appointments() {
               <CardContent className="py-12 text-center">
                 <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No appointments for this date</p>
+                <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Book First Appointment
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -253,12 +409,12 @@ export default function Appointments() {
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                     {groupedByTime[time].map((apt) => (
-                      <Card key={apt.id} className="overflow-hidden" data-testid={`card-appointment-${apt.id}`}>
+                      <Card key={apt.id} className="overflow-visible" data-testid={`card-appointment-${apt.id}`}>
                         <CardHeader className="pb-2">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <CardTitle className="text-sm font-medium">{apt.appointment_id}</CardTitle>
-                              <p className="text-xs text-muted-foreground">{apt.service_type}</p>
+                              <p className="text-xs text-muted-foreground">{apt.service_type.replace(/_/g, " ")}</p>
                             </div>
                             <Badge className={cn("text-xs", STATUS_COLORS[apt.status])}>
                               {apt.status.replace("_", " ")}
@@ -277,7 +433,7 @@ export default function Appointments() {
                           {apt.complaint && (
                             <p className="text-xs text-muted-foreground line-clamp-2">{apt.complaint}</p>
                           )}
-                          <div className="flex gap-2 pt-2">
+                          <div className="flex gap-2 pt-2 flex-wrap">
                             {apt.status === "SCHEDULED" && (
                               <Button
                                 size="sm"
@@ -320,6 +476,133 @@ export default function Appointments() {
             </div>
           )}
         </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Book New Appointment</DialogTitle>
+              <DialogDescription>Schedule a service appointment for a customer</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer">Customer</Label>
+                <Select value={formData.customer} onValueChange={handleCustomerChange}>
+                  <SelectTrigger data-testid="select-customer">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} - {c.phone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="vehicle">Vehicle</Label>
+                <Select
+                  value={formData.vehicle}
+                  onValueChange={(v) => setFormData({ ...formData, vehicle: v })}
+                  disabled={!selectedCustomerId}
+                >
+                  <SelectTrigger data-testid="select-vehicle">
+                    <SelectValue placeholder={selectedCustomerId ? "Select vehicle" : "Select customer first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customerVehicles.map((v) => (
+                      <SelectItem key={v.id} value={String(v.id)}>
+                        {v.plate_number} - {v.make} {v.model}
+                      </SelectItem>
+                    ))}
+                    {customerVehicles.length === 0 && selectedCustomerId && (
+                      <div className="p-2 text-sm text-muted-foreground">No vehicles found for this customer</div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="appointment_date">Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.appointment_date}
+                    onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
+                    data-testid="input-appointment-date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment_time">Time</Label>
+                  <Input
+                    type="time"
+                    value={formData.appointment_time}
+                    onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
+                    data-testid="input-appointment-time"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="service_type">Service Type</Label>
+                <Select
+                  value={formData.service_type}
+                  onValueChange={(v) => setFormData({ ...formData, service_type: v })}
+                >
+                  <SelectTrigger data-testid="select-service-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="complaint">Complaint / Issue</Label>
+                <Textarea
+                  value={formData.complaint}
+                  onChange={(e) => setFormData({ ...formData, complaint: e.target.value })}
+                  placeholder="Describe the issue or service needed..."
+                  rows={3}
+                  data-testid="input-complaint"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Additional Notes</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Any additional notes..."
+                  rows={2}
+                  data-testid="input-notes"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending} data-testid="button-book-appointment">
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Booking...
+                    </>
+                  ) : (
+                    "Book Appointment"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

@@ -44,6 +44,8 @@ export default function CRM() {
   const createVehicle = useCreateVehicle();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -132,6 +134,46 @@ export default function CRM() {
     });
   };
 
+  const handleAddVehicle = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer || !vehicleData.plate_number || !vehicleData.model) {
+      toast({ title: "Please fill in vehicle number and model", variant: "destructive" });
+      return;
+    }
+    createVehicle.mutate({
+      customer: selectedCustomer.id,
+      plate_number: vehicleData.plate_number,
+      make: vehicleData.make || "Unknown",
+      model: vehicleData.model,
+      vin: vehicleData.vin || `VIN-${Date.now()}`,
+      year: vehicleData.year ? parseInt(vehicleData.year) : null,
+      color: vehicleData.color || null,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Vehicle added successfully" });
+        setVehicleDialogOpen(false);
+        setSelectedCustomer(null);
+        setVehicleData({
+          plate_number: "",
+          make: "",
+          model: "",
+          vin: "",
+          year: "",
+          color: "",
+          vehicle_type: "CAR",
+        });
+      },
+      onError: () => {
+        toast({ title: "Failed to add vehicle", variant: "destructive" });
+      }
+    });
+  };
+
+  const openAddVehicleDialog = (customer: { id: number; name: string }) => {
+    setSelectedCustomer(customer);
+    setVehicleDialogOpen(true);
+  };
+
   if (isLoading) {
     return <LoadingSkeleton />;
   }
@@ -194,7 +236,7 @@ export default function CRM() {
                     <Phone className="h-4 w-4" />
                     <span>{customer.phone}</span>
                   </div>
-                  {customer.vehicles && customer.vehicles.length > 0 && (
+                  {customer.vehicles && customer.vehicles.length > 0 ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Car className="h-4 w-4" />
                       <span className="truncate">
@@ -206,7 +248,30 @@ export default function CRM() {
                         </Badge>
                       )}
                     </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-sm text-muted-foreground"
+                      onClick={() => openAddVehicleDialog({ id: customer.id, name: customer.name })}
+                      data-testid={`button-add-vehicle-${customer.id}`}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Vehicle
+                    </Button>
                   )}
+                </div>
+                <div className="mt-3 pt-3 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => openAddVehicleDialog({ id: customer.id, name: customer.name })}
+                    data-testid={`button-add-another-vehicle-${customer.id}`}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Vehicle
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -396,6 +461,112 @@ export default function CRM() {
                     </>
                   ) : (
                     "Save Customer"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={vehicleDialogOpen} onOpenChange={(open) => { setVehicleDialogOpen(open); if (!open) setSelectedCustomer(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Vehicle</DialogTitle>
+              <DialogDescription>
+                Add a new vehicle for {selectedCustomer?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddVehicle} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new_plate_number">Vehicle Number</Label>
+                  <Input
+                    id="new_plate_number"
+                    name="plate_number"
+                    value={vehicleData.plate_number}
+                    onChange={handleVehicleChange}
+                    placeholder="ABC-1234"
+                    required
+                    data-testid="input-new-vehicle-number"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new_model">Model</Label>
+                  <Input
+                    id="new_model"
+                    name="model"
+                    value={vehicleData.model}
+                    onChange={handleVehicleChange}
+                    placeholder="Civic, Corolla"
+                    required
+                    data-testid="input-new-vehicle-model"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new_make">Make / Brand</Label>
+                  <Input
+                    id="new_make"
+                    name="make"
+                    value={vehicleData.make}
+                    onChange={handleVehicleChange}
+                    placeholder="Honda, Toyota"
+                    data-testid="input-new-vehicle-make"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new_year">Year</Label>
+                  <Input
+                    id="new_year"
+                    name="year"
+                    type="number"
+                    value={vehicleData.year}
+                    onChange={handleVehicleChange}
+                    placeholder="2024"
+                    data-testid="input-new-vehicle-year"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new_color">Color</Label>
+                  <Input
+                    id="new_color"
+                    name="color"
+                    value={vehicleData.color}
+                    onChange={handleVehicleChange}
+                    placeholder="Red, Blue"
+                    data-testid="input-new-vehicle-color"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new_vin">VIN (optional)</Label>
+                  <Input
+                    id="new_vin"
+                    name="vin"
+                    value={vehicleData.vin}
+                    onChange={handleVehicleChange}
+                    placeholder="VIN number"
+                    data-testid="input-new-vehicle-vin"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setVehicleDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createVehicle.isPending} data-testid="button-save-vehicle">
+                  {createVehicle.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Add Vehicle"
                   )}
                 </Button>
               </DialogFooter>
