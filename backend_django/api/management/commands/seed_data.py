@@ -522,6 +522,20 @@ class Command(BaseCommand):
         tech1 = users.get('tech1')
         manager = users.get('manager')
 
+        STAGE_ORDER = {
+            WorkflowStage.APPOINTMENT: 0,
+            WorkflowStage.CHECK_IN: 1,
+            WorkflowStage.INSPECTION: 2,
+            WorkflowStage.JOB_CARD: 3,
+            WorkflowStage.ESTIMATE: 4,
+            WorkflowStage.APPROVAL: 5,
+            WorkflowStage.EXECUTION: 6,
+            WorkflowStage.QC: 7,
+            WorkflowStage.BILLING: 8,
+            WorkflowStage.DELIVERY: 9,
+            WorkflowStage.COMPLETED: 10,
+        }
+
         stages = [
             (WorkflowStage.APPOINTMENT, 'Scheduled Service', customers[0], vehicles[0]),
             (WorkflowStage.CHECK_IN, 'Vehicle Check-in', customers[1], vehicles[2]),
@@ -538,6 +552,8 @@ class Command(BaseCommand):
 
         job_cards = []
         for idx, (stage, job_type, customer, vehicle) in enumerate(stages):
+            stage_idx = STAGE_ORDER[stage]
+            
             jc, created = JobCard.objects.get_or_create(
                 vehicle=vehicle,
                 workflow_stage=stage,
@@ -545,8 +561,8 @@ class Command(BaseCommand):
                     'branch': hq,
                     'customer': customer,
                     'service_advisor': advisor,
-                    'lead_technician': lead_tech if stage.value >= WorkflowStage.JOB_CARD.value else None,
-                    'bay': bays[idx % len(bays)] if stage.value >= WorkflowStage.CHECK_IN.value else None,
+                    'lead_technician': lead_tech if stage_idx >= STAGE_ORDER[WorkflowStage.JOB_CARD] else None,
+                    'bay': bays[idx % len(bays)] if stage_idx >= STAGE_ORDER[WorkflowStage.CHECK_IN] else None,
                     'job_type': job_type,
                     'priority': random.choice(['Normal', 'High', 'Urgent']),
                     'complaint': f'Customer complaint for {job_type}',
@@ -568,7 +584,7 @@ class Command(BaseCommand):
                     comment=f'Job card created at stage {stage.label}',
                 )
                 
-                if stage.value >= WorkflowStage.INSPECTION.value:
+                if stage_idx >= STAGE_ORDER[WorkflowStage.INSPECTION]:
                     DigitalInspection.objects.create(
                         job_card=jc,
                         inspector=tech1,
@@ -584,10 +600,10 @@ class Command(BaseCommand):
                         is_completed=True,
                     )
                 
-                if stage.value >= WorkflowStage.JOB_CARD.value:
+                if stage_idx >= STAGE_ORDER[WorkflowStage.JOB_CARD]:
                     tasks_data = [
-                        ('Oil and Filter Change', 'Maintenance', TaskStatus.COMPLETED if stage.value >= WorkflowStage.QC.value else TaskStatus.IN_PROGRESS),
-                        ('Brake Inspection', 'Inspection', TaskStatus.COMPLETED if stage.value >= WorkflowStage.QC.value else TaskStatus.PENDING),
+                        ('Oil and Filter Change', 'Maintenance', TaskStatus.COMPLETED if stage_idx >= STAGE_ORDER[WorkflowStage.QC] else TaskStatus.IN_PROGRESS),
+                        ('Brake Inspection', 'Inspection', TaskStatus.COMPLETED if stage_idx >= STAGE_ORDER[WorkflowStage.QC] else TaskStatus.PENDING),
                         ('Air Filter Replacement', 'Maintenance', TaskStatus.PENDING),
                     ]
                     for task_desc, category, status in tasks_data:
@@ -606,7 +622,7 @@ class Command(BaseCommand):
                             evidence_photos=['photo1.jpg'] if status == TaskStatus.COMPLETED else [],
                         )
                 
-                if stage.value >= WorkflowStage.ESTIMATE.value:
+                if stage_idx >= STAGE_ORDER[WorkflowStage.ESTIMATE]:
                     estimate = Estimate.objects.create(
                         job_card=jc,
                         version=1,
@@ -615,9 +631,9 @@ class Command(BaseCommand):
                         discount=Decimal('500'),
                         tax=Decimal('1350'),
                         grand_total=Decimal('8850'),
-                        approval_status=ApprovalStatus.APPROVED if stage.value >= WorkflowStage.APPROVAL.value else ApprovalStatus.PENDING,
-                        approved_by=manager if stage.value >= WorkflowStage.APPROVAL.value else None,
-                        approval_date=timezone.now() if stage.value >= WorkflowStage.APPROVAL.value else None,
+                        approval_status=ApprovalStatus.APPROVED if stage_idx >= STAGE_ORDER[WorkflowStage.APPROVAL] else ApprovalStatus.PENDING,
+                        approved_by=manager if stage_idx >= STAGE_ORDER[WorkflowStage.APPROVAL] else None,
+                        approval_date=timezone.now() if stage_idx >= STAGE_ORDER[WorkflowStage.APPROVAL] else None,
                         created_by=advisor,
                     )
                     
@@ -628,7 +644,7 @@ class Command(BaseCommand):
                         quantity=Decimal('3'),
                         unit_price=Decimal('1000'),
                         total=Decimal('3000'),
-                        is_approved=stage.value >= WorkflowStage.APPROVAL.value,
+                        is_approved=stage_idx >= STAGE_ORDER[WorkflowStage.APPROVAL],
                     )
                     EstimateLine.objects.create(
                         estimate=estimate,
@@ -637,10 +653,10 @@ class Command(BaseCommand):
                         quantity=Decimal('4'),
                         unit_price=Decimal('1250'),
                         total=Decimal('5000'),
-                        is_approved=stage.value >= WorkflowStage.APPROVAL.value,
+                        is_approved=stage_idx >= STAGE_ORDER[WorkflowStage.APPROVAL],
                     )
                 
-                if stage.value >= WorkflowStage.BILLING.value:
+                if stage_idx >= STAGE_ORDER[WorkflowStage.BILLING]:
                     invoice = Invoice.objects.create(
                         job_card=jc,
                         customer=customer,
@@ -651,8 +667,8 @@ class Command(BaseCommand):
                         discount=Decimal('500'),
                         tax=Decimal('1350'),
                         grand_total=Decimal('8850'),
-                        amount_paid=Decimal('8850') if stage == WorkflowStage.COMPLETED else Decimal('0'),
-                        payment_status='Paid' if stage == WorkflowStage.COMPLETED else 'Pending',
+                        amount_paid=Decimal('0'),
+                        payment_status='Pending',
                         created_by=manager,
                     )
                     
@@ -664,6 +680,9 @@ class Command(BaseCommand):
                             reference_number=f'TXN{random.randint(100000, 999999)}',
                             received_by=manager,
                         )
+                        invoice.refresh_from_db()
+                        invoice.payment_status = 'Paid'
+                        invoice.save()
                 
                 if stage == WorkflowStage.COMPLETED:
                     jc.customer_rating = 5
