@@ -6,14 +6,19 @@ import uuid
 
 
 class UserRole(models.TextChoices):
-    SUPER_ADMIN = 'SUPER_ADMIN', 'Super Admin'
+    SUPER_ADMIN = 'SUPER_ADMIN', 'Admin'
     CEO_OWNER = 'CEO_OWNER', 'CEO / Owner'
     REGIONAL_MANAGER = 'REGIONAL_MANAGER', 'Regional Manager'
     BRANCH_MANAGER = 'BRANCH_MANAGER', 'Branch Manager'
+    SERVICE_MANAGER = 'SERVICE_MANAGER', 'Service Manager'
+    SALES_MANAGER = 'SALES_MANAGER', 'Sales Manager'
+    ACCOUNTS_MANAGER = 'ACCOUNTS_MANAGER', 'Accounts Manager'
+    SUPERVISOR = 'SUPERVISOR', 'Supervisor'
     SERVICE_ADVISOR = 'SERVICE_ADVISOR', 'Service Advisor'
+    SERVICE_ENGINEER = 'SERVICE_ENGINEER', 'Service Engineer'
     SALES_EXECUTIVE = 'SALES_EXECUTIVE', 'Sales Executive'
+    ACCOUNTANT = 'ACCOUNTANT', 'Accountant'
     INVENTORY_MANAGER = 'INVENTORY_MANAGER', 'Inventory Manager'
-    ACCOUNTS_OFFICER = 'ACCOUNTS_OFFICER', 'Accounts Officer'
     HR_MANAGER = 'HR_MANAGER', 'HR Manager'
     TECHNICIAN = 'TECHNICIAN', 'Technician / Mechanic'
     CRM_EXECUTIVE = 'CRM_EXECUTIVE', 'CRM Executive'

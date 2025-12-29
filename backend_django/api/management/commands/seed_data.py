@@ -126,15 +126,22 @@ class Command(BaseCommand):
         
         users_data = [
             ('sysadmin', 'Asha', 'Nair', UserRole.SUPER_ADMIN, 'sysadmin@autoserv.com'),
+            ('ceo', 'Vikram', 'Malhotra', UserRole.CEO_OWNER, 'ceo@autoserv.com'),
             ('manager', 'Rohan', 'Mehta', UserRole.BRANCH_MANAGER, 'rohan@autoserv.com'),
+            ('service_mgr', 'Anjali', 'Desai', UserRole.SERVICE_MANAGER, 'anjali@autoserv.com'),
+            ('sales_mgr', 'Karan', 'Khanna', UserRole.SALES_MANAGER, 'karan@autoserv.com'),
+            ('accounts_mgr', 'Priyanka', 'Joshi', UserRole.ACCOUNTS_MANAGER, 'priyanka@autoserv.com'),
+            ('supervisor', 'Mohan', 'Das', UserRole.SUPERVISOR, 'mohan@autoserv.com'),
             ('advisor1', 'Priya', 'Kapoor', UserRole.SERVICE_ADVISOR, 'priya@autoserv.com'),
             ('advisor2', 'Amit', 'Singh', UserRole.SERVICE_ADVISOR, 'amit@autoserv.com'),
-            ('lead_tech', 'Sanjay', 'Iyer', UserRole.TECHNICIAN, 'sanjay@autoserv.com'),
+            ('engineer1', 'Sanjay', 'Iyer', UserRole.SERVICE_ENGINEER, 'sanjay@autoserv.com'),
+            ('sales1', 'Rahul', 'Verma', UserRole.SALES_EXECUTIVE, 'rahul@autoserv.com'),
+            ('accountant', 'Suresh', 'Patel', UserRole.ACCOUNTANT, 'suresh@autoserv.com'),
             ('tech1', 'Vikram', 'Reddy', UserRole.TECHNICIAN, 'vikram@autoserv.com'),
             ('tech2', 'Raju', 'Sharma', UserRole.TECHNICIAN, 'raju@autoserv.com'),
             ('tech3', 'Deepak', 'Kumar', UserRole.TECHNICIAN, 'deepak@autoserv.com'),
             ('inventory', 'Neha', 'Gupta', UserRole.INVENTORY_MANAGER, 'neha@autoserv.com'),
-            ('accounts', 'Suresh', 'Patel', UserRole.ACCOUNTS_OFFICER, 'suresh@autoserv.com'),
+            ('hr', 'Sunita', 'Nair', UserRole.HR_MANAGER, 'hr@autoserv.com'),
             ('crm', 'Kavita', 'Rao', UserRole.CRM_EXECUTIVE, 'kavita@autoserv.com'),
         ]
 
@@ -525,7 +532,8 @@ class Command(BaseCommand):
         self.stdout.write('  Creating job cards for all workflow stages...')
         hq = branches[0]
         advisor = users.get('advisor1')
-        lead_tech = users.get('lead_tech')
+        supervisor = users.get('supervisor')
+        engineer1 = users.get('engineer1')
         tech1 = users.get('tech1')
         manager = users.get('manager')
 
@@ -568,7 +576,7 @@ class Command(BaseCommand):
                     'branch': hq,
                     'customer': customer,
                     'service_advisor': advisor,
-                    'lead_technician': lead_tech if stage_idx >= STAGE_ORDER[WorkflowStage.JOB_CARD] else None,
+                    'lead_technician': supervisor if stage_idx >= STAGE_ORDER[WorkflowStage.JOB_CARD] else None,
                     'bay': bays[idx % len(bays)] if stage_idx >= STAGE_ORDER[WorkflowStage.CHECK_IN] else None,
                     'job_type': job_type,
                     'priority': random.choice(['Normal', 'High', 'Urgent']),
@@ -704,7 +712,7 @@ class Command(BaseCommand):
     def create_technician_schedules(self, users, branches):
         self.stdout.write('  Creating technician schedules...')
         hq = branches[0]
-        technicians = [users.get('tech1'), users.get('tech2'), users.get('tech3'), users.get('lead_tech')]
+        technicians = [users.get('tech1'), users.get('tech2'), users.get('tech3'), users.get('engineer1')]
         
         for tech in technicians:
             if not tech:

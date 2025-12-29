@@ -62,11 +62,31 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 10. **DELIVERY** - Vehicle delivered
 11. **COMPLETED** - Service cycle closed
 
-## User Roles (12+ Roles)
-- SYSTEM_ADMIN, BRANCH_MANAGER, SERVICE_MANAGER
-- SERVICE_ADVISOR, LEAD_TECHNICIAN, TECHNICIAN
-- QC_INSPECTOR, PARTS_MANAGER, INVENTORY_CLERK
-- ACCOUNTANT, CASHIER, RECEPTIONIST, CUSTOMER
+## User Roles (17 Roles - Hierarchical)
+**Executive Level:**
+- SUPER_ADMIN (Admin) - Full system access
+- CEO_OWNER - Top management, all operations
+
+**Management Level:**
+- REGIONAL_MANAGER - Regional oversight
+- BRANCH_MANAGER - Branch operations
+- SERVICE_MANAGER - Service department head
+- SALES_MANAGER - Sales department head
+- ACCOUNTS_MANAGER - Accounts department head
+
+**Supervisory Level:**
+- SUPERVISOR - Oversees technicians and service engineers
+
+**Staff Level:**
+- SERVICE_ADVISOR - Customer-facing service role
+- SERVICE_ENGINEER - Technical service work
+- SALES_EXECUTIVE - Sales operations
+- ACCOUNTANT - Financial operations
+- INVENTORY_MANAGER - Stock management
+- HR_MANAGER - Human resources
+- TECHNICIAN - Mechanics
+- CRM_EXECUTIVE - Customer relations
+- CUSTOMER - End customers
 
 ## API Endpoints
 ### Core Workflow

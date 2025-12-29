@@ -27,19 +27,29 @@ import {
 } from "@/components/ui/tooltip";
 
 type UserRole = 
-  | 'SYSTEM_ADMIN' 
+  | 'SUPER_ADMIN' 
+  | 'CEO_OWNER'
+  | 'REGIONAL_MANAGER'
   | 'BRANCH_MANAGER' 
   | 'SERVICE_MANAGER'
+  | 'SALES_MANAGER'
+  | 'ACCOUNTS_MANAGER'
+  | 'SUPERVISOR'
   | 'SERVICE_ADVISOR' 
-  | 'LEAD_TECHNICIAN' 
+  | 'SERVICE_ENGINEER'
+  | 'SALES_EXECUTIVE'
+  | 'ACCOUNTANT'
+  | 'INVENTORY_MANAGER'
+  | 'HR_MANAGER'
   | 'TECHNICIAN'
-  | 'QC_INSPECTOR' 
-  | 'PARTS_MANAGER' 
-  | 'INVENTORY_CLERK'
-  | 'ACCOUNTANT' 
-  | 'CASHIER' 
-  | 'RECEPTIONIST' 
+  | 'CRM_EXECUTIVE'
   | 'CUSTOMER';
+
+const ADMIN_ROLES: UserRole[] = ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER'];
+const MANAGER_ROLES: UserRole[] = [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'];
+const SERVICE_ROLES: UserRole[] = [...MANAGER_ROLES, 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN'];
+const ACCOUNTS_ROLES: UserRole[] = [...ADMIN_ROLES, 'ACCOUNTS_MANAGER', 'ACCOUNTANT'];
+const SALES_ROLES: UserRole[] = [...ADMIN_ROLES, 'SALES_MANAGER', 'SALES_EXECUTIVE', 'CRM_EXECUTIVE'];
 
 interface MenuItem {
   text: string;
@@ -53,55 +63,56 @@ const menuItems: MenuItem[] = [
     text: "Dashboard", 
     icon: LayoutDashboard, 
     path: "/",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'LEAD_TECHNICIAN', 'TECHNICIAN', 'QC_INSPECTOR', 'PARTS_MANAGER', 'INVENTORY_CLERK', 'ACCOUNTANT', 'CASHIER', 'RECEPTIONIST']
+    allowedRoles: [...MANAGER_ROLES, 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'SALES_EXECUTIVE', 
+                   'ACCOUNTANT', 'INVENTORY_MANAGER', 'TECHNICIAN', 'CRM_EXECUTIVE', 'HR_MANAGER']
   },
   { 
     text: "Service Operations", 
     icon: Wrench, 
     path: "/service",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'LEAD_TECHNICIAN', 'TECHNICIAN', 'QC_INSPECTOR']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 
     text: "Appointments", 
     icon: Calendar, 
     path: "/appointments",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'RECEPTIONIST']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'CRM_EXECUTIVE']
   },
   { 
     text: "Inventory", 
     icon: Package, 
     path: "/inventory",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'PARTS_MANAGER', 'INVENTORY_CLERK']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'INVENTORY_MANAGER', 'SUPERVISOR']
   },
   { 
     text: "Suppliers", 
     icon: Truck, 
     path: "/suppliers",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'PARTS_MANAGER']
+    allowedRoles: [...ADMIN_ROLES, 'INVENTORY_MANAGER']
   },
   { 
     text: "CRM", 
     icon: Users, 
     path: "/crm",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'RECEPTIONIST']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'SERVICE_ADVISOR', 'SALES_EXECUTIVE', 'CRM_EXECUTIVE']
   },
   { 
     text: "Contracts", 
     icon: Shield, 
     path: "/contracts",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT']
   },
   { 
     text: "Analytics", 
     icon: BarChart3, 
     path: "/analytics",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'ACCOUNTANT']
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER']
   },
   { 
     text: "Admin Panel", 
     icon: ShieldCheck, 
     path: "/admin",
-    allowedRoles: ['SYSTEM_ADMIN', 'BRANCH_MANAGER']
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
 ];
 
