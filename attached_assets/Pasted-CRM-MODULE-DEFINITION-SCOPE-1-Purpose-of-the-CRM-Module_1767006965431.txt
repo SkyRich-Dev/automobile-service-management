@@ -1,0 +1,197 @@
+CRM MODULE — DEFINITION & SCOPE
+1. Purpose of the CRM Module
+The CRM (Customer Relationship Management) Module is the central intelligence layer that manages customer relationships across the entire lifecycle:
+Lead → Customer → Service → Contract → Retention → Advocacy
+It ensures:
+Single source of truth for customer data
+Personalized service experience
+Higher retention & repeat business
+Structured follow-ups & accountability
+Full traceability of every customer interaction
+2. CRM Coverage Model
+The CRM must operate across three dimensions:
+Customer Dimension – Who the customer is
+Interaction Dimension – Every touchpoint
+Lifecycle Dimension – Where the customer is in the journey
+3. Customer Master (360° View)
+Customer Profile
+Customer ID
+Individual / Corporate / Fleet
+Contact details (multiple numbers/emails)
+Address & location
+Preferred branch
+Preferred communication channel
+Customer category (Retail / Fleet / VIP)
+Vehicle Relationship
+Multiple vehicles per customer
+Vehicle details:
+Registration no
+VIN
+Model / Variant
+Fuel type
+Odometer history
+Contract & AMC Linkage
+Active contracts
+Expired contracts
+Utilization summary
+4. Lead Management
+CRM must manage pre-service and pre-sales leads.
+Lead Sources
+Walk-in
+Website
+Mobile app
+WhatsApp
+Referral
+Campaign
+Fleet inquiry
+Lead Lifecycle
+New → Contacted → Qualified → Quoted → Converted → Lost
+Lead Features
+Lead owner assignment
+Follow-up scheduling
+Lost reason capture
+Lead-to-customer conversion
+Lead-to-service / contract linkage
+5. Interaction & Communication Tracking
+Every interaction must be logged and traceable.
+Interaction Types
+Calls
+WhatsApp messages
+Emails
+Walk-ins
+Service visits
+Complaints
+Feedback
+Interaction Log
+Each interaction records:
+Date & time
+Channel
+Purpose
+Outcome
+Next action
+Owner
+This forms the Customer Interaction Timeline.
+6. Complaint, Ticket & Escalation Management
+CRM must handle post-service issues.
+Ticket Types
+Service quality issue
+Billing dispute
+Delay complaint
+Warranty issue
+Contract dispute
+Ticket Workflow
+Raised → Assigned → In Progress → Resolved → Closed
+Escalation Rules
+SLA-based escalation
+Role-based escalation
+Visibility on dashboards
+7. Follow-Up & Task Management
+CRM must enforce accountability.
+Follow-Up Types
+Service reminder
+Payment follow-up
+Renewal follow-up
+Complaint follow-up
+Feedback follow-up
+Task Rules
+Mandatory next action
+Due date enforcement
+Overdue alerts
+Ownership tracking
+8. Customer Segmentation & Scoring
+CRM must support data-driven engagement.
+Segmentation
+New vs repeat
+High-value customers
+Contract customers
+Fleet customers
+At-risk customers
+Customer Score (Auto-calculated)
+Visit frequency
+Revenue contribution
+Payment behavior
+Complaint history
+Loyalty participation
+9. Campaign & Retention Management
+CRM drives repeat business.
+Campaign Types
+Service reminders
+Seasonal offers
+Contract renewal
+Upsell / cross-sell
+Campaign Tracking
+Target audience
+Message content
+Channel used
+Response rate
+Conversion tracking
+10. CRM ↔ Service Integration (Critical)
+CRM must be deeply integrated with service operations.
+Automatic CRM Events
+Service completed → feedback request
+Repeat failure → risk flag
+Missed service → churn alert
+SLA breach → escalation
+CRM Visibility in Service UI
+Customer history snapshot
+Open tickets & follow-ups
+Contract eligibility
+Customer sentiment indicator
+11. CRM ↔ Contract & Sales Integration
+CRM must connect revenue streams.
+Contract renewal opportunities
+Upsell suggestions
+Sales pipeline visibility
+Lost deal analysis
+12. Customer Portal CRM View
+Customers must see transparency.
+Interaction history
+Open tickets
+Feedback status
+Contract usage
+Communication preferences
+13. Dashboards & Reports
+CRM Executive / Manager
+Leads pipeline
+Conversion rates
+Follow-up compliance
+Complaint resolution SLA
+CEO / Owner
+Customer retention rate
+Repeat business %
+Customer lifetime value (CLV)
+Churn indicators
+14. Backend Design (High-Level)
+Key entities:
+Customer
+Vehicle
+Lead
+Interaction
+FollowUpTask
+Ticket
+Campaign
+CustomerScore
+CRMEvent
+Business logic enforced at service layer.
+15. UI Screens Required
+Customer list & profile (360° view)
+Lead management
+Interaction timeline
+Ticket management
+Follow-up task board
+Campaign manager
+CRM dashboards
+16. Governance, Audit & Compliance
+Interaction logs immutable
+Ticket change history
+Follow-up SLA tracking
+Role-based access
+17. Business Value Delivered
+Higher customer retention
+Reduced churn
+Improved service satisfaction
+Better upsell & renewal conversion
+Single source of customer truth
+18. Final Positioning
+The CRM Module is the relationship intelligence engine of the system.
+It connects Sales, Service, Contracts, Accounts, and Customer Portal into one coherent customer journey.

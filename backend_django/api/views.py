@@ -18,7 +18,9 @@ from .models import (
     ContractConsumption, ContractApproval, ContractApprovalStatus, ContractAuditLog, ContractAuditAction,
     Supplier, PurchaseOrder, PurchaseOrderLine,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
-    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
+    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
+    Lead, LeadStatus, CustomerInteraction, Ticket, TicketStatus, FollowUpTask, FollowUpStatus,
+    Campaign, CampaignStatus, CampaignRecipient, CustomerScore, CRMEvent
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -39,7 +41,10 @@ from .serializers import (
     SupplierSerializer, PurchaseOrderSerializer, TechnicianScheduleSerializer,
     AppointmentSerializer, AnalyticsSnapshotSerializer,
     LicenseSerializer, SystemSettingSerializer, PaymentIntentSerializer,
-    TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer
+    TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer,
+    LeadSerializer, CustomerInteractionSerializer, TicketSerializer, FollowUpTaskSerializer,
+    CampaignSerializer, CampaignRecipientSerializer, CustomerScoreSerializer, CRMEventSerializer,
+    Customer360Serializer
 )
 
 
@@ -1515,4 +1520,502 @@ def admin_dashboard(request):
             'api': 'healthy',
             'storage': 'healthy'
         }
+    })
+
+
+# ==================== CRM MODULE VIEWSETS ====================
+
+class LeadViewSet(viewsets.ModelViewSet):
+    queryset = Lead.objects.all()
+    serializer_class = LeadSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Lead.objects.select_related('branch', 'owner', 'assigned_to', 'referred_by_customer').all()
+        status_filter = self.request.query_params.get('status')
+        source = self.request.query_params.get('source')
+        owner = self.request.query_params.get('owner')
+        branch_id = self.request.query_params.get('branch_id')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if source:
+            queryset = queryset.filter(source=source)
+        if owner:
+            queryset = queryset.filter(owner_id=owner)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def pipeline(self, request):
+        pipeline = {}
+        for status_choice in LeadStatus.choices:
+            status_value = status_choice[0]
+            leads = Lead.objects.filter(status=status_value)
+            pipeline[status_value] = {
+                'count': leads.count(),
+                'total_value': leads.aggregate(total=Sum('expected_value'))['total'] or 0,
+                'leads': LeadSerializer(leads[:10], many=True).data
+            }
+        return Response(pipeline)
+    
+    @action(detail=True, methods=['post'])
+    def transition(self, request, pk=None):
+        lead = self.get_object()
+        new_status = request.data.get('status')
+        if new_status not in [s[0] for s in LeadStatus.choices]:
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = lead.status
+        lead.status = new_status
+        lead.last_contact_date = timezone.now()
+        
+        if new_status == 'LOST':
+            lead.lost_reason = request.data.get('lost_reason', '')
+            lead.lost_to_competitor = request.data.get('lost_to_competitor', '')
+        
+        lead.save()
+        
+        CRMEvent.objects.create(
+            event_type='LEAD_STATUS_CHANGE',
+            lead=lead,
+            description=f'Lead status changed from {old_status} to {new_status}',
+            metadata={'old_status': old_status, 'new_status': new_status},
+            triggered_by=request.user,
+            is_system_generated=False
+        )
+        
+        return Response(LeadSerializer(lead).data)
+    
+    @action(detail=True, methods=['post'])
+    def convert(self, request, pk=None):
+        lead = self.get_object()
+        if lead.status == 'CONVERTED':
+            return Response({'error': 'Lead already converted'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        customer = Customer.objects.create(
+            name=lead.name,
+            phone=lead.phone,
+            email=lead.email or '',
+            address=lead.address or '',
+            city=lead.city or '',
+            branch=lead.branch,
+            referral_source=lead.source
+        )
+        
+        lead.status = 'CONVERTED'
+        lead.converted_customer = customer
+        lead.save()
+        
+        CRMEvent.objects.create(
+            event_type='LEAD_CONVERTED',
+            lead=lead,
+            customer=customer,
+            description=f'Lead converted to customer {customer.customer_id}',
+            triggered_by=request.user
+        )
+        
+        return Response({
+            'lead': LeadSerializer(lead).data,
+            'customer': CustomerSerializer(customer).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        total = Lead.objects.count()
+        new_leads = Lead.objects.filter(status='NEW').count()
+        contacted = Lead.objects.filter(status='CONTACTED').count()
+        qualified = Lead.objects.filter(status='QUALIFIED').count()
+        converted = Lead.objects.filter(status='CONVERTED').count()
+        lost = Lead.objects.filter(status='LOST').count()
+        total_value = Lead.objects.filter(status__in=['QUALIFIED', 'QUOTED', 'NEGOTIATION']).aggregate(
+            total=Sum('expected_value'))['total'] or 0
+        
+        conversion_rate = round((converted / total * 100), 1) if total > 0 else 0
+        
+        return Response({
+            'total': total,
+            'new_leads': new_leads,
+            'contacted': contacted,
+            'qualified': qualified,
+            'converted': converted,
+            'lost': lost,
+            'pipeline_value': float(total_value),
+            'conversion_rate': conversion_rate
+        })
+
+
+class CustomerInteractionViewSet(viewsets.ModelViewSet):
+    queryset = CustomerInteraction.objects.all()
+    serializer_class = CustomerInteractionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = CustomerInteraction.objects.select_related(
+            'customer', 'lead', 'job_card', 'handled_by', 'initiated_by'
+        ).all()
+        
+        customer_id = self.request.query_params.get('customer_id')
+        lead_id = self.request.query_params.get('lead_id')
+        interaction_type = self.request.query_params.get('type')
+        
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if lead_id:
+            queryset = queryset.filter(lead_id=lead_id)
+        if interaction_type:
+            queryset = queryset.filter(interaction_type=interaction_type)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(handled_by=self.request.user, initiated_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def timeline(self, request):
+        customer_id = request.query_params.get('customer_id')
+        if not customer_id:
+            return Response({'error': 'customer_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        interactions = CustomerInteraction.objects.filter(customer_id=customer_id).order_by('-created_at')[:50]
+        return Response(CustomerInteractionSerializer(interactions, many=True).data)
+
+
+class TicketViewSet(viewsets.ModelViewSet):
+    queryset = Ticket.objects.all()
+    serializer_class = TicketSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Ticket.objects.select_related(
+            'customer', 'vehicle', 'job_card', 'assigned_to', 'raised_by', 'branch'
+        ).all()
+        
+        status_filter = self.request.query_params.get('status')
+        priority = self.request.query_params.get('priority')
+        ticket_type = self.request.query_params.get('type')
+        assigned_to = self.request.query_params.get('assigned_to')
+        customer_id = self.request.query_params.get('customer_id')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        if ticket_type:
+            queryset = queryset.filter(ticket_type=ticket_type)
+        if assigned_to:
+            queryset = queryset.filter(assigned_to_id=assigned_to)
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(raised_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        ticket = self.get_object()
+        assigned_to_id = request.data.get('assigned_to')
+        if not assigned_to_id:
+            return Response({'error': 'assigned_to required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        ticket.assigned_to_id = assigned_to_id
+        if ticket.status == 'RAISED':
+            ticket.status = 'ASSIGNED'
+        ticket.save()
+        
+        return Response(TicketSerializer(ticket).data)
+    
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        ticket = self.get_object()
+        resolution = request.data.get('resolution', '')
+        root_cause = request.data.get('root_cause', '')
+        
+        ticket.status = 'RESOLVED'
+        ticket.resolution = resolution
+        ticket.root_cause = root_cause
+        ticket.resolved_at = timezone.now()
+        ticket.save()
+        
+        return Response(TicketSerializer(ticket).data)
+    
+    @action(detail=True, methods=['post'])
+    def escalate(self, request, pk=None):
+        ticket = self.get_object()
+        escalated_to_id = request.data.get('escalated_to')
+        reason = request.data.get('reason', '')
+        
+        ticket.status = 'ESCALATED'
+        ticket.escalated_to_id = escalated_to_id
+        ticket.escalation_level += 1
+        ticket.escalation_reason = reason
+        ticket.save()
+        
+        return Response(TicketSerializer(ticket).data)
+    
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+        satisfaction = request.data.get('satisfaction')
+        feedback = request.data.get('feedback', '')
+        
+        ticket.status = 'CLOSED'
+        ticket.closed_at = timezone.now()
+        if satisfaction:
+            ticket.customer_satisfaction = satisfaction
+        ticket.feedback = feedback
+        ticket.save()
+        
+        return Response(TicketSerializer(ticket).data)
+    
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        total = Ticket.objects.count()
+        open_tickets = Ticket.objects.exclude(status__in=['RESOLVED', 'CLOSED']).count()
+        critical = Ticket.objects.filter(priority='CRITICAL', status__in=['RAISED', 'ASSIGNED', 'IN_PROGRESS']).count()
+        escalated = Ticket.objects.filter(status='ESCALATED').count()
+        resolved_today = Ticket.objects.filter(resolved_at__date=timezone.now().date()).count()
+        sla_breached = Ticket.objects.filter(sla_breached=True, status__in=['RAISED', 'ASSIGNED', 'IN_PROGRESS']).count()
+        
+        avg_resolution = Ticket.objects.filter(resolved_at__isnull=False).count()
+        
+        return Response({
+            'total': total,
+            'open_tickets': open_tickets,
+            'critical': critical,
+            'escalated': escalated,
+            'resolved_today': resolved_today,
+            'sla_breached': sla_breached
+        })
+
+
+class FollowUpTaskViewSet(viewsets.ModelViewSet):
+    queryset = FollowUpTask.objects.all()
+    serializer_class = FollowUpTaskSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = FollowUpTask.objects.select_related(
+            'customer', 'lead', 'ticket', 'assigned_to', 'created_by'
+        ).all()
+        
+        status_filter = self.request.query_params.get('status')
+        follow_up_type = self.request.query_params.get('type')
+        assigned_to = self.request.query_params.get('assigned_to')
+        customer_id = self.request.query_params.get('customer_id')
+        overdue = self.request.query_params.get('overdue')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if follow_up_type:
+            queryset = queryset.filter(follow_up_type=follow_up_type)
+        if assigned_to:
+            queryset = queryset.filter(assigned_to_id=assigned_to)
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if overdue == 'true':
+            queryset = queryset.filter(
+                status__in=['PENDING', 'IN_PROGRESS'],
+                due_date__lt=timezone.now()
+            )
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        task = self.get_object()
+        outcome = request.data.get('outcome', '')
+        next_action = request.data.get('next_action', '')
+        
+        task.status = 'COMPLETED'
+        task.outcome = outcome
+        task.next_action = next_action
+        task.completed_at = timezone.now()
+        task.save()
+        
+        return Response(FollowUpTaskSerializer(task).data)
+    
+    @action(detail=False, methods=['get'])
+    def my_tasks(self, request):
+        tasks = FollowUpTask.objects.filter(
+            assigned_to=request.user,
+            status__in=['PENDING', 'IN_PROGRESS']
+        ).order_by('due_date')
+        return Response(FollowUpTaskSerializer(tasks, many=True).data)
+    
+    @action(detail=False, methods=['get'])
+    def overdue(self, request):
+        tasks = FollowUpTask.objects.filter(
+            status__in=['PENDING', 'IN_PROGRESS'],
+            due_date__lt=timezone.now()
+        ).order_by('due_date')
+        return Response(FollowUpTaskSerializer(tasks, many=True).data)
+
+
+class CampaignViewSet(viewsets.ModelViewSet):
+    queryset = Campaign.objects.all()
+    serializer_class = CampaignSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Campaign.objects.select_related('branch', 'created_by').all()
+        
+        status_filter = self.request.query_params.get('status')
+        campaign_type = self.request.query_params.get('type')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if campaign_type:
+            queryset = queryset.filter(campaign_type=campaign_type)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+        campaign = self.get_object()
+        if campaign.status not in ['DRAFT', 'SCHEDULED']:
+            return Response({'error': 'Campaign cannot be started'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        campaign.status = 'ACTIVE'
+        campaign.started_at = timezone.now()
+        campaign.save()
+        
+        return Response(CampaignSerializer(campaign).data)
+    
+    @action(detail=True, methods=['post'])
+    def pause(self, request, pk=None):
+        campaign = self.get_object()
+        campaign.status = 'PAUSED'
+        campaign.save()
+        return Response(CampaignSerializer(campaign).data)
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        campaign = self.get_object()
+        campaign.status = 'COMPLETED'
+        campaign.completed_at = timezone.now()
+        campaign.save()
+        return Response(CampaignSerializer(campaign).data)
+    
+    @action(detail=True, methods=['get'])
+    def recipients(self, request, pk=None):
+        campaign = self.get_object()
+        recipients = CampaignRecipient.objects.filter(campaign=campaign).select_related('customer')
+        return Response(CampaignRecipientSerializer(recipients, many=True).data)
+
+
+class CustomerScoreViewSet(viewsets.ModelViewSet):
+    queryset = CustomerScore.objects.all()
+    serializer_class = CustomerScoreSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = CustomerScore.objects.select_related('customer').all()
+        
+        segment = self.request.query_params.get('segment')
+        churn_risk = self.request.query_params.get('churn_risk')
+        
+        if segment:
+            queryset = queryset.filter(segment=segment)
+        if churn_risk:
+            queryset = queryset.filter(churn_risk=churn_risk)
+        
+        return queryset.order_by('-overall_score')
+    
+    @action(detail=True, methods=['post'])
+    def recalculate(self, request, pk=None):
+        score = self.get_object()
+        score.calculate_score()
+        return Response(CustomerScoreSerializer(score).data)
+    
+    @action(detail=False, methods=['get'])
+    def at_risk(self, request):
+        scores = CustomerScore.objects.filter(churn_risk='High').select_related('customer')
+        return Response(CustomerScoreSerializer(scores, many=True).data)
+
+
+class CRMEventViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = CRMEvent.objects.all()
+    serializer_class = CRMEventSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = CRMEvent.objects.select_related('customer', 'lead', 'triggered_by').all()
+        
+        customer_id = self.request.query_params.get('customer_id')
+        lead_id = self.request.query_params.get('lead_id')
+        event_type = self.request.query_params.get('event_type')
+        
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if lead_id:
+            queryset = queryset.filter(lead_id=lead_id)
+        if event_type:
+            queryset = queryset.filter(event_type=event_type)
+        
+        return queryset
+
+
+@api_view(['GET'])
+def customer_360_view(request, customer_id):
+    if not request.user.is_authenticated:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        customer = Customer.objects.prefetch_related(
+            'vehicles', 'interactions', 'tickets', 'follow_up_tasks', 'job_cards'
+        ).get(pk=customer_id)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response(Customer360Serializer(customer).data)
+
+
+@api_view(['GET'])
+def crm_dashboard(request):
+    if not request.user.is_authenticated:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    total_customers = Customer.objects.filter(is_active=True).count()
+    new_leads = Lead.objects.filter(status='NEW').count()
+    open_tickets = Ticket.objects.exclude(status__in=['RESOLVED', 'CLOSED']).count()
+    pending_tasks = FollowUpTask.objects.filter(status__in=['PENDING', 'IN_PROGRESS']).count()
+    overdue_tasks = FollowUpTask.objects.filter(
+        status__in=['PENDING', 'IN_PROGRESS'],
+        due_date__lt=timezone.now()
+    ).count()
+    active_campaigns = Campaign.objects.filter(status='ACTIVE').count()
+    
+    at_risk_customers = CustomerScore.objects.filter(churn_risk='High').count()
+    
+    lead_pipeline = {}
+    for status_choice in LeadStatus.choices:
+        lead_pipeline[status_choice[0]] = Lead.objects.filter(status=status_choice[0]).count()
+    
+    ticket_by_type = {}
+    for ticket in Ticket.objects.exclude(status__in=['RESOLVED', 'CLOSED']).values('ticket_type').annotate(count=Count('id')):
+        ticket_by_type[ticket['ticket_type']] = ticket['count']
+    
+    return Response({
+        'total_customers': total_customers,
+        'new_leads': new_leads,
+        'open_tickets': open_tickets,
+        'pending_tasks': pending_tasks,
+        'overdue_tasks': overdue_tasks,
+        'active_campaigns': active_campaigns,
+        'at_risk_customers': at_risk_customers,
+        'lead_pipeline': lead_pipeline,
+        'ticket_by_type': ticket_by_type
     })

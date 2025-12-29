@@ -155,22 +155,54 @@ class TechnicianMetrics(models.Model):
         return round((float(self.total_productive_hours) / total) * 100, 2)
 
 
+class CustomerCategory(models.TextChoices):
+    RETAIL = 'RETAIL', 'Retail'
+    FLEET = 'FLEET', 'Fleet'
+    VIP = 'VIP', 'VIP'
+    CORPORATE = 'CORPORATE', 'Corporate'
+    WALK_IN = 'WALK_IN', 'Walk-in'
+
+
+class CommunicationChannel(models.TextChoices):
+    PHONE = 'PHONE', 'Phone'
+    EMAIL = 'EMAIL', 'Email'
+    WHATSAPP = 'WHATSAPP', 'WhatsApp'
+    SMS = 'SMS', 'SMS'
+    IN_APP = 'IN_APP', 'In-App'
+
+
 class Customer(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_profile')
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
+    preferred_branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='preferred_customers')
     customer_id = models.CharField(max_length=50, unique=True, blank=True)
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20)
     email = models.EmailField()
     alternate_phone = models.CharField(max_length=20, blank=True, null=True)
+    alternate_email = models.EmailField(blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=10, blank=True, null=True)
     gst_number = models.CharField(max_length=50, blank=True, null=True)
+    pan_number = models.CharField(max_length=20, blank=True, null=True)
     customer_type = models.CharField(max_length=50, default='Individual')
+    customer_category = models.CharField(max_length=20, choices=CustomerCategory.choices, default=CustomerCategory.RETAIL)
+    preferred_channel = models.CharField(max_length=20, choices=CommunicationChannel.choices, default=CommunicationChannel.PHONE)
     loyalty_points = models.IntegerField(default=0)
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     outstanding_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_visits = models.IntegerField(default=0)
+    last_visit_date = models.DateField(null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    anniversary_date = models.DateField(null=True, blank=True)
+    referral_source = models.CharField(max_length=100, blank=True, null=True)
+    referred_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='referrals')
     notes = models.TextField(blank=True, null=True)
+    tags = models.JSONField(default=list, blank=True)
+    do_not_contact = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1294,3 +1326,466 @@ class IntegrationConfig(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.integration_type})"
+
+
+# ==================== CRM MODULE MODELS ====================
+
+class LeadSource(models.TextChoices):
+    WALK_IN = 'WALK_IN', 'Walk-in'
+    WEBSITE = 'WEBSITE', 'Website'
+    MOBILE_APP = 'MOBILE_APP', 'Mobile App'
+    WHATSAPP = 'WHATSAPP', 'WhatsApp'
+    REFERRAL = 'REFERRAL', 'Referral'
+    CAMPAIGN = 'CAMPAIGN', 'Campaign'
+    FLEET_INQUIRY = 'FLEET_INQUIRY', 'Fleet Inquiry'
+    SOCIAL_MEDIA = 'SOCIAL_MEDIA', 'Social Media'
+    COLD_CALL = 'COLD_CALL', 'Cold Call'
+    ADVERTISEMENT = 'ADVERTISEMENT', 'Advertisement'
+    OTHER = 'OTHER', 'Other'
+
+
+class LeadStatus(models.TextChoices):
+    NEW = 'NEW', 'New'
+    CONTACTED = 'CONTACTED', 'Contacted'
+    QUALIFIED = 'QUALIFIED', 'Qualified'
+    QUOTED = 'QUOTED', 'Quoted'
+    NEGOTIATION = 'NEGOTIATION', 'Negotiation'
+    CONVERTED = 'CONVERTED', 'Converted'
+    LOST = 'LOST', 'Lost'
+
+
+class Lead(models.Model):
+    lead_id = models.CharField(max_length=50, unique=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
+    name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(blank=True, null=True)
+    alternate_phone = models.CharField(max_length=20, blank=True, null=True)
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    source = models.CharField(max_length=30, choices=LeadSource.choices, default=LeadSource.WALK_IN)
+    status = models.CharField(max_length=20, choices=LeadStatus.choices, default=LeadStatus.NEW)
+    lead_type = models.CharField(max_length=50, default='Service')
+    vehicle_make = models.CharField(max_length=100, blank=True, null=True)
+    vehicle_model = models.CharField(max_length=100, blank=True, null=True)
+    vehicle_year = models.IntegerField(null=True, blank=True)
+    registration_number = models.CharField(max_length=20, blank=True, null=True)
+    service_interest = models.CharField(max_length=255, blank=True, null=True)
+    contract_interest = models.CharField(max_length=100, blank=True, null=True)
+    budget_range = models.CharField(max_length=100, blank=True, null=True)
+    expected_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    priority = models.CharField(max_length=20, default='Medium')
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='owned_leads')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_leads')
+    referred_by_customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='referred_leads')
+    converted_customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='converted_from_lead')
+    converted_job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_lead')
+    converted_contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, null=True, blank=True, related_name='source_lead')
+    lost_reason = models.CharField(max_length=255, blank=True, null=True)
+    lost_to_competitor = models.CharField(max_length=255, blank=True, null=True)
+    next_follow_up = models.DateTimeField(null=True, blank=True)
+    last_contact_date = models.DateTimeField(null=True, blank=True)
+    contact_attempts = models.IntegerField(default=0)
+    notes = models.TextField(blank=True, null=True)
+    tags = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'branch']),
+            models.Index(fields=['owner', 'status']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.lead_id:
+            self.lead_id = f"LEAD-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.lead_id} - {self.name}"
+
+
+class InteractionType(models.TextChoices):
+    CALL_INBOUND = 'CALL_INBOUND', 'Inbound Call'
+    CALL_OUTBOUND = 'CALL_OUTBOUND', 'Outbound Call'
+    EMAIL_SENT = 'EMAIL_SENT', 'Email Sent'
+    EMAIL_RECEIVED = 'EMAIL_RECEIVED', 'Email Received'
+    WHATSAPP_SENT = 'WHATSAPP_SENT', 'WhatsApp Sent'
+    WHATSAPP_RECEIVED = 'WHATSAPP_RECEIVED', 'WhatsApp Received'
+    SMS_SENT = 'SMS_SENT', 'SMS Sent'
+    WALK_IN = 'WALK_IN', 'Walk-in Visit'
+    SERVICE_VISIT = 'SERVICE_VISIT', 'Service Visit'
+    MEETING = 'MEETING', 'Meeting'
+    COMPLAINT = 'COMPLAINT', 'Complaint'
+    FEEDBACK = 'FEEDBACK', 'Feedback'
+    FOLLOW_UP = 'FOLLOW_UP', 'Follow-up'
+    QUOTE = 'QUOTE', 'Quote Provided'
+    OTHER = 'OTHER', 'Other'
+
+
+class InteractionOutcome(models.TextChoices):
+    SUCCESSFUL = 'SUCCESSFUL', 'Successful'
+    NO_ANSWER = 'NO_ANSWER', 'No Answer'
+    BUSY = 'BUSY', 'Busy'
+    CALLBACK_REQUESTED = 'CALLBACK_REQUESTED', 'Callback Requested'
+    NOT_INTERESTED = 'NOT_INTERESTED', 'Not Interested'
+    SCHEDULED = 'SCHEDULED', 'Appointment Scheduled'
+    QUOTE_SENT = 'QUOTE_SENT', 'Quote Sent'
+    ESCALATED = 'ESCALATED', 'Escalated'
+    RESOLVED = 'RESOLVED', 'Resolved'
+    PENDING = 'PENDING', 'Pending'
+
+
+class CustomerInteraction(models.Model):
+    interaction_id = models.CharField(max_length=50, unique=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True, related_name='interactions')
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, null=True, blank=True, related_name='interactions')
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='crm_interactions')
+    contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, null=True, blank=True, related_name='interactions')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    interaction_type = models.CharField(max_length=30, choices=InteractionType.choices)
+    channel = models.CharField(max_length=20, choices=CommunicationChannel.choices, default=CommunicationChannel.PHONE)
+    direction = models.CharField(max_length=10, default='outbound')
+    subject = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField()
+    outcome = models.CharField(max_length=30, choices=InteractionOutcome.choices, null=True, blank=True)
+    sentiment = models.CharField(max_length=20, blank=True, null=True)
+    duration_minutes = models.IntegerField(null=True, blank=True)
+    next_action = models.CharField(max_length=255, blank=True, null=True)
+    next_action_date = models.DateTimeField(null=True, blank=True)
+    initiated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='initiated_interactions')
+    handled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='handled_interactions')
+    attachments = models.JSONField(default=list, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    is_private = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['customer', 'created_at']),
+            models.Index(fields=['lead', 'created_at']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.interaction_id:
+            self.interaction_id = f"INT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        target = self.customer or self.lead
+        return f"{self.interaction_id} - {self.interaction_type} - {target}"
+
+
+class TicketType(models.TextChoices):
+    SERVICE_QUALITY = 'SERVICE_QUALITY', 'Service Quality Issue'
+    BILLING_DISPUTE = 'BILLING_DISPUTE', 'Billing Dispute'
+    DELAY_COMPLAINT = 'DELAY_COMPLAINT', 'Delay Complaint'
+    WARRANTY_ISSUE = 'WARRANTY_ISSUE', 'Warranty Issue'
+    CONTRACT_DISPUTE = 'CONTRACT_DISPUTE', 'Contract Dispute'
+    PARTS_ISSUE = 'PARTS_ISSUE', 'Parts Issue'
+    STAFF_BEHAVIOR = 'STAFF_BEHAVIOR', 'Staff Behavior'
+    GENERAL_INQUIRY = 'GENERAL_INQUIRY', 'General Inquiry'
+    FEEDBACK = 'FEEDBACK', 'Feedback'
+    OTHER = 'OTHER', 'Other'
+
+
+class TicketStatus(models.TextChoices):
+    RAISED = 'RAISED', 'Raised'
+    ASSIGNED = 'ASSIGNED', 'Assigned'
+    IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+    PENDING_CUSTOMER = 'PENDING_CUSTOMER', 'Pending Customer'
+    ESCALATED = 'ESCALATED', 'Escalated'
+    RESOLVED = 'RESOLVED', 'Resolved'
+    CLOSED = 'CLOSED', 'Closed'
+    REOPENED = 'REOPENED', 'Reopened'
+
+
+class TicketPriority(models.TextChoices):
+    LOW = 'LOW', 'Low'
+    MEDIUM = 'MEDIUM', 'Medium'
+    HIGH = 'HIGH', 'High'
+    CRITICAL = 'CRITICAL', 'Critical'
+
+
+class Ticket(models.Model):
+    ticket_id = models.CharField(max_length=50, unique=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='tickets')
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    ticket_type = models.CharField(max_length=30, choices=TicketType.choices)
+    status = models.CharField(max_length=20, choices=TicketStatus.choices, default=TicketStatus.RAISED)
+    priority = models.CharField(max_length=20, choices=TicketPriority.choices, default=TicketPriority.MEDIUM)
+    subject = models.CharField(max_length=255)
+    description = models.TextField()
+    resolution = models.TextField(blank=True, null=True)
+    root_cause = models.TextField(blank=True, null=True)
+    compensation_offered = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    raised_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='raised_tickets')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tickets')
+    escalated_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='escalated_tickets')
+    escalation_level = models.IntegerField(default=0)
+    escalation_reason = models.TextField(blank=True, null=True)
+    sla_response_hours = models.IntegerField(default=24)
+    sla_resolution_hours = models.IntegerField(default=72)
+    first_response_at = models.DateTimeField(null=True, blank=True)
+    sla_breached = models.BooleanField(default=False)
+    customer_satisfaction = models.IntegerField(null=True, blank=True)
+    feedback = models.TextField(blank=True, null=True)
+    attachments = models.JSONField(default=list, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['assigned_to', 'status']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.ticket_id:
+            self.ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.ticket_id} - {self.subject}"
+
+
+class FollowUpType(models.TextChoices):
+    SERVICE_REMINDER = 'SERVICE_REMINDER', 'Service Reminder'
+    PAYMENT_FOLLOW_UP = 'PAYMENT_FOLLOW_UP', 'Payment Follow-up'
+    RENEWAL_FOLLOW_UP = 'RENEWAL_FOLLOW_UP', 'Renewal Follow-up'
+    COMPLAINT_FOLLOW_UP = 'COMPLAINT_FOLLOW_UP', 'Complaint Follow-up'
+    FEEDBACK_FOLLOW_UP = 'FEEDBACK_FOLLOW_UP', 'Feedback Follow-up'
+    LEAD_FOLLOW_UP = 'LEAD_FOLLOW_UP', 'Lead Follow-up'
+    QUOTE_FOLLOW_UP = 'QUOTE_FOLLOW_UP', 'Quote Follow-up'
+    GENERAL = 'GENERAL', 'General'
+
+
+class FollowUpStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+    COMPLETED = 'COMPLETED', 'Completed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    OVERDUE = 'OVERDUE', 'Overdue'
+
+
+class FollowUpTask(models.Model):
+    task_id = models.CharField(max_length=50, unique=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True, related_name='follow_up_tasks')
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, null=True, blank=True, related_name='follow_up_tasks')
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, null=True, blank=True, related_name='follow_up_tasks')
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='follow_up_tasks')
+    contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, null=True, blank=True, related_name='follow_up_tasks')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    follow_up_type = models.CharField(max_length=30, choices=FollowUpType.choices)
+    status = models.CharField(max_length=20, choices=FollowUpStatus.choices, default=FollowUpStatus.PENDING)
+    priority = models.CharField(max_length=20, choices=TicketPriority.choices, default=TicketPriority.MEDIUM)
+    subject = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    due_date = models.DateTimeField()
+    reminder_date = models.DateTimeField(null=True, blank=True)
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_follow_ups')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_follow_ups')
+    outcome = models.TextField(blank=True, null=True)
+    next_action = models.CharField(max_length=255, blank=True, null=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['due_date']
+        indexes = [
+            models.Index(fields=['assigned_to', 'status', 'due_date']),
+            models.Index(fields=['customer', 'status']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.task_id:
+            self.task_id = f"TASK-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.task_id} - {self.subject}"
+
+
+class CampaignType(models.TextChoices):
+    SERVICE_REMINDER = 'SERVICE_REMINDER', 'Service Reminder'
+    SEASONAL_OFFER = 'SEASONAL_OFFER', 'Seasonal Offer'
+    CONTRACT_RENEWAL = 'CONTRACT_RENEWAL', 'Contract Renewal'
+    UPSELL = 'UPSELL', 'Upsell'
+    CROSS_SELL = 'CROSS_SELL', 'Cross-sell'
+    BIRTHDAY = 'BIRTHDAY', 'Birthday'
+    ANNIVERSARY = 'ANNIVERSARY', 'Anniversary'
+    REACTIVATION = 'REACTIVATION', 'Reactivation'
+    FEEDBACK = 'FEEDBACK', 'Feedback Request'
+    PROMOTIONAL = 'PROMOTIONAL', 'Promotional'
+
+
+class CampaignStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    SCHEDULED = 'SCHEDULED', 'Scheduled'
+    ACTIVE = 'ACTIVE', 'Active'
+    PAUSED = 'PAUSED', 'Paused'
+    COMPLETED = 'COMPLETED', 'Completed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class Campaign(models.Model):
+    campaign_id = models.CharField(max_length=50, unique=True, blank=True)
+    name = models.CharField(max_length=255)
+    campaign_type = models.CharField(max_length=30, choices=CampaignType.choices)
+    status = models.CharField(max_length=20, choices=CampaignStatus.choices, default=CampaignStatus.DRAFT)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='campaigns')
+    channel = models.CharField(max_length=20, choices=CommunicationChannel.choices, default=CommunicationChannel.SMS)
+    target_segment = models.CharField(max_length=100, blank=True, null=True)
+    target_criteria = models.JSONField(default=dict, blank=True)
+    message_template = models.TextField()
+    subject = models.CharField(max_length=255, blank=True, null=True)
+    offer_details = models.TextField(blank=True, null=True)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    total_recipients = models.IntegerField(default=0)
+    messages_sent = models.IntegerField(default=0)
+    messages_delivered = models.IntegerField(default=0)
+    messages_opened = models.IntegerField(default=0)
+    messages_clicked = models.IntegerField(default=0)
+    conversions = models.IntegerField(default=0)
+    revenue_generated = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_campaigns')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.campaign_id:
+            self.campaign_id = f"CAMP-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    @property
+    def open_rate(self):
+        if self.messages_delivered == 0:
+            return 0
+        return round((self.messages_opened / self.messages_delivered) * 100, 2)
+
+    @property
+    def click_rate(self):
+        if self.messages_opened == 0:
+            return 0
+        return round((self.messages_clicked / self.messages_opened) * 100, 2)
+
+    @property
+    def conversion_rate(self):
+        if self.messages_sent == 0:
+            return 0
+        return round((self.conversions / self.messages_sent) * 100, 2)
+
+    def __str__(self):
+        return f"{self.campaign_id} - {self.name}"
+
+
+class CampaignRecipient(models.Model):
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='recipients')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='campaign_recipients')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    opened_at = models.DateTimeField(null=True, blank=True)
+    clicked_at = models.DateTimeField(null=True, blank=True)
+    converted = models.BooleanField(default=False)
+    converted_at = models.DateTimeField(null=True, blank=True)
+    conversion_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    unsubscribed = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ['campaign', 'customer']
+
+
+class CustomerScore(models.Model):
+    customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name='score')
+    overall_score = models.IntegerField(default=50)
+    visit_frequency_score = models.IntegerField(default=0)
+    revenue_score = models.IntegerField(default=0)
+    payment_behavior_score = models.IntegerField(default=0)
+    complaint_score = models.IntegerField(default=0)
+    loyalty_score = models.IntegerField(default=0)
+    engagement_score = models.IntegerField(default=0)
+    segment = models.CharField(max_length=50, default='Standard')
+    churn_risk = models.CharField(max_length=20, default='Low')
+    lifetime_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    predicted_next_visit = models.DateField(null=True, blank=True)
+    last_calculated = models.DateTimeField(auto_now=True)
+    calculation_metadata = models.JSONField(default=dict, blank=True)
+
+    def calculate_score(self):
+        weights = {
+            'visit_frequency': 0.20,
+            'revenue': 0.25,
+            'payment_behavior': 0.15,
+            'complaint': 0.15,
+            'loyalty': 0.15,
+            'engagement': 0.10
+        }
+        self.overall_score = int(
+            self.visit_frequency_score * weights['visit_frequency'] +
+            self.revenue_score * weights['revenue'] +
+            self.payment_behavior_score * weights['payment_behavior'] +
+            (100 - self.complaint_score) * weights['complaint'] +
+            self.loyalty_score * weights['loyalty'] +
+            self.engagement_score * weights['engagement']
+        )
+        if self.overall_score >= 80:
+            self.segment = 'Premium'
+            self.churn_risk = 'Low'
+        elif self.overall_score >= 60:
+            self.segment = 'Standard'
+            self.churn_risk = 'Medium'
+        else:
+            self.segment = 'At-Risk'
+            self.churn_risk = 'High'
+        self.save()
+
+    def __str__(self):
+        return f"Score for {self.customer.name}: {self.overall_score}"
+
+
+class CRMEvent(models.Model):
+    event_id = models.CharField(max_length=50, unique=True, blank=True)
+    event_type = models.CharField(max_length=50)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True, related_name='crm_events')
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, null=True, blank=True, related_name='crm_events')
+    related_object_type = models.CharField(max_length=50, blank=True, null=True)
+    related_object_id = models.IntegerField(null=True, blank=True)
+    description = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    triggered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    is_system_generated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.event_id:
+            self.event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.event_id} - {self.event_type}"

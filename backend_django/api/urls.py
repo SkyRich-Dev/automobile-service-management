@@ -32,6 +32,15 @@ router.register(r'tally-sync-jobs', views.TallySyncJobViewSet, basename='tally-s
 router.register(r'tally-ledger-mappings', views.TallyLedgerMappingViewSet, basename='tally-ledger-mappings')
 router.register(r'integrations', views.IntegrationConfigViewSet, basename='integrations')
 
+# CRM Module Routes
+router.register(r'leads', views.LeadViewSet, basename='leads')
+router.register(r'customer-interactions', views.CustomerInteractionViewSet, basename='customer-interactions')
+router.register(r'tickets', views.TicketViewSet, basename='tickets')
+router.register(r'follow-up-tasks', views.FollowUpTaskViewSet, basename='follow-up-tasks')
+router.register(r'campaigns', views.CampaignViewSet, basename='campaigns')
+router.register(r'customer-scores', views.CustomerScoreViewSet, basename='customer-scores')
+router.register(r'crm-events', views.CRMEventViewSet, basename='crm-events')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),
@@ -42,6 +51,10 @@ urlpatterns = [
     path('workflow/stages/', views.workflow_stages, name='workflow_stages'),
     path('analytics/summary/', views.analytics_summary, name='analytics_summary'),
     path('admin/dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    
+    # CRM Module Views
+    path('crm/dashboard/', views.crm_dashboard, name='crm_dashboard'),
+    path('crm/customer-360/<int:customer_id>/', views.customer_360_view, name='customer_360'),
     
     path('', include(router.urls)),
 ]

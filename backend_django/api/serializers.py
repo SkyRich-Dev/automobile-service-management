@@ -9,7 +9,10 @@ from .models import (
     ContractConsumption, ContractApproval, ContractAuditLog,
     Supplier, PurchaseOrder, PurchaseOrderLine,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
-    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
+    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
+    Lead, CustomerInteraction, Ticket, FollowUpTask, Campaign, CampaignRecipient, CustomerScore, CRMEvent,
+    LeadSource, LeadStatus, InteractionType, InteractionOutcome, TicketType, TicketStatus, TicketPriority,
+    FollowUpType, FollowUpStatus, CampaignType, CampaignStatus, CustomerCategory, CommunicationChannel
 )
 
 
@@ -45,12 +48,19 @@ class TechnicianMetricsSerializer(serializers.ModelSerializer):
 
 
 class CustomerSerializer(serializers.ModelSerializer):
+    preferred_branch_name = serializers.CharField(source='preferred_branch.name', read_only=True, allow_null=True)
+    referred_by_name = serializers.CharField(source='referred_by.name', read_only=True, allow_null=True)
+    
     class Meta:
         model = Customer
-        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'alternate_phone', 'address', 'city', 
-                  'customer_type', 'loyalty_points', 'credit_limit', 'outstanding_balance', 'notes', 
+        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'alternate_phone', 'alternate_email',
+                  'address', 'city', 'state', 'pincode', 'gst_number', 'pan_number',
+                  'customer_type', 'customer_category', 'preferred_channel', 'preferred_branch',
+                  'preferred_branch_name', 'loyalty_points', 'credit_limit', 'outstanding_balance',
+                  'total_revenue', 'total_visits', 'last_visit_date', 'date_of_birth', 'anniversary_date',
+                  'referral_source', 'referred_by', 'referred_by_name', 'notes', 'tags', 'do_not_contact',
                   'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'customer_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'customer_id', 'total_revenue', 'total_visits', 'created_at', 'updated_at']
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -608,3 +618,243 @@ class AdminDashboardSerializer(serializers.Serializer):
     license_info = LicenseSerializer(allow_null=True)
     integrations_status = serializers.DictField()
     system_health = serializers.DictField()
+
+
+# ==================== CRM MODULE SERIALIZERS ====================
+
+class LeadSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    owner_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    referred_by_customer_name = serializers.CharField(source='referred_by_customer.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Lead
+        fields = ['id', 'lead_id', 'branch', 'branch_name', 'name', 'phone', 'email', 'alternate_phone',
+                  'company_name', 'address', 'city', 'source', 'status', 'lead_type',
+                  'vehicle_make', 'vehicle_model', 'vehicle_year', 'registration_number',
+                  'service_interest', 'contract_interest', 'budget_range', 'expected_value', 'priority',
+                  'owner', 'owner_name', 'assigned_to', 'assigned_to_name',
+                  'referred_by_customer', 'referred_by_customer_name', 'converted_customer', 'converted_job_card',
+                  'lost_reason', 'lost_to_competitor', 'next_follow_up', 'last_contact_date', 'contact_attempts',
+                  'notes', 'tags', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'lead_id', 'created_at', 'updated_at']
+    
+    def get_owner_name(self, obj):
+        if obj.owner:
+            return f"{obj.owner.first_name} {obj.owner.last_name}".strip() or obj.owner.username
+        return None
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.username
+        return None
+
+
+class CustomerInteractionSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True, allow_null=True)
+    lead_name = serializers.CharField(source='lead.name', read_only=True, allow_null=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    handled_by_name = serializers.SerializerMethodField()
+    initiated_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CustomerInteraction
+        fields = ['id', 'interaction_id', 'customer', 'customer_name', 'lead', 'lead_name',
+                  'job_card', 'job_card_number', 'contract', 'branch', 'interaction_type', 'channel',
+                  'direction', 'subject', 'description', 'outcome', 'sentiment', 'duration_minutes',
+                  'next_action', 'next_action_date', 'initiated_by', 'initiated_by_name',
+                  'handled_by', 'handled_by_name', 'attachments', 'metadata', 'is_private', 'created_at']
+        read_only_fields = ['id', 'interaction_id', 'created_at']
+    
+    def get_handled_by_name(self, obj):
+        if obj.handled_by:
+            return f"{obj.handled_by.first_name} {obj.handled_by.last_name}".strip() or obj.handled_by.username
+        return None
+    
+    def get_initiated_by_name(self, obj):
+        if obj.initiated_by:
+            return f"{obj.initiated_by.first_name} {obj.initiated_by.last_name}".strip() or obj.initiated_by.username
+        return None
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    vehicle_info = serializers.SerializerMethodField()
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    escalated_to_name = serializers.SerializerMethodField()
+    raised_by_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    age_hours = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Ticket
+        fields = ['id', 'ticket_id', 'customer', 'customer_name', 'vehicle', 'vehicle_info',
+                  'job_card', 'job_card_number', 'contract', 'invoice', 'branch', 'branch_name',
+                  'ticket_type', 'status', 'priority', 'subject', 'description', 'resolution', 'root_cause',
+                  'compensation_offered', 'raised_by', 'raised_by_name', 'assigned_to', 'assigned_to_name',
+                  'escalated_to', 'escalated_to_name', 'escalation_level', 'escalation_reason',
+                  'sla_response_hours', 'sla_resolution_hours', 'first_response_at', 'sla_breached',
+                  'customer_satisfaction', 'feedback', 'attachments', 'age_hours',
+                  'resolved_at', 'closed_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'ticket_id', 'created_at', 'updated_at']
+    
+    def get_vehicle_info(self, obj):
+        if obj.vehicle:
+            return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+        return None
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.username
+        return None
+    
+    def get_escalated_to_name(self, obj):
+        if obj.escalated_to:
+            return f"{obj.escalated_to.first_name} {obj.escalated_to.last_name}".strip() or obj.escalated_to.username
+        return None
+    
+    def get_raised_by_name(self, obj):
+        if obj.raised_by:
+            return f"{obj.raised_by.first_name} {obj.raised_by.last_name}".strip() or obj.raised_by.username
+        return None
+    
+    def get_age_hours(self, obj):
+        from django.utils import timezone
+        if obj.created_at:
+            delta = timezone.now() - obj.created_at
+            return round(delta.total_seconds() / 3600, 1)
+        return 0
+
+
+class FollowUpTaskSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True, allow_null=True)
+    lead_name = serializers.CharField(source='lead.name', read_only=True, allow_null=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    is_overdue = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FollowUpTask
+        fields = ['id', 'task_id', 'customer', 'customer_name', 'lead', 'lead_name',
+                  'ticket', 'job_card', 'contract', 'branch', 'follow_up_type', 'status', 'priority',
+                  'subject', 'description', 'due_date', 'reminder_date', 'assigned_to', 'assigned_to_name',
+                  'created_by', 'created_by_name', 'outcome', 'next_action', 'is_overdue',
+                  'completed_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'task_id', 'created_at', 'updated_at']
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.username
+        return None
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_is_overdue(self, obj):
+        from django.utils import timezone
+        if obj.status in ['PENDING', 'IN_PROGRESS'] and obj.due_date:
+            return timezone.now() > obj.due_date
+        return False
+
+
+class CampaignSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    created_by_name = serializers.SerializerMethodField()
+    open_rate = serializers.FloatField(read_only=True)
+    click_rate = serializers.FloatField(read_only=True)
+    conversion_rate = serializers.FloatField(read_only=True)
+    
+    class Meta:
+        model = Campaign
+        fields = ['id', 'campaign_id', 'name', 'campaign_type', 'status', 'branch', 'branch_name',
+                  'channel', 'target_segment', 'target_criteria', 'message_template', 'subject',
+                  'offer_details', 'discount_percent', 'valid_from', 'valid_until',
+                  'scheduled_at', 'started_at', 'completed_at',
+                  'total_recipients', 'messages_sent', 'messages_delivered', 'messages_opened', 'messages_clicked',
+                  'conversions', 'revenue_generated', 'cost', 'open_rate', 'click_rate', 'conversion_rate',
+                  'created_by', 'created_by_name', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'campaign_id', 'messages_sent', 'messages_delivered', 'messages_opened',
+                           'messages_clicked', 'conversions', 'revenue_generated', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class CampaignRecipientSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    customer_phone = serializers.CharField(source='customer.phone', read_only=True)
+    customer_email = serializers.CharField(source='customer.email', read_only=True)
+    
+    class Meta:
+        model = CampaignRecipient
+        fields = ['id', 'campaign', 'customer', 'customer_name', 'customer_phone', 'customer_email',
+                  'sent_at', 'delivered_at', 'opened_at', 'clicked_at', 'converted', 'converted_at',
+                  'conversion_value', 'unsubscribed', 'error_message']
+
+
+class CustomerScoreSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    customer_id = serializers.CharField(source='customer.customer_id', read_only=True)
+    
+    class Meta:
+        model = CustomerScore
+        fields = ['id', 'customer', 'customer_id', 'customer_name', 'overall_score',
+                  'visit_frequency_score', 'revenue_score', 'payment_behavior_score',
+                  'complaint_score', 'loyalty_score', 'engagement_score',
+                  'segment', 'churn_risk', 'lifetime_value', 'predicted_next_visit',
+                  'last_calculated', 'calculation_metadata']
+        read_only_fields = ['id', 'overall_score', 'segment', 'churn_risk', 'last_calculated']
+
+
+class CRMEventSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True, allow_null=True)
+    lead_name = serializers.CharField(source='lead.name', read_only=True, allow_null=True)
+    triggered_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CRMEvent
+        fields = ['id', 'event_id', 'event_type', 'customer', 'customer_name', 'lead', 'lead_name',
+                  'related_object_type', 'related_object_id', 'description', 'metadata',
+                  'triggered_by', 'triggered_by_name', 'is_system_generated', 'created_at']
+        read_only_fields = ['id', 'event_id', 'created_at']
+    
+    def get_triggered_by_name(self, obj):
+        if obj.triggered_by:
+            return f"{obj.triggered_by.first_name} {obj.triggered_by.last_name}".strip() or obj.triggered_by.username
+        return None
+
+
+class Customer360Serializer(serializers.ModelSerializer):
+    vehicles = VehicleSerializer(many=True, read_only=True)
+    interactions = CustomerInteractionSerializer(many=True, read_only=True)
+    tickets = TicketSerializer(many=True, read_only=True)
+    follow_up_tasks = FollowUpTaskSerializer(many=True, read_only=True)
+    score = CustomerScoreSerializer(read_only=True)
+    contracts = ContractSerializer(source='contracts_as_customer', many=True, read_only=True)
+    job_cards_count = serializers.SerializerMethodField()
+    open_tickets_count = serializers.SerializerMethodField()
+    pending_tasks_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Customer
+        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'alternate_phone', 'alternate_email',
+                  'address', 'city', 'state', 'pincode', 'customer_type', 'customer_category',
+                  'preferred_channel', 'loyalty_points', 'total_revenue', 'total_visits', 'last_visit_date',
+                  'date_of_birth', 'anniversary_date', 'notes', 'tags', 'do_not_contact', 'is_active',
+                  'vehicles', 'interactions', 'tickets', 'follow_up_tasks', 'score', 'contracts',
+                  'job_cards_count', 'open_tickets_count', 'pending_tasks_count', 'created_at', 'updated_at']
+    
+    def get_job_cards_count(self, obj):
+        return obj.job_cards.count()
+    
+    def get_open_tickets_count(self, obj):
+        return obj.tickets.exclude(status__in=['RESOLVED', 'CLOSED']).count()
+    
+    def get_pending_tasks_count(self, obj):
+        return obj.follow_up_tasks.filter(status__in=['PENDING', 'IN_PROGRESS']).count()

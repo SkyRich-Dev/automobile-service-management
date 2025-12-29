@@ -4,7 +4,7 @@
 A comprehensive enterprise-grade Automobile Car & Bike Service Management System built with Django REST Framework backend and Shadcn/UI + Tailwind CSS frontend. The system implements a strict 11-stage service workflow with comprehensive RBAC (12+ user roles), immutable audit logging, multi-branch support, and enterprise features including appointment scheduling, contract management, supplier procurement, and analytics.
 
 ## Current State
-**Status:** Fully functional enterprise service management system with complete workflow enforcement, RBAC, and enterprise modules.
+**Status:** Fully functional enterprise service management system with complete workflow enforcement, RBAC, enterprise modules, and comprehensive CRM module.
 
 ## Recent Changes (December 2024)
 - Implemented 11-stage workflow state machine: Appointment → Check-in → Inspection → Job Card → Estimate → Approval → Execution → QC → Billing → Delivery → Completed
@@ -21,6 +21,15 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
   - SLA parameters (response/resolution time)
   - Approval workflow with audit logging
   - Contract eligibility API for service workflow integration
+- **CRM Module (NEW):**
+  - Lead Management with 7-state lifecycle: NEW → CONTACTED → QUALIFIED → QUOTED → NEGOTIATION → CONVERTED → LOST
+  - Customer 360-degree view with vehicles, interactions, tickets, tasks, contracts, and scoring
+  - Interaction tracking (14 types: CALL, SMS, EMAIL, WHATSAPP, VISIT, MEETING, etc.)
+  - Ticket/Escalation management with SLA tracking and escalation levels
+  - Follow-up task management with overdue tracking
+  - Campaign management with conversion tracking
+  - Customer scoring algorithm (weighted: revenue 25%, visit frequency 20%, payment 15%, complaints 15%, loyalty 15%, engagement 10%)
+  - CRM audit event trail for all activities
 - Added enterprise modules:
   - **Appointments:** Customer booking, confirmation, check-in workflow
   - **Contracts:** Full lifecycle management with approval workflow
@@ -57,6 +66,8 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
   - Profile with roles, TechnicianMetrics
   - Notification, Contract, Supplier, PurchaseOrder
   - TechnicianSchedule, Appointment, AnalyticsSnapshot
+  - Lead, CustomerInteraction, Ticket, FollowUpTask
+  - Campaign, CampaignRecipient, CustomerScore, CRMEvent
 
 ## Workflow Stages (11 Total)
 1. **APPOINTMENT** - Customer books service
@@ -127,6 +138,36 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - `GET /api/purchase-orders/` - Purchase order management
 - `GET /api/notifications/` - System notifications
 - `GET /api/analytics/summary/` - Analytics summary with KPIs
+
+### CRM Module
+- `GET /api/leads/` - Lead management
+- `GET /api/leads/pipeline/` - Lead pipeline by status
+- `POST /api/leads/{id}/transition/` - Change lead status
+- `POST /api/leads/{id}/convert/` - Convert lead to customer
+- `GET /api/leads/dashboard_stats/` - Lead statistics
+- `GET /api/customer-interactions/` - Interaction tracking
+- `GET /api/customer-interactions/timeline/` - Customer interaction timeline
+- `GET /api/tickets/` - Ticket/complaint management
+- `POST /api/tickets/{id}/assign/` - Assign ticket
+- `POST /api/tickets/{id}/resolve/` - Resolve ticket
+- `POST /api/tickets/{id}/escalate/` - Escalate ticket
+- `POST /api/tickets/{id}/close/` - Close ticket with feedback
+- `GET /api/tickets/dashboard_stats/` - Ticket statistics
+- `GET /api/follow-up-tasks/` - Follow-up task management
+- `POST /api/follow-up-tasks/{id}/complete/` - Complete follow-up
+- `GET /api/follow-up-tasks/my_tasks/` - Current user's tasks
+- `GET /api/follow-up-tasks/overdue/` - Overdue tasks
+- `GET /api/campaigns/` - Campaign management
+- `POST /api/campaigns/{id}/start/` - Start campaign
+- `POST /api/campaigns/{id}/pause/` - Pause campaign
+- `POST /api/campaigns/{id}/complete/` - Complete campaign
+- `GET /api/campaigns/{id}/recipients/` - Campaign recipients
+- `GET /api/customer-scores/` - Customer scoring
+- `POST /api/customer-scores/{id}/recalculate/` - Recalculate score
+- `GET /api/customer-scores/at_risk/` - At-risk customers
+- `GET /api/crm-events/` - CRM audit events
+- `GET /api/crm/dashboard/` - CRM dashboard summary
+- `GET /api/crm/customer-360/{id}/` - Customer 360-degree view
 
 ## Running the Project
 The application runs via the "Start application" workflow which executes `npm run dev`, starting both the Express proxy server and Django backend on port 5000.
