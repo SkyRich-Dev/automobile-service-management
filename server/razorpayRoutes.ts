@@ -1,17 +1,44 @@
 import type { Express, Request, Response } from 'express';
-import { createRazorpayOrder, verifyRazorpayPayment, fetchRazorpayPayment, getRazorpayConfig } from './razorpayClient';
+import { createRazorpayOrder, verifyRazorpayPayment, fetchRazorpayPayment, getRazorpayConfig, setRazorpayConfig } from './razorpayClient';
 
 export function registerRazorpayRoutes(app: Express) {
   app.get('/api/razorpay/config', async (req: Request, res: Response) => {
     try {
       const config = getRazorpayConfig();
       if (!config) {
-        return res.status(503).json({ error: 'Razorpay not configured', configured: false });
+        return res.json({ configured: false });
       }
       res.json({ keyId: config.keyId, configured: true });
     } catch (error: any) {
       console.error('Error getting Razorpay config:', error);
       res.status(500).json({ error: 'Failed to get Razorpay configuration' });
+    }
+  });
+
+  app.post('/api/razorpay/configure', async (req: Request, res: Response) => {
+    try {
+      const { keyId, keySecret } = req.body;
+
+      if (!keyId || !keySecret) {
+        return res.status(400).json({ error: 'Key ID and Key Secret are required' });
+      }
+
+      const testResponse = await fetch('https://api.razorpay.com/v1/orders?count=1', {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`
+        }
+      });
+
+      if (!testResponse.ok) {
+        return res.status(400).json({ error: 'Invalid Razorpay credentials' });
+      }
+
+      setRazorpayConfig({ keyId, keySecret });
+
+      res.json({ success: true, message: 'Razorpay configured successfully' });
+    } catch (error: any) {
+      console.error('Error configuring Razorpay:', error);
+      res.status(500).json({ error: 'Failed to configure Razorpay' });
     }
   });
 

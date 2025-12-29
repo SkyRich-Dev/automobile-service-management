@@ -368,6 +368,148 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   );
 }
 
+function PaymentGatewaysPanel() {
+  const { toast } = useToast();
+  const [razorpayKeyId, setRazorpayKeyId] = useState("");
+  const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
+
+  const { data: stripeConfig } = useQuery({
+    queryKey: ['/api/stripe/publishable-key'],
+  });
+
+  const { data: razorpayConfig, refetch: refetchRazorpay } = useQuery({
+    queryKey: ['/api/razorpay/config'],
+    retry: false,
+  });
+
+  const configureRazorpayMutation = useMutation({
+    mutationFn: async (data: { keyId: string; keySecret: string }) => {
+      const response = await apiRequest('POST', '/api/razorpay/configure', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Razorpay configured successfully" });
+      refetchRazorpay();
+      setRazorpayKeyId("");
+      setRazorpayKeySecret("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Configuration failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const stripeConfigured = !!(stripeConfig as any)?.publishableKey;
+  const razorpayConfigured = (razorpayConfig as any)?.configured;
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/50 overflow-visible">
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Stripe
+              </CardTitle>
+              <CardDescription>Credit/Debit card payments via Stripe</CardDescription>
+            </div>
+            <Badge
+              variant={stripeConfigured ? "default" : "secondary"}
+              className={stripeConfigured ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : ""}
+            >
+              {stripeConfigured ? "Connected" : "Not Connected"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {stripeConfigured ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-emerald-500" />
+              Stripe is configured via Replit integration. Webhook handling is automatic.
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Stripe is configured automatically via Replit integration.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 overflow-visible">
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Razorpay
+              </CardTitle>
+              <CardDescription>UPI, Netbanking, and Wallet payments</CardDescription>
+            </div>
+            <Badge
+              variant={razorpayConfigured ? "default" : "secondary"}
+              className={razorpayConfigured ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : ""}
+            >
+              {razorpayConfigured ? "Connected" : "Not Connected"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {razorpayConfigured ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-emerald-500" />
+              Razorpay is configured and ready to accept payments.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter your Razorpay API credentials to enable UPI and Netbanking payments.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="razorpay_key_id">Key ID</Label>
+                  <Input
+                    id="razorpay_key_id"
+                    type="text"
+                    placeholder="rzp_live_xxxxx or rzp_test_xxxxx"
+                    value={razorpayKeyId}
+                    onChange={(e) => setRazorpayKeyId(e.target.value)}
+                    data-testid="input-razorpay-key-id"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="razorpay_key_secret">Key Secret</Label>
+                  <Input
+                    id="razorpay_key_secret"
+                    type="password"
+                    placeholder="Your secret key"
+                    value={razorpayKeySecret}
+                    onChange={(e) => setRazorpayKeySecret(e.target.value)}
+                    data-testid="input-razorpay-key-secret"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={() => configureRazorpayMutation.mutate({ keyId: razorpayKeyId, keySecret: razorpayKeySecret })}
+                disabled={!razorpayKeyId || !razorpayKeySecret || configureRazorpayMutation.isPending}
+                data-testid="button-configure-razorpay"
+              >
+                {configureRazorpayMutation.isPending ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Configuring...
+                  </>
+                ) : (
+                  "Configure Razorpay"
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function TallySyncPanel() {
   const { toast } = useToast();
 
@@ -554,31 +696,7 @@ export default function AdminPanel() {
                 Configure payment processing integrations
               </p>
             </div>
-            {integrations.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <Plug className="mb-3 h-12 w-12 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold">No Integrations Configured</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Add Stripe, Razorpay, or other payment gateways
-                  </p>
-                  <Button className="mt-4" data-testid="button-add-integration">
-                    Add Integration
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {integrations.map((integration) => (
-                  <IntegrationCard
-                    key={integration.id}
-                    integration={integration}
-                    onToggle={() => toggleMutation.mutate(integration.id)}
-                    onTest={() => testMutation.mutate(integration.id)}
-                  />
-                ))}
-              </div>
-            )}
+            <PaymentGatewaysPanel />
           </TabsContent>
 
           <TabsContent value="tally">

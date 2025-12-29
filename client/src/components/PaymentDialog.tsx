@@ -51,19 +51,21 @@ export function PaymentDialog({
 
   const stripeCheckoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/stripe/create-payment-intent', {
+      const response = await apiRequest('POST', '/api/stripe/create-checkout-session', {
         amount,
         invoiceId,
         customerEmail,
-        currency: 'inr',
+        successUrl: `${window.location.origin}/payment/success?invoice=${invoiceId}`,
+        cancelUrl: `${window.location.origin}/payment/cancel?invoice=${invoiceId}`,
       });
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.clientSecret) {
-        setPaymentStatus('success');
-        toast({ title: "Payment intent created", description: "Use Stripe Elements to complete payment" });
-        onPaymentSuccess?.({ paymentIntentId: data.paymentIntentId, clientSecret: data.clientSecret });
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({ title: "Payment failed", description: "No checkout URL received", variant: "destructive" });
+        setPaymentStatus('error');
       }
     },
     onError: (error: any) => {

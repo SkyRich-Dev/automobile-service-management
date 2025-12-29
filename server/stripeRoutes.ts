@@ -92,17 +92,34 @@ export function registerStripeRoutes(app: Express) {
 
   app.post('/api/stripe/create-checkout-session', async (req: Request, res: Response) => {
     try {
-      const { priceId, invoiceId, customerEmail, successUrl, cancelUrl } = req.body;
+      const { priceId, amount, invoiceId, customerEmail, successUrl, cancelUrl, currency = 'inr' } = req.body;
 
-      if (!priceId) {
-        return res.status(400).json({ error: 'Price ID is required' });
+      if (!priceId && !amount) {
+        return res.status(400).json({ error: 'Price ID or amount is required' });
       }
 
       const stripe = await getUncachableStripeClient();
 
+      let lineItems: any[];
+      if (priceId) {
+        lineItems = [{ price: priceId, quantity: 1 }];
+      } else {
+        lineItems = [{
+          price_data: {
+            currency: currency,
+            product_data: {
+              name: `Invoice #${invoiceId || 'Service Payment'}`,
+              description: 'AutoServ Enterprise - Service Payment',
+            },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
+        }];
+      }
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: lineItems,
         mode: 'payment',
         customer_email: customerEmail,
         success_url: successUrl || `${req.protocol}://${req.get('host')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,

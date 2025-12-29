@@ -16,7 +16,36 @@ import Contracts from "@/pages/Contracts";
 import Suppliers from "@/pages/Suppliers";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
+
+type UserRole = 
+  | 'SYSTEM_ADMIN' 
+  | 'BRANCH_MANAGER' 
+  | 'SERVICE_MANAGER'
+  | 'SERVICE_ADVISOR' 
+  | 'LEAD_TECHNICIAN' 
+  | 'TECHNICIAN'
+  | 'QC_INSPECTOR' 
+  | 'PARTS_MANAGER' 
+  | 'INVENTORY_CLERK'
+  | 'ACCOUNTANT' 
+  | 'CASHIER' 
+  | 'RECEPTIONIST' 
+  | 'CUSTOMER';
+
+const routePermissions: Record<string, UserRole[]> = {
+  '/': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'LEAD_TECHNICIAN', 'TECHNICIAN', 'QC_INSPECTOR', 'PARTS_MANAGER', 'INVENTORY_CLERK', 'ACCOUNTANT', 'CASHIER', 'RECEPTIONIST'],
+  '/service': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'LEAD_TECHNICIAN', 'TECHNICIAN', 'QC_INSPECTOR'],
+  '/appointments': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'RECEPTIONIST'],
+  '/inventory': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'PARTS_MANAGER', 'INVENTORY_CLERK'],
+  '/suppliers': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'PARTS_MANAGER'],
+  '/crm': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'RECEPTIONIST'],
+  '/contracts': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT'],
+  '/analytics': ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'ACCOUNTANT'],
+  '/admin': ['SYSTEM_ADMIN', 'BRANCH_MANAGER'],
+};
 
 function LoadingScreen() {
   return (
@@ -29,8 +58,8 @@ function LoadingScreen() {
   );
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoading } = useAuth();
+function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: UserRole[] }) {
+  const { user, profile, isLoading } = useAuth();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -40,6 +69,20 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     return <Login />;
   }
 
+  if (allowedRoles && allowedRoles.length > 0) {
+    const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
+    if (!allowedRoles.includes(userRole)) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
+            <p className="mt-2 text-muted-foreground">You don't have permission to access this page.</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
   return <Component />;
 }
 
@@ -47,19 +90,21 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/service" component={() => <ProtectedRoute component={ServiceOperations} />} />
-      <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} />} />
-      <Route path="/crm" component={() => <ProtectedRoute component={CRM} />} />
-      <Route path="/job-cards/:id" component={() => <ProtectedRoute component={JobCardDetail} />} />
-      <Route path="/appointments" component={() => <ProtectedRoute component={Appointments} />} />
-      <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} />} />
-      <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} />} />
-      <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} />} />
-      <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} />} />
-      <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} />} />
+      <Route path="/payment/success" component={PaymentSuccess} />
+      <Route path="/payment/cancel" component={PaymentCancel} />
+      <Route path="/" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/']} />} />
+      <Route path="/service" component={() => <ProtectedRoute component={ServiceOperations} allowedRoles={routePermissions['/service']} />} />
+      <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} allowedRoles={routePermissions['/inventory']} />} />
+      <Route path="/crm" component={() => <ProtectedRoute component={CRM} allowedRoles={routePermissions['/crm']} />} />
+      <Route path="/job-cards/:id" component={() => <ProtectedRoute component={JobCardDetail} allowedRoles={routePermissions['/service']} />} />
+      <Route path="/appointments" component={() => <ProtectedRoute component={Appointments} allowedRoles={routePermissions['/appointments']} />} />
+      <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} allowedRoles={routePermissions['/contracts']} />} />
+      <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} allowedRoles={routePermissions['/suppliers']} />} />
+      <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} allowedRoles={routePermissions['/analytics']} />} />
+      <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/analytics']} />} />
+      <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route component={NotFound} />
     </Switch>
   );
