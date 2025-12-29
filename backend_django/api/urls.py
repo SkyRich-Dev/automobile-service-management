@@ -25,6 +25,12 @@ router.register(r'purchase-orders', views.PurchaseOrderViewSet, basename='purcha
 router.register(r'technician-schedules', views.TechnicianScheduleViewSet, basename='technician-schedules')
 router.register(r'appointments', views.AppointmentViewSet, basename='appointments')
 router.register(r'analytics-snapshots', views.AnalyticsSnapshotViewSet, basename='analytics-snapshots')
+router.register(r'licenses', views.LicenseViewSet, basename='licenses')
+router.register(r'system-settings', views.SystemSettingViewSet, basename='system-settings')
+router.register(r'payment-intents', views.PaymentIntentViewSet, basename='payment-intents')
+router.register(r'tally-sync-jobs', views.TallySyncJobViewSet, basename='tally-sync-jobs')
+router.register(r'tally-ledger-mappings', views.TallyLedgerMappingViewSet, basename='tally-ledger-mappings')
+router.register(r'integrations', views.IntegrationConfigViewSet, basename='integrations')
 
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
@@ -35,6 +41,7 @@ urlpatterns = [
     path('dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
     path('workflow/stages/', views.workflow_stages, name='workflow_stages'),
     path('analytics/summary/', views.analytics_summary, name='analytics_summary'),
+    path('admin/dashboard/', views.admin_dashboard, name='admin_dashboard'),
     
     path('', include(router.urls)),
 ]

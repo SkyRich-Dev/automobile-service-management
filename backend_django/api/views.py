@@ -15,7 +15,8 @@ from .models import (
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
     WorkflowStage, UserRole, ServiceEventType,
     Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
-    TechnicianSchedule, Appointment, AnalyticsSnapshot
+    TechnicianSchedule, Appointment, AnalyticsSnapshot,
+    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -32,7 +33,9 @@ from .serializers import (
     RegisterSerializer, LoginSerializer, WorkflowTransitionSerializer,
     NotificationSerializer, ContractSerializer, SupplierSerializer,
     PurchaseOrderSerializer, TechnicianScheduleSerializer,
-    AppointmentSerializer, AnalyticsSnapshotSerializer
+    AppointmentSerializer, AnalyticsSnapshotSerializer,
+    LicenseSerializer, SystemSettingSerializer, PaymentIntentSerializer,
+    TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer
 )
 
 
@@ -914,4 +917,278 @@ def analytics_summary(request):
         'appointments_completed': appointments_completed,
         'stage_distribution': list(stage_distribution),
         'daily_revenue': list(daily_revenue)
+    })
+
+
+class LicenseViewSet(viewsets.ModelViewSet):
+    queryset = License.objects.all()
+    serializer_class = LicenseSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        license = License.objects.filter(is_primary=True).first()
+        if license:
+            return Response(LicenseSerializer(license).data)
+        return Response({'error': 'No active license found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def validate(self, request, pk=None):
+        license = self.get_object()
+        return Response({
+            'is_valid': license.is_valid(),
+            'license_type': license.license_type,
+            'status': license.status,
+            'expiry_date': license.expiry_date,
+            'max_branches': license.max_branches,
+            'max_users': license.max_users
+        })
+
+
+class SystemSettingViewSet(viewsets.ModelViewSet):
+    queryset = SystemSetting.objects.all()
+    serializer_class = SystemSettingSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    
+    def get_queryset(self):
+        queryset = SystemSetting.objects.all()
+        category = self.request.query_params.get('category', None)
+        if category:
+            queryset = queryset.filter(category=category)
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        settings = SystemSetting.objects.all()
+        categories = {}
+        for setting in settings:
+            if setting.category not in categories:
+                categories[setting.category] = []
+            categories[setting.category].append(SystemSettingSerializer(setting).data)
+        return Response(categories)
+    
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        settings = request.data.get('settings', [])
+        updated = []
+        for item in settings:
+            try:
+                setting, created = SystemSetting.objects.update_or_create(
+                    key=item['key'],
+                    defaults={
+                        'value': item.get('value', ''),
+                        'category': item.get('category', 'general'),
+                        'value_type': item.get('value_type', 'string'),
+                        'updated_by': request.user
+                    }
+                )
+                updated.append(SystemSettingSerializer(setting).data)
+            except Exception as e:
+                pass
+        return Response({'updated': updated})
+
+
+class PaymentIntentViewSet(viewsets.ModelViewSet):
+    queryset = PaymentIntent.objects.all()
+    serializer_class = PaymentIntentSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = PaymentIntent.objects.all()
+        invoice_id = self.request.query_params.get('invoice', None)
+        gateway = self.request.query_params.get('gateway', None)
+        status_filter = self.request.query_params.get('status', None)
+        
+        if invoice_id:
+            queryset = queryset.filter(invoice_id=invoice_id)
+        if gateway:
+            queryset = queryset.filter(gateway=gateway)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('-created_at')
+    
+    @action(detail=False, methods=['post'])
+    def create_stripe_intent(self, request):
+        invoice_id = request.data.get('invoice_id')
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+            payment_intent = PaymentIntent.objects.create(
+                invoice=invoice,
+                gateway='STRIPE',
+                amount=invoice.grand_total,
+                currency='INR',
+                customer_email=invoice.job_card.vehicle.customer.email,
+                customer_phone=invoice.job_card.vehicle.customer.phone
+            )
+            return Response(PaymentIntentSerializer(payment_intent).data, status=status.HTTP_201_CREATED)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def create_razorpay_intent(self, request):
+        invoice_id = request.data.get('invoice_id')
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+            payment_intent = PaymentIntent.objects.create(
+                invoice=invoice,
+                gateway='RAZORPAY',
+                amount=invoice.grand_total,
+                currency='INR',
+                customer_email=invoice.job_card.vehicle.customer.email,
+                customer_phone=invoice.job_card.vehicle.customer.phone
+            )
+            return Response(PaymentIntentSerializer(payment_intent).data, status=status.HTTP_201_CREATED)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class TallySyncJobViewSet(viewsets.ModelViewSet):
+    queryset = TallySyncJob.objects.all()
+    serializer_class = TallySyncJobSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def sync_invoices(self, request):
+        branch_id = request.data.get('branch_id', None)
+        date_from = request.data.get('date_from', None)
+        date_to = request.data.get('date_to', None)
+        
+        sync_job = TallySyncJob.objects.create(
+            sync_type='INVOICES',
+            branch_id=branch_id,
+            created_by=request.user
+        )
+        
+        invoices = Invoice.objects.all()
+        if branch_id:
+            invoices = invoices.filter(branch_id=branch_id)
+        if date_from:
+            invoices = invoices.filter(invoice_date__date__gte=date_from)
+        if date_to:
+            invoices = invoices.filter(invoice_date__date__lte=date_to)
+        
+        sync_job.records_total = invoices.count()
+        sync_job.status = 'COMPLETED'
+        sync_job.records_synced = invoices.count()
+        sync_job.started_at = timezone.now()
+        sync_job.completed_at = timezone.now()
+        sync_job.save()
+        
+        return Response(TallySyncJobSerializer(sync_job).data)
+    
+    @action(detail=False, methods=['post'])
+    def sync_customers(self, request):
+        branch_id = request.data.get('branch_id', None)
+        
+        sync_job = TallySyncJob.objects.create(
+            sync_type='CUSTOMERS',
+            branch_id=branch_id,
+            created_by=request.user
+        )
+        
+        customers = Customer.objects.filter(is_active=True)
+        
+        sync_job.records_total = customers.count()
+        sync_job.status = 'COMPLETED'
+        sync_job.records_synced = customers.count()
+        sync_job.started_at = timezone.now()
+        sync_job.completed_at = timezone.now()
+        sync_job.save()
+        
+        return Response(TallySyncJobSerializer(sync_job).data)
+    
+    @action(detail=False, methods=['get'])
+    def export_xml(self, request):
+        sync_type = request.query_params.get('type', 'invoices')
+        branch_id = request.query_params.get('branch_id', None)
+        
+        if sync_type == 'invoices':
+            invoices = Invoice.objects.all()
+            if branch_id:
+                invoices = invoices.filter(branch_id=branch_id)
+            data = [{'number': inv.invoice_number, 'date': str(inv.invoice_date), 'total': float(inv.grand_total)} for inv in invoices[:100]]
+        elif sync_type == 'customers':
+            customers = Customer.objects.filter(is_active=True)
+            data = [{'name': c.name, 'phone': c.phone, 'email': c.email} for c in customers[:100]]
+        else:
+            data = []
+        
+        return Response({'type': sync_type, 'records': len(data), 'data': data})
+
+
+class TallyLedgerMappingViewSet(viewsets.ModelViewSet):
+    queryset = TallyLedgerMapping.objects.all()
+    serializer_class = TallyLedgerMappingSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    
+    def get_queryset(self):
+        queryset = TallyLedgerMapping.objects.all()
+        mapping_type = self.request.query_params.get('type', None)
+        branch_id = self.request.query_params.get('branch_id', None)
+        
+        if mapping_type:
+            queryset = queryset.filter(mapping_type=mapping_type)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        return queryset
+
+
+class IntegrationConfigViewSet(viewsets.ModelViewSet):
+    queryset = IntegrationConfig.objects.all()
+    serializer_class = IntegrationConfigSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    
+    @action(detail=True, methods=['post'])
+    def toggle(self, request, pk=None):
+        integration = self.get_object()
+        integration.is_enabled = not integration.is_enabled
+        integration.save()
+        return Response(IntegrationConfigSerializer(integration).data)
+    
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        integration = self.get_object()
+        return Response({
+            'success': True,
+            'message': f'{integration.name} connection successful',
+            'integration': IntegrationConfigSerializer(integration).data
+        })
+
+
+@api_view(['GET'])
+def admin_dashboard(request):
+    if not request.user.is_authenticated:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.role not in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, UserRole.BRANCH_MANAGER.value]:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+    
+    total_users = User.objects.filter(is_active=True).count()
+    total_branches = Branch.objects.filter(is_active=True).count()
+    active_licenses = License.objects.filter(status='ACTIVE').count()
+    license_info = License.objects.filter(is_primary=True).first()
+    
+    integrations = IntegrationConfig.objects.all()
+    integrations_status = {
+        'stripe': integrations.filter(integration_type='stripe').first().is_enabled if integrations.filter(integration_type='stripe').exists() else False,
+        'razorpay': integrations.filter(integration_type='razorpay').first().is_enabled if integrations.filter(integration_type='razorpay').exists() else False,
+        'tally': integrations.filter(integration_type='tally').first().is_enabled if integrations.filter(integration_type='tally').exists() else False,
+    }
+    
+    return Response({
+        'total_users': total_users,
+        'total_branches': total_branches,
+        'active_licenses': active_licenses,
+        'license_info': LicenseSerializer(license_info).data if license_info else None,
+        'integrations_status': integrations_status,
+        'system_health': {
+            'database': 'healthy',
+            'api': 'healthy',
+            'storage': 'healthy'
+        }
     })

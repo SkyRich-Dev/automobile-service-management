@@ -6,7 +6,8 @@ from .models import (
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
     WorkflowStage, UserRole, WORKFLOW_TRANSITIONS,
     Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
-    TechnicianSchedule, Appointment, AnalyticsSnapshot
+    TechnicianSchedule, Appointment, AnalyticsSnapshot,
+    License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
 )
 
 
@@ -419,3 +420,95 @@ class AnalyticsSnapshotSerializer(serializers.ModelSerializer):
                   'first_time_fix_rate', 'new_customers', 'repeat_customers', 'appointments_scheduled',
                   'appointments_completed', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class LicenseSerializer(serializers.ModelSerializer):
+    is_valid = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = License
+        fields = ['id', 'license_key', 'license_type', 'status', 'organization_name', 'issued_date',
+                  'expiry_date', 'max_branches', 'max_users', 'features', 'is_primary', 'support_expires',
+                  'notes', 'is_valid', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'issued_date', 'created_at', 'updated_at']
+
+
+class SystemSettingSerializer(serializers.ModelSerializer):
+    updated_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SystemSetting
+        fields = ['id', 'key', 'value', 'value_type', 'category', 'description', 'is_secret',
+                  'updated_by', 'updated_by_name', 'updated_at']
+        read_only_fields = ['id', 'updated_at']
+    
+    def get_updated_by_name(self, obj):
+        if obj.updated_by:
+            return f"{obj.updated_by.first_name} {obj.updated_by.last_name}".strip() or obj.updated_by.username
+        return None
+    
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.is_secret:
+            ret['value'] = '********'
+        return ret
+
+
+class PaymentIntentSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
+    
+    class Meta:
+        model = PaymentIntent
+        fields = ['id', 'intent_id', 'invoice', 'invoice_number', 'gateway', 'gateway_reference',
+                  'amount', 'currency', 'status', 'gateway_response', 'customer_email', 'customer_phone',
+                  'metadata', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'intent_id', 'created_at', 'updated_at']
+
+
+class TallySyncJobSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TallySyncJob
+        fields = ['id', 'job_id', 'sync_type', 'branch', 'branch_name', 'status', 'records_total',
+                  'records_synced', 'records_failed', 'error_log', 'started_at', 'completed_at',
+                  'created_by', 'created_by_name', 'created_at']
+        read_only_fields = ['id', 'job_id', 'created_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class TallyLedgerMappingSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = TallyLedgerMapping
+        fields = ['id', 'mapping_type', 'local_id', 'local_name', 'tally_ledger_name', 'tally_group',
+                  'branch', 'branch_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class IntegrationConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IntegrationConfig
+        fields = ['id', 'name', 'integration_type', 'is_enabled', 'config', 'last_sync', 'sync_status',
+                  'webhook_url', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('credentials', None)
+        return ret
+
+
+class AdminDashboardSerializer(serializers.Serializer):
+    total_users = serializers.IntegerField()
+    total_branches = serializers.IntegerField()
+    active_licenses = serializers.IntegerField()
+    license_info = LicenseSerializer(allow_null=True)
+    integrations_status = serializers.DictField()
+    system_health = serializers.DictField()

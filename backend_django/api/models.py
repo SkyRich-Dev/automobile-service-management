@@ -943,3 +943,172 @@ class AnalyticsSnapshot(models.Model):
 
     def __str__(self):
         return f"Analytics {self.date} - {self.branch.name if self.branch else 'All'}"
+
+
+class LicenseType(models.TextChoices):
+    PERPETUAL = 'PERPETUAL', 'Perpetual License'
+    ANNUAL = 'ANNUAL', 'Annual Subscription'
+    MONTHLY = 'MONTHLY', 'Monthly Subscription'
+    TRIAL = 'TRIAL', 'Trial License'
+
+
+class LicenseStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', 'Active'
+    EXPIRED = 'EXPIRED', 'Expired'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    GRACE_PERIOD = 'GRACE_PERIOD', 'Grace Period'
+
+
+class License(models.Model):
+    license_key = models.CharField(max_length=100, unique=True)
+    license_type = models.CharField(max_length=20, choices=LicenseType.choices, default=LicenseType.PERPETUAL)
+    status = models.CharField(max_length=20, choices=LicenseStatus.choices, default=LicenseStatus.ACTIVE)
+    organization_name = models.CharField(max_length=255)
+    issued_date = models.DateField(auto_now_add=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    max_branches = models.IntegerField(default=1)
+    max_users = models.IntegerField(default=10)
+    features = models.JSONField(default=dict, blank=True)
+    is_primary = models.BooleanField(default=True)
+    support_expires = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def is_valid(self):
+        if self.status != LicenseStatus.ACTIVE:
+            return False
+        if self.license_type == LicenseType.PERPETUAL:
+            return True
+        if self.expiry_date and self.expiry_date < timezone.now().date():
+            return False
+        return True
+
+    def __str__(self):
+        return f"{self.organization_name} - {self.license_type}"
+
+
+class SystemSetting(models.Model):
+    key = models.CharField(max_length=100, unique=True)
+    value = models.TextField(blank=True)
+    value_type = models.CharField(max_length=20, default='string')
+    category = models.CharField(max_length=50, default='general')
+    description = models.TextField(blank=True)
+    is_secret = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'key']
+
+    def __str__(self):
+        return f"{self.category}.{self.key}"
+
+
+class PaymentGateway(models.TextChoices):
+    STRIPE = 'STRIPE', 'Stripe'
+    RAZORPAY = 'RAZORPAY', 'Razorpay'
+    PAYPAL = 'PAYPAL', 'PayPal'
+    MANUAL = 'MANUAL', 'Manual / Cash'
+
+
+class PaymentIntentStatus(models.TextChoices):
+    CREATED = 'CREATED', 'Created'
+    PENDING = 'PENDING', 'Pending'
+    PROCESSING = 'PROCESSING', 'Processing'
+    SUCCEEDED = 'SUCCEEDED', 'Succeeded'
+    FAILED = 'FAILED', 'Failed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    REFUNDED = 'REFUNDED', 'Refunded'
+
+
+class PaymentIntent(models.Model):
+    intent_id = models.CharField(max_length=100, unique=True)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payment_intents')
+    gateway = models.CharField(max_length=20, choices=PaymentGateway.choices)
+    gateway_reference = models.CharField(max_length=255, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='INR')
+    status = models.CharField(max_length=20, choices=PaymentIntentStatus.choices, default=PaymentIntentStatus.CREATED)
+    gateway_response = models.JSONField(default=dict, blank=True)
+    customer_email = models.EmailField(blank=True)
+    customer_phone = models.CharField(max_length=20, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.intent_id:
+            self.intent_id = f"PI-{uuid.uuid4().hex[:12].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.intent_id} - {self.gateway} - {self.status}"
+
+
+class TallySyncStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+    COMPLETED = 'COMPLETED', 'Completed'
+    FAILED = 'FAILED', 'Failed'
+    PARTIAL = 'PARTIAL', 'Partially Synced'
+
+
+class TallySyncJob(models.Model):
+    job_id = models.CharField(max_length=100, unique=True)
+    sync_type = models.CharField(max_length=50)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=TallySyncStatus.choices, default=TallySyncStatus.PENDING)
+    records_total = models.IntegerField(default=0)
+    records_synced = models.IntegerField(default=0)
+    records_failed = models.IntegerField(default=0)
+    error_log = models.JSONField(default=list, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.job_id:
+            self.job_id = f"SYNC-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.job_id} - {self.sync_type} - {self.status}"
+
+
+class TallyLedgerMapping(models.Model):
+    mapping_type = models.CharField(max_length=50)
+    local_id = models.CharField(max_length=100)
+    local_name = models.CharField(max_length=255)
+    tally_ledger_name = models.CharField(max_length=255)
+    tally_group = models.CharField(max_length=255, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['mapping_type', 'local_id', 'branch']
+
+    def __str__(self):
+        return f"{self.mapping_type}: {self.local_name} -> {self.tally_ledger_name}"
+
+
+class IntegrationConfig(models.Model):
+    name = models.CharField(max_length=100)
+    integration_type = models.CharField(max_length=50)
+    is_enabled = models.BooleanField(default=False)
+    config = models.JSONField(default=dict, blank=True)
+    credentials = models.JSONField(default=dict, blank=True)
+    last_sync = models.DateTimeField(null=True, blank=True)
+    sync_status = models.CharField(max_length=50, blank=True)
+    webhook_url = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.integration_type})"
