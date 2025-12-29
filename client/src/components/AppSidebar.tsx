@@ -16,6 +16,7 @@ import {
   Shield,
   Truck,
   BarChart3,
+  ShieldCheck,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ const menuItems = [
   { text: "CRM", icon: Users, path: "/crm" },
   { text: "Contracts", icon: Shield, path: "/contracts" },
   { text: "Analytics", icon: BarChart3, path: "/analytics" },
+  { text: "Admin Panel", icon: ShieldCheck, path: "/admin" },
 ];
 
 export function AppSidebar() {

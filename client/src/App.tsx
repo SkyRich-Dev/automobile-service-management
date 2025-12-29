@@ -15,6 +15,7 @@ import Appointments from "@/pages/Appointments";
 import Contracts from "@/pages/Contracts";
 import Suppliers from "@/pages/Suppliers";
 import Analytics from "@/pages/Analytics";
+import AdminPanel from "@/pages/AdminPanel";
 import NotFound from "@/pages/not-found";
 
 function LoadingScreen() {
@@ -55,9 +56,10 @@ function Router() {
       <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} />} />
       <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} />} />
+      <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={Dashboard} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} />} />
       <Route component={NotFound} />
     </Switch>
   );
