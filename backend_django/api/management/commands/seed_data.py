@@ -54,14 +54,21 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Successfully seeded all sample data!'))
 
     def clear_data(self):
+        from django.contrib.auth.models import User
+        
+        demo_usernames = ['demo', 'Demo']
+        demo_user_ids = list(User.objects.filter(username__in=demo_usernames).values_list('id', flat=True))
+        
         models_to_clear = [
             AnalyticsSnapshot, TechnicianSchedule, PurchaseOrderLine, PurchaseOrder,
             Supplier, Contract, Notification, Payment, Invoice, PartIssue, Part,
             ServiceEvent, EstimateLine, Estimate, DigitalInspection, Task, JobCard,
-            Appointment, Bay, Vehicle, Customer, TechnicianMetrics, Profile, License
+            Appointment, Bay, Vehicle, Customer, TechnicianMetrics, License
         ]
         for model in models_to_clear:
             model.objects.all().delete()
+        
+        Profile.objects.exclude(user_id__in=demo_user_ids).delete()
 
     def create_branches(self):
         self.stdout.write('  Creating branches...')
