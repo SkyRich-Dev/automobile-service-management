@@ -8,13 +8,22 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 
 ## Recent Changes (December 2024)
 - Implemented 11-stage workflow state machine: Appointment → Check-in → Inspection → Job Card → Estimate → Approval → Execution → QC → Billing → Delivery → Completed
-- Added RBAC system with 12+ user roles and permission classes
+- Added RBAC system with 17 hierarchical user roles and permission classes
 - Created immutable ServiceEvent audit log for complete traceability
 - Built visual workflow pipeline in ServiceOperations page
 - Implemented comprehensive Dashboard with real-time metrics
+- **Enhanced Contract Module:**
+  - Contract status workflow: Draft → Pending Approval → Active → Suspended → Expired → Terminated
+  - 10 contract types: WARRANTY, EXTENDED_WARRANTY, AMC, SERVICE_PACKAGE, INSURANCE, FLEET, SUBSCRIPTION, CORPORATE, OEM_DEALER, CUSTOM
+  - Multi-vehicle support via ContractVehicle linking
+  - Coverage rules with service-specific limits and percentages
+  - Consumption tracking linked to job cards and invoices
+  - SLA parameters (response/resolution time)
+  - Approval workflow with audit logging
+  - Contract eligibility API for service workflow integration
 - Added enterprise modules:
   - **Appointments:** Customer booking, confirmation, check-in workflow
-  - **Contracts:** Warranty, AMC, service package, and insurance tracking
+  - **Contracts:** Full lifecycle management with approval workflow
   - **Suppliers:** Vendor management with purchase orders
   - **Analytics:** Business KPIs, revenue trends, stage distribution
 
@@ -102,7 +111,18 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - `POST /api/appointments/{id}/confirm/` - Confirm appointment
 - `POST /api/appointments/{id}/check_in/` - Check-in and create job card
 - `GET /api/contracts/` - Contract and warranty management
+- `GET /api/contracts/dashboard_stats/` - Contract dashboard metrics
 - `GET /api/contracts/expiring_soon/` - Contracts expiring soon
+- `GET /api/contracts/check_eligibility/` - Check contract eligibility for vehicle/customer
+- `POST /api/contracts/{id}/submit_for_approval/` - Submit contract for approval
+- `POST /api/contracts/{id}/approve/` - Approve contract
+- `POST /api/contracts/{id}/suspend/` - Suspend contract
+- `POST /api/contracts/{id}/resume/` - Resume suspended contract
+- `POST /api/contracts/{id}/terminate/` - Terminate contract
+- `GET /api/contracts/{id}/consumptions/` - Contract consumption history
+- `GET /api/contracts/{id}/audit_log/` - Contract audit trail
+- `POST /api/contracts/{id}/add_vehicle/` - Add vehicle to contract
+- `POST /api/contracts/{id}/add_coverage_rule/` - Add coverage rule
 - `GET /api/suppliers/` - Supplier management
 - `GET /api/purchase-orders/` - Purchase order management
 - `GET /api/notifications/` - System notifications

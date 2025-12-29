@@ -5,7 +5,9 @@ from .models import (
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
     WorkflowStage, UserRole, WORKFLOW_TRANSITIONS,
-    Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
+    Notification, Contract, ContractVehicle, ContractCoverageRule,
+    ContractConsumption, ContractApproval, ContractAuditLog,
+    Supplier, PurchaseOrder, PurchaseOrderLine,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
 )
@@ -312,23 +314,117 @@ class NotificationSerializer(serializers.ModelSerializer):
         return None
 
 
+class ContractCoverageRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContractCoverageRule
+        fields = ['id', 'service_type', 'is_covered', 'coverage_percent', 'max_amount',
+                  'visit_limit', 'visits_used', 'notes']
+        read_only_fields = ['id', 'visits_used']
+
+
+class ContractVehicleSerializer(serializers.ModelSerializer):
+    vehicle_info = serializers.SerializerMethodField()
+    registration_number = serializers.CharField(source='vehicle.registration_number', read_only=True)
+    
+    class Meta:
+        model = ContractVehicle
+        fields = ['id', 'vehicle', 'vehicle_info', 'registration_number', 'added_at', 'is_active']
+        read_only_fields = ['id', 'added_at']
+    
+    def get_vehicle_info(self, obj):
+        v = obj.vehicle
+        return f"{v.year or ''} {v.make} {v.model} - {v.registration_number}"
+
+
+class ContractConsumptionSerializer(serializers.ModelSerializer):
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = ContractConsumption
+        fields = ['id', 'job_card', 'job_card_number', 'invoice', 'invoice_number', 'service_date',
+                  'service_type', 'parts_amount', 'labor_amount', 'covered_amount', 'customer_payable',
+                  'km_at_service', 'hours_at_service', 'sla_met', 'response_time_actual',
+                  'resolution_time_actual', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class ContractApprovalSerializer(serializers.ModelSerializer):
+    approver_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ContractApproval
+        fields = ['id', 'approver', 'approver_name', 'approval_level', 'status', 'comments',
+                  'approved_at', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def get_approver_name(self, obj):
+        return f"{obj.approver.first_name} {obj.approver.last_name}".strip() or obj.approver.username
+
+
+class ContractAuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = ContractAuditLog
+        fields = ['id', 'action', 'actor', 'actor_name', 'old_values', 'new_values',
+                  'job_card', 'job_card_number', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return f"{obj.actor.first_name} {obj.actor.last_name}".strip() or obj.actor.username
+        return None
+
+
 class ContractSerializer(serializers.ModelSerializer):
     vehicle_info = serializers.SerializerMethodField()
     customer_name = serializers.CharField(source='customer.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    is_active = serializers.BooleanField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     days_remaining = serializers.IntegerField(read_only=True)
+    services_remaining = serializers.IntegerField(read_only=True)
+    km_remaining = serializers.IntegerField(read_only=True)
+    utilization_percent = serializers.FloatField(read_only=True)
+    coverage_rules = ContractCoverageRuleSerializer(many=True, read_only=True)
+    contract_vehicles = ContractVehicleSerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Contract
         fields = ['id', 'contract_number', 'vehicle', 'vehicle_info', 'customer', 'customer_name',
-                  'contract_type', 'provider', 'policy_number', 'start_date', 'end_date',
-                  'coverage_amount', 'deductible', 'premium', 'services_included', 'services_used',
-                  'max_services', 'terms_conditions', 'is_active', 'is_expired', 'days_remaining',
+                  'branch', 'branch_name', 'contract_type', 'status', 'provider', 'policy_number',
+                  'start_date', 'end_date', 'coverage_period_months', 'coverage_km_limit',
+                  'coverage_hours_limit', 'grace_period_days', 'contract_value', 'billing_model',
+                  'tax_rate', 'discount_percent', 'deductible', 'penalty_clause', 'services_included',
+                  'parts_coverage', 'labor_coverage_percent', 'consumables_included', 'max_services',
+                  'services_used', 'km_used', 'hours_used', 'response_time_hours', 'resolution_time_hours',
+                  'priority_handling', 'auto_renewal', 'renewal_reminder_days', 'terms_conditions',
+                  'suspension_reason', 'suspended_at', 'termination_reason', 'terminated_at',
+                  'is_active', 'is_expired', 'days_remaining', 'services_remaining', 'km_remaining',
+                  'utilization_percent', 'coverage_rules', 'contract_vehicles', 'created_by',
+                  'created_by_name', 'approved_by', 'approved_by_name', 'approved_at',
                   'created_at', 'updated_at']
-        read_only_fields = ['id', 'contract_number', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'contract_number', 'services_used', 'km_used', 'hours_used',
+                           'suspended_at', 'terminated_at', 'approved_at', 'created_at', 'updated_at']
     
     def get_vehicle_info(self, obj):
-        return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+        if obj.vehicle:
+            return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.registration_number}"
+        return None
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
 
 
 class SupplierSerializer(serializers.ModelSerializer):

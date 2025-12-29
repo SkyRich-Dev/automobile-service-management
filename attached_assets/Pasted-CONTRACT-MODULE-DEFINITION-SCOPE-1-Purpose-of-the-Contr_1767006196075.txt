@@ -1,0 +1,183 @@
+CONTRACT MODULE — DEFINITION & SCOPE
+1. Purpose of the Contract Module
+The Contract Module manages all long-term commercial agreements between the service organization and customers (individuals, fleets, corporates), ensuring:
+Predictable revenue
+Controlled service entitlement
+SLA enforcement
+Full service-to-contract traceability
+Financial and operational compliance
+The module acts as the commercial backbone for AMC, warranty, fleet, subscription, and corporate service agreements.
+2. Contract Types Supported
+The system must support multiple contract models:
+AMC (Annual Maintenance Contract)
+Extended Warranty Contract
+Fleet Service Contract
+Subscription-Based Service Plan
+Corporate / Institutional Contract
+OEM / Dealer Service Agreement
+Custom Contract (configurable)
+Each contract type must be template-driven and configurable.
+3. Contract Master Data
+Each contract must have the following core attributes:
+Contract Identity
+Contract ID (system-generated)
+Contract Type
+Contract Status
+(Draft → Active → Suspended → Expired → Terminated)
+Branch / Region
+Linked Customer(s)
+Linked Vehicle(s) (single or multiple)
+Validity & Coverage
+Start date / End date
+Coverage period (months / km / hours)
+Renewal rules
+Grace period configuration
+Financial Terms
+Contract value
+Billing model:
+One-time
+Monthly / Quarterly / Annual
+Tax structure
+Discount / negotiated pricing
+Penalty clauses (optional)
+4. Service Entitlement Definition
+Each contract must clearly define what is covered and what is not.
+Coverage Rules
+Covered service types
+Covered labor operations
+Covered spare parts
+Consumables inclusion/exclusion
+Free vs chargeable services
+Visit limits (count-based)
+Usage limits (km / hours)
+SLA Parameters
+Response time
+Resolution time
+Priority handling
+Escalation rules
+5. Contract → Service Workflow Integration
+This is non-negotiable.
+At Appointment Stage
+Auto-detect active contract
+Show contract eligibility badge
+Display remaining entitlements
+At Job Card Creation
+Auto-apply contract pricing
+Lock covered items as “Free / Included”
+Highlight non-covered items
+During Service Execution
+Tag every task and part as:
+Contract-covered
+Partially covered
+Non-covered
+At Billing
+Zero-value invoice for fully covered jobs
+Split billing for partial coverage
+Contract consumption summary shown
+6. Contract Consumption & Traceability
+Every service under a contract must be traceable.
+Consumption Tracking
+Service count used vs remaining
+Parts consumed under contract
+Labor hours consumed
+SLA compliance per service
+Traceability Mapping
+Each service event must link to:
+Contract ID
+Service Tracking ID
+Job Card ID
+Invoice ID
+This enables:
+Audit
+Dispute resolution
+Renewal justification
+7. Renewal, Upsell & Expiry Management
+The module must actively drive retention.
+Renewal Management
+Expiry alerts (configurable days)
+Auto-renewal rules
+Renewal pricing logic
+Renewal approval workflow
+Upsell & Cross-sell
+Suggest higher-tier contracts
+Add-on services
+Contract upgrades mid-term
+8. Suspension, Exception & Termination Handling
+Real-world contracts need flexibility.
+Suspension
+Temporary hold with reason
+SLA pause
+Reactivation workflow
+Exception Handling
+One-time goodwill services
+Override with approval
+Logged and auditable
+Termination
+Early termination rules
+Penalty / refund calculation
+Final settlement record
+9. Contract Approval & Governance
+Contracts must follow maker–checker discipline.
+Approval Workflow
+Draft → Manager → Finance → Owner (configurable)
+Version-controlled contract documents
+Digital acceptance (customer confirmation)
+Audit & Compliance
+Contract version history
+Change logs
+Approval trail
+SLA breach logs
+10. Contract Dashboards & Reports
+Management Dashboards
+Active contracts count
+Revenue under contract
+Service utilization ratio
+SLA compliance %
+Renewal pipeline
+Operational Reports
+Contract-wise service history
+Over-utilized contracts
+Under-utilized contracts
+Profitability by contract
+11. Customer Portal – Contract View
+Customers must see transparent contract usage.
+Active contracts list
+Coverage details
+Remaining entitlements
+Service consumption history
+Renewal & upgrade options
+Contract documents download
+12. Backend Design (High-Level)
+Key entities:
+Contract
+ContractType
+ContractCoverageRule
+ContractVehicleMap
+ContractConsumption
+ContractInvoiceLink
+ContractApproval
+ContractAuditLog
+Business rules enforced at service layer, not UI.
+13. UI Screens Required
+Contract list & filters
+Contract creation (wizard-based)
+Coverage rule configuration
+Contract approval screen
+Contract consumption dashboard
+Renewal & upgrade screen
+Customer contract view
+14. Business Value Delivered
+Predictable recurring revenue
+Faster service processing
+Reduced billing disputes
+Strong customer retention
+Clear profitability visibility
+15. Final Positioning
+The Contract Module is not an add-on.
+It is a core commercial control layer tightly integrated with:
+Service
+Inventory
+Accounts
+CRM
+Customer Portal
+Analytics

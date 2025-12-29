@@ -31,25 +31,41 @@ import { Progress } from "@/components/ui/progress";
 interface Contract {
   id: number;
   contract_number: string;
-  vehicle: number;
-  vehicle_info: string;
+  vehicle: number | null;
+  vehicle_info: string | null;
   customer: number;
   customer_name: string;
+  branch: number | null;
+  branch_name: string | null;
   contract_type: string;
+  status: string;
   provider: string;
   policy_number: string;
   start_date: string;
   end_date: string;
-  coverage_amount: string;
-  deductible: string;
-  premium: string;
+  contract_value: string;
+  billing_model: string;
   services_included: string[];
   services_used: number;
   max_services: number | null;
+  services_remaining: number | null;
+  km_remaining: number | null;
+  utilization_percent: number;
   is_active: boolean;
   is_expired: boolean;
   days_remaining: number;
+  priority_handling: boolean;
+  auto_renewal: boolean;
   created_at: string;
+}
+
+interface DashboardStats {
+  total_active: number;
+  expiring_soon: number;
+  total_contract_value: number;
+  pending_approvals: number;
+  average_utilization: number;
+  by_type: { contract_type: string; count: number; value: number }[];
 }
 
 const CONTRACT_TYPE_COLORS: Record<string, string> = {
@@ -58,6 +74,11 @@ const CONTRACT_TYPE_COLORS: Record<string, string> = {
   AMC: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   SERVICE_PACKAGE: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   INSURANCE: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  FLEET: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+  SUBSCRIPTION: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
+  CORPORATE: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200",
+  OEM_DEALER: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  CUSTOM: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
@@ -66,22 +87,55 @@ const CONTRACT_TYPE_LABELS: Record<string, string> = {
   AMC: "AMC",
   SERVICE_PACKAGE: "Service Package",
   INSURANCE: "Insurance",
+  FLEET: "Fleet Contract",
+  SUBSCRIPTION: "Subscription",
+  CORPORATE: "Corporate",
+  OEM_DEALER: "OEM/Dealer",
+  CUSTOM: "Custom",
+};
+
+const CONTRACT_STATUS_COLORS: Record<string, string> = {
+  DRAFT: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+  PENDING_APPROVAL: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  SUSPENDED: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  EXPIRED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  TERMINATED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
+const CONTRACT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  PENDING_APPROVAL: "Pending Approval",
+  ACTIVE: "Active",
+  SUSPENDED: "Suspended",
+  EXPIRED: "Expired",
+  TERMINATED: "Terminated",
 };
 
 export default function Contracts() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showExpiring, setShowExpiring] = useState(false);
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
-    queryKey: ["contracts", typeFilter],
+    queryKey: ["contracts", typeFilter, statusFilter],
     queryFn: async () => {
-      let url = "/api/contracts/";
-      if (typeFilter !== "all") {
-        url += `?contract_type=${typeFilter}`;
-      }
+      const params = new URLSearchParams();
+      if (typeFilter !== "all") params.append("contract_type", typeFilter);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      const url = `/api/contracts/${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch contracts");
+      return res.json();
+    },
+  });
+
+  const { data: dashboardStats } = useQuery<DashboardStats>({
+    queryKey: ["contracts", "dashboard_stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/contracts/dashboard_stats/", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },
   });
@@ -108,10 +162,6 @@ export default function Contracts() {
     return true;
   });
 
-  const activeContracts = contracts.filter((c) => c.is_active && !c.is_expired);
-  const warrantyContracts = contracts.filter((c) => c.contract_type === "WARRANTY" || c.contract_type === "EXTENDED_WARRANTY");
-  const amcContracts = contracts.filter((c) => c.contract_type === "AMC");
-
   return (
     <div className="flex h-screen w-full bg-background">
       <AppSidebar />
@@ -128,13 +178,13 @@ export default function Contracts() {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Active</p>
-                    <p className="text-2xl font-bold" data-testid="text-total-active">{activeContracts.length}</p>
+                    <p className="text-2xl font-bold" data-testid="text-total-active">{dashboardStats?.total_active ?? 0}</p>
                   </div>
                   <Shield className="h-8 w-8 text-primary opacity-50" />
                 </div>
@@ -144,10 +194,12 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Warranties</p>
-                    <p className="text-2xl font-bold text-blue-600">{warrantyContracts.length}</p>
+                    <p className="text-sm text-muted-foreground">Contract Value</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(dashboardStats?.total_contract_value ?? 0)}
+                    </p>
                   </div>
-                  <FileText className="h-8 w-8 text-blue-500 opacity-50" />
+                  <FileText className="h-8 w-8 text-green-500 opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -155,20 +207,31 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">AMC Contracts</p>
-                    <p className="text-2xl font-bold text-green-600">{amcContracts.length}</p>
+                    <p className="text-sm text-muted-foreground">Avg Utilization</p>
+                    <p className="text-2xl font-bold text-blue-600">{dashboardStats?.average_utilization ?? 0}%</p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
+                  <CheckCircle className="h-8 w-8 text-blue-500 opacity-50" />
                 </div>
               </CardContent>
             </Card>
-            <Card className={cn(expiringContracts.length > 0 && "border-orange-500")}>
+            <Card className={cn((dashboardStats?.pending_approvals ?? 0) > 0 && "border-yellow-500")}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending Approval</p>
+                    <p className="text-2xl font-bold text-yellow-600">{dashboardStats?.pending_approvals ?? 0}</p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-yellow-500 opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={cn((dashboardStats?.expiring_soon ?? 0) > 0 && "border-orange-500")}>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Expiring Soon</p>
                     <p className="text-2xl font-bold text-orange-600" data-testid="text-expiring-count">
-                      {expiringContracts.length}
+                      {dashboardStats?.expiring_soon ?? 0}
                     </p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-500 opacity-50" />
@@ -200,6 +263,22 @@ export default function Contracts() {
                 <SelectItem value="AMC">AMC</SelectItem>
                 <SelectItem value="SERVICE_PACKAGE">Service Package</SelectItem>
                 <SelectItem value="INSURANCE">Insurance</SelectItem>
+                <SelectItem value="FLEET">Fleet Contract</SelectItem>
+                <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
+                <SelectItem value="CORPORATE">Corporate</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40" data-testid="select-status-filter">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                <SelectItem value="EXPIRED">Expired</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -241,9 +320,14 @@ export default function Contracts() {
                         <CardTitle className="text-sm font-medium">{contract.contract_number}</CardTitle>
                         <p className="text-xs text-muted-foreground">{contract.policy_number}</p>
                       </div>
-                      <Badge className={cn("text-xs", CONTRACT_TYPE_COLORS[contract.contract_type])}>
-                        {CONTRACT_TYPE_LABELS[contract.contract_type]}
-                      </Badge>
+                      <div className="flex flex-col gap-1 items-end">
+                        <Badge className={cn("text-xs", CONTRACT_TYPE_COLORS[contract.contract_type])}>
+                          {CONTRACT_TYPE_LABELS[contract.contract_type] || contract.contract_type}
+                        </Badge>
+                        <Badge className={cn("text-xs", CONTRACT_STATUS_COLORS[contract.status])}>
+                          {CONTRACT_STATUS_LABELS[contract.status] || contract.status}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -306,12 +390,22 @@ export default function Contracts() {
                       </div>
                     )}
 
-                    {parseFloat(contract.coverage_amount) > 0 && (
+                    {contract.utilization_percent !== undefined && contract.utilization_percent > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Utilization</span>
+                          <span className="font-medium">{Math.round(contract.utilization_percent)}%</span>
+                        </div>
+                        <Progress value={contract.utilization_percent} className="h-1.5" />
+                      </div>
+                    )}
+
+                    {parseFloat(contract.contract_value) > 0 && (
                       <div className="pt-2 border-t">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Coverage</span>
+                          <span className="text-muted-foreground">Contract Value</span>
                           <span className="font-medium">
-                            ${parseFloat(contract.coverage_amount).toLocaleString()}
+                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(contract.contract_value))}
                           </span>
                         </div>
                       </div>

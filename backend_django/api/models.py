@@ -727,30 +727,77 @@ class ContractType(models.TextChoices):
     AMC = 'AMC', 'Annual Maintenance Contract'
     SERVICE_PACKAGE = 'SERVICE_PACKAGE', 'Service Package'
     INSURANCE = 'INSURANCE', 'Insurance'
+    FLEET = 'FLEET', 'Fleet Service Contract'
+    SUBSCRIPTION = 'SUBSCRIPTION', 'Subscription Plan'
+    CORPORATE = 'CORPORATE', 'Corporate Contract'
+    OEM_DEALER = 'OEM_DEALER', 'OEM/Dealer Agreement'
+    CUSTOM = 'CUSTOM', 'Custom Contract'
+
+
+class ContractStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    ACTIVE = 'ACTIVE', 'Active'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    EXPIRED = 'EXPIRED', 'Expired'
+    TERMINATED = 'TERMINATED', 'Terminated'
+
+
+class BillingModel(models.TextChoices):
+    ONE_TIME = 'ONE_TIME', 'One-Time Payment'
+    MONTHLY = 'MONTHLY', 'Monthly'
+    QUARTERLY = 'QUARTERLY', 'Quarterly'
+    HALF_YEARLY = 'HALF_YEARLY', 'Half-Yearly'
+    ANNUAL = 'ANNUAL', 'Annual'
 
 
 class Contract(models.Model):
     contract_number = models.CharField(max_length=50, unique=True, blank=True)
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='contracts')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='contracts')
+    branch = models.ForeignKey('Branch', on_delete=models.CASCADE, related_name='contracts', null=True, blank=True)
     contract_type = models.CharField(max_length=30, choices=ContractType.choices)
+    status = models.CharField(max_length=30, choices=ContractStatus.choices, default=ContractStatus.DRAFT)
     provider = models.CharField(max_length=255, blank=True)
     policy_number = models.CharField(max_length=100, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
-    coverage_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    coverage_period_months = models.IntegerField(default=12)
+    coverage_km_limit = models.IntegerField(null=True, blank=True)
+    coverage_hours_limit = models.IntegerField(null=True, blank=True)
+    grace_period_days = models.IntegerField(default=7)
+    contract_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    billing_model = models.CharField(max_length=20, choices=BillingModel.choices, default=BillingModel.ONE_TIME)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     deductible = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    premium = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    penalty_clause = models.TextField(blank=True)
     services_included = models.JSONField(default=list)
-    services_used = models.IntegerField(default=0)
+    parts_coverage = models.JSONField(default=dict)
+    labor_coverage_percent = models.DecimalField(max_digits=5, decimal_places=2, default=100)
+    consumables_included = models.BooleanField(default=False)
     max_services = models.IntegerField(null=True, blank=True)
+    services_used = models.IntegerField(default=0)
+    km_used = models.IntegerField(default=0)
+    hours_used = models.IntegerField(default=0)
+    response_time_hours = models.IntegerField(default=24)
+    resolution_time_hours = models.IntegerField(default=72)
+    priority_handling = models.BooleanField(default=False)
+    auto_renewal = models.BooleanField(default=False)
+    renewal_reminder_days = models.IntegerField(default=30)
     terms_conditions = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
+    suspension_reason = models.TextField(blank=True)
+    suspended_at = models.DateTimeField(null=True, blank=True)
+    termination_reason = models.TextField(blank=True)
+    terminated_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='contracts_created')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='contracts_approved')
+    approved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='contracts', null=True, blank=True)
 
     class Meta:
-        ordering = ['-end_date']
+        ordering = ['-created_at']
 
     def save(self, *args, **kwargs):
         if not self.contract_number:
@@ -759,16 +806,146 @@ class Contract(models.Model):
         super().save(*args, **kwargs)
 
     @property
+    def is_active(self):
+        return self.status == ContractStatus.ACTIVE
+
+    @property
     def is_expired(self):
-        return self.end_date < timezone.now().date()
+        return self.end_date < timezone.now().date() or self.status == ContractStatus.EXPIRED
 
     @property
     def days_remaining(self):
         delta = self.end_date - timezone.now().date()
         return max(0, delta.days)
 
+    @property
+    def services_remaining(self):
+        if self.max_services:
+            return max(0, self.max_services - self.services_used)
+        return None
+
+    @property
+    def km_remaining(self):
+        if self.coverage_km_limit:
+            return max(0, self.coverage_km_limit - self.km_used)
+        return None
+
+    @property
+    def utilization_percent(self):
+        if self.max_services and self.max_services > 0:
+            return min(100, (self.services_used / self.max_services) * 100)
+        return 0
+
     def __str__(self):
-        return f"{self.contract_number} - {self.vehicle}"
+        return f"{self.contract_number} - {self.customer.name}"
+
+
+class ContractVehicle(models.Model):
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='contract_vehicles')
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='contract_links')
+    added_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['contract', 'vehicle']
+
+    def __str__(self):
+        return f"{self.contract.contract_number} - {self.vehicle.registration_number}"
+
+
+class ContractCoverageRule(models.Model):
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='coverage_rules')
+    service_type = models.CharField(max_length=100)
+    is_covered = models.BooleanField(default=True)
+    coverage_percent = models.DecimalField(max_digits=5, decimal_places=2, default=100)
+    max_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    visit_limit = models.IntegerField(null=True, blank=True)
+    visits_used = models.IntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ['contract', 'service_type']
+
+    def __str__(self):
+        return f"{self.contract.contract_number} - {self.service_type}"
+
+
+class ContractConsumption(models.Model):
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='consumptions')
+    job_card = models.ForeignKey('JobCard', on_delete=models.CASCADE, related_name='contract_consumptions')
+    invoice = models.ForeignKey('Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='contract_consumptions')
+    service_date = models.DateField()
+    service_type = models.CharField(max_length=100)
+    parts_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    labor_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    covered_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    customer_payable = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    km_at_service = models.IntegerField(null=True, blank=True)
+    hours_at_service = models.IntegerField(null=True, blank=True)
+    sla_met = models.BooleanField(default=True)
+    response_time_actual = models.IntegerField(null=True, blank=True)
+    resolution_time_actual = models.IntegerField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-service_date']
+
+    def __str__(self):
+        return f"{self.contract.contract_number} - {self.job_card.job_card_number}"
+
+
+class ContractApprovalStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
+class ContractApproval(models.Model):
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='approvals')
+    approver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contract_approvals')
+    approval_level = models.IntegerField(default=1)
+    status = models.CharField(max_length=20, choices=ContractApprovalStatus.choices, default=ContractApprovalStatus.PENDING)
+    comments = models.TextField(blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['approval_level', '-created_at']
+        unique_together = ['contract', 'approver', 'approval_level']
+
+    def __str__(self):
+        return f"{self.contract.contract_number} - Level {self.approval_level} - {self.status}"
+
+
+class ContractAuditAction(models.TextChoices):
+    CREATED = 'CREATED', 'Created'
+    UPDATED = 'UPDATED', 'Updated'
+    ACTIVATED = 'ACTIVATED', 'Activated'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    RESUMED = 'RESUMED', 'Resumed'
+    TERMINATED = 'TERMINATED', 'Terminated'
+    RENEWED = 'RENEWED', 'Renewed'
+    UPGRADED = 'UPGRADED', 'Upgraded'
+    SERVICE_CONSUMED = 'SERVICE_CONSUMED', 'Service Consumed'
+    GOODWILL_APPLIED = 'GOODWILL_APPLIED', 'Goodwill Applied'
+
+
+class ContractAuditLog(models.Model):
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='audit_logs')
+    action = models.CharField(max_length=30, choices=ContractAuditAction.choices)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='contract_audit_actions')
+    old_values = models.JSONField(default=dict)
+    new_values = models.JSONField(default=dict)
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.contract.contract_number} - {self.action} - {self.created_at}"
 
 
 class Supplier(models.Model):

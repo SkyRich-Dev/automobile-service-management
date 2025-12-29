@@ -14,7 +14,9 @@ from .models import (
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
     WorkflowStage, UserRole, ServiceEventType,
-    Notification, Contract, Supplier, PurchaseOrder, PurchaseOrderLine,
+    Notification, Contract, ContractStatus, ContractVehicle, ContractCoverageRule,
+    ContractConsumption, ContractApproval, ContractApprovalStatus, ContractAuditLog, ContractAuditAction,
+    Supplier, PurchaseOrder, PurchaseOrderLine,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig
 )
@@ -31,8 +33,10 @@ from .serializers import (
     InvoiceSerializer, PaymentSerializer,
     DigitalInspectionSerializer, BaySerializer,
     RegisterSerializer, LoginSerializer, WorkflowTransitionSerializer,
-    NotificationSerializer, ContractSerializer, SupplierSerializer,
-    PurchaseOrderSerializer, TechnicianScheduleSerializer,
+    NotificationSerializer, ContractSerializer, ContractVehicleSerializer,
+    ContractCoverageRuleSerializer, ContractConsumptionSerializer,
+    ContractApprovalSerializer, ContractAuditLogSerializer,
+    SupplierSerializer, PurchaseOrderSerializer, TechnicianScheduleSerializer,
     AppointmentSerializer, AnalyticsSnapshotSerializer,
     LicenseSerializer, SystemSettingSerializer, PaymentIntentSerializer,
     TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer
@@ -615,22 +619,37 @@ class ContractViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
-        queryset = Contract.objects.all()
+        queryset = Contract.objects.select_related('customer', 'branch', 'vehicle', 'created_by', 'approved_by')\
+            .prefetch_related('coverage_rules', 'contract_vehicles__vehicle')
         customer_id = self.request.query_params.get('customer_id', None)
         vehicle_id = self.request.query_params.get('vehicle_id', None)
-        contract_type = self.request.query_params.get('type', None)
+        contract_type = self.request.query_params.get('contract_type', None)
+        contract_status = self.request.query_params.get('status', None)
         active_only = self.request.query_params.get('active', None)
         
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
         if vehicle_id:
-            queryset = queryset.filter(vehicle_id=vehicle_id)
+            queryset = queryset.filter(
+                Q(vehicle_id=vehicle_id) | Q(contract_vehicles__vehicle_id=vehicle_id)
+            ).distinct()
         if contract_type:
             queryset = queryset.filter(contract_type=contract_type)
+        if contract_status:
+            queryset = queryset.filter(status=contract_status)
         if active_only == 'true':
-            queryset = queryset.filter(is_active=True, end_date__gte=timezone.now().date())
+            queryset = queryset.filter(status=ContractStatus.ACTIVE, end_date__gte=timezone.now().date())
         
-        return queryset.order_by('-end_date')
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        contract = serializer.save(created_by=self.request.user)
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.CREATED,
+            actor=self.request.user,
+            new_values={'status': contract.status, 'contract_type': contract.contract_type}
+        )
     
     @action(detail=False, methods=['get'])
     def expiring_soon(self, request):
@@ -638,11 +657,316 @@ class ContractViewSet(viewsets.ModelViewSet):
         days = int(request.query_params.get('days', 30))
         expiry_date = timezone.now().date() + timedelta(days=days)
         contracts = self.get_queryset().filter(
-            is_active=True,
+            status=ContractStatus.ACTIVE,
             end_date__lte=expiry_date,
             end_date__gte=timezone.now().date()
         )
         return Response(ContractSerializer(contracts, many=True).data)
+    
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        from datetime import timedelta
+        from django.db.models import Avg
+        
+        today = timezone.now().date()
+        expiry_30 = today + timedelta(days=30)
+        
+        total_active = Contract.objects.filter(status=ContractStatus.ACTIVE).count()
+        total_expiring = Contract.objects.filter(
+            status=ContractStatus.ACTIVE,
+            end_date__lte=expiry_30,
+            end_date__gte=today
+        ).count()
+        total_value = Contract.objects.filter(status=ContractStatus.ACTIVE).aggregate(
+            total=Sum('contract_value')
+        )['total'] or 0
+        pending_approvals = Contract.objects.filter(status=ContractStatus.PENDING_APPROVAL).count()
+        avg_utilization = Contract.objects.filter(
+            status=ContractStatus.ACTIVE,
+            max_services__isnull=False,
+            max_services__gt=0
+        ).annotate(
+            util=F('services_used') * 100.0 / F('max_services')
+        ).aggregate(avg=Avg('util'))['avg'] or 0
+        
+        by_type = list(Contract.objects.filter(status=ContractStatus.ACTIVE).values('contract_type').annotate(
+            count=Count('id'),
+            value=Sum('contract_value')
+        ))
+        
+        return Response({
+            'total_active': total_active,
+            'expiring_soon': total_expiring,
+            'total_contract_value': float(total_value),
+            'pending_approvals': pending_approvals,
+            'average_utilization': round(float(avg_utilization), 1),
+            'by_type': by_type
+        })
+    
+    @action(detail=True, methods=['post'])
+    def submit_for_approval(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status != ContractStatus.DRAFT:
+            return Response({'error': 'Only draft contracts can be submitted for approval'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = contract.status
+        contract.status = ContractStatus.PENDING_APPROVAL
+        contract.save()
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.UPDATED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status},
+            notes='Submitted for approval'
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status != ContractStatus.PENDING_APPROVAL:
+            return Response({'error': 'Contract is not pending approval'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = contract.status
+        contract.status = ContractStatus.ACTIVE
+        contract.approved_by = request.user
+        contract.approved_at = timezone.now()
+        contract.save()
+        
+        ContractApproval.objects.create(
+            contract=contract,
+            approver=request.user,
+            status=ContractApprovalStatus.APPROVED,
+            comments=request.data.get('comments', ''),
+            approved_at=timezone.now()
+        )
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.ACTIVATED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status},
+            notes=f'Approved by {request.user.username}'
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status != ContractStatus.PENDING_APPROVAL:
+            return Response({'error': 'Contract is not pending approval'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = contract.status
+        contract.status = ContractStatus.DRAFT
+        contract.save()
+        
+        ContractApproval.objects.create(
+            contract=contract,
+            approver=request.user,
+            status=ContractApprovalStatus.REJECTED,
+            comments=request.data.get('comments', '')
+        )
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.UPDATED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status},
+            notes=f'Rejected: {request.data.get("comments", "")}'
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status != ContractStatus.ACTIVE:
+            return Response({'error': 'Only active contracts can be suspended'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        reason = request.data.get('reason', '')
+        old_status = contract.status
+        contract.status = ContractStatus.SUSPENDED
+        contract.suspension_reason = reason
+        contract.suspended_at = timezone.now()
+        contract.save()
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.SUSPENDED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status, 'suspension_reason': reason},
+            notes=reason
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status != ContractStatus.SUSPENDED:
+            return Response({'error': 'Only suspended contracts can be resumed'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = contract.status
+        contract.status = ContractStatus.ACTIVE
+        contract.suspension_reason = ''
+        contract.suspended_at = None
+        contract.save()
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.RESUMED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status},
+            notes='Contract resumed'
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['post'])
+    def terminate(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status in [ContractStatus.TERMINATED, ContractStatus.EXPIRED]:
+            return Response({'error': 'Contract is already terminated or expired'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        reason = request.data.get('reason', '')
+        old_status = contract.status
+        contract.status = ContractStatus.TERMINATED
+        contract.termination_reason = reason
+        contract.terminated_at = timezone.now()
+        contract.save()
+        
+        ContractAuditLog.objects.create(
+            contract=contract,
+            action=ContractAuditAction.TERMINATED,
+            actor=request.user,
+            old_values={'status': old_status},
+            new_values={'status': contract.status, 'termination_reason': reason},
+            notes=reason
+        )
+        
+        return Response(ContractSerializer(contract).data)
+    
+    @action(detail=True, methods=['get'])
+    def consumptions(self, request, pk=None):
+        contract = self.get_object()
+        consumptions = contract.consumptions.all()
+        return Response(ContractConsumptionSerializer(consumptions, many=True).data)
+    
+    @action(detail=True, methods=['get'])
+    def audit_log(self, request, pk=None):
+        contract = self.get_object()
+        logs = contract.audit_logs.all()
+        return Response(ContractAuditLogSerializer(logs, many=True).data)
+    
+    @action(detail=True, methods=['post'])
+    def add_vehicle(self, request, pk=None):
+        contract = self.get_object()
+        vehicle_id = request.data.get('vehicle_id')
+        if not vehicle_id:
+            return Response({'error': 'vehicle_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vehicle = Vehicle.objects.get(id=vehicle_id)
+        except Vehicle.DoesNotExist:
+            return Response({'error': 'Vehicle not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        cv, created = ContractVehicle.objects.get_or_create(
+            contract=contract,
+            vehicle=vehicle,
+            defaults={'is_active': True}
+        )
+        
+        if not created:
+            cv.is_active = True
+            cv.save()
+        
+        return Response(ContractVehicleSerializer(cv).data)
+    
+    @action(detail=True, methods=['post'])
+    def add_coverage_rule(self, request, pk=None):
+        contract = self.get_object()
+        serializer = ContractCoverageRuleSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(contract=contract)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['get'])
+    def check_eligibility(self, request):
+        vehicle_id = request.query_params.get('vehicle_id')
+        customer_id = request.query_params.get('customer_id')
+        service_type = request.query_params.get('service_type')
+        
+        if not (vehicle_id or customer_id):
+            return Response({'error': 'vehicle_id or customer_id required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        today = timezone.now().date()
+        contracts = Contract.objects.filter(
+            status=ContractStatus.ACTIVE,
+            start_date__lte=today,
+            end_date__gte=today
+        )
+        
+        if vehicle_id:
+            contracts = contracts.filter(
+                Q(vehicle_id=vehicle_id) | Q(contract_vehicles__vehicle_id=vehicle_id, contract_vehicles__is_active=True)
+            ).distinct()
+        if customer_id:
+            contracts = contracts.filter(customer_id=customer_id)
+        
+        eligible_contracts = []
+        for contract in contracts:
+            entitlements = {
+                'contract_id': contract.id,
+                'contract_number': contract.contract_number,
+                'contract_type': contract.contract_type,
+                'days_remaining': contract.days_remaining,
+                'services_remaining': contract.services_remaining,
+                'km_remaining': contract.km_remaining,
+                'covered_services': contract.services_included,
+                'labor_coverage_percent': float(contract.labor_coverage_percent),
+                'consumables_included': contract.consumables_included,
+                'priority_handling': contract.priority_handling,
+                'coverage_rules': []
+            }
+            
+            if service_type:
+                rule = contract.coverage_rules.filter(service_type=service_type, is_covered=True).first()
+                if rule:
+                    entitlements['coverage_rules'].append({
+                        'service_type': rule.service_type,
+                        'coverage_percent': float(rule.coverage_percent),
+                        'visits_remaining': rule.visit_limit - rule.visits_used if rule.visit_limit else None
+                    })
+            else:
+                for rule in contract.coverage_rules.filter(is_covered=True):
+                    entitlements['coverage_rules'].append({
+                        'service_type': rule.service_type,
+                        'coverage_percent': float(rule.coverage_percent),
+                        'visits_remaining': rule.visit_limit - rule.visits_used if rule.visit_limit else None
+                    })
+            
+            eligible_contracts.append(entitlements)
+        
+        return Response({
+            'eligible_contracts': eligible_contracts,
+            'has_active_contract': len(eligible_contracts) > 0
+        })
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
