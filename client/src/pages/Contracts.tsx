@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { format, addYears } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import {
   Shield,
   Calendar,
@@ -14,11 +16,21 @@ import {
   Search,
   Plus,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -27,6 +39,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+
+interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+}
+
+interface Vehicle {
+  id: number;
+  customer: number;
+  plate_number: string;
+  make: string;
+  model: string;
+}
 
 interface Contract {
   id: number;
@@ -113,10 +139,113 @@ const CONTRACT_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function Contracts() {
+  const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showExpiring, setShowExpiring] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+
+  const [formData, setFormData] = useState({
+    customer: "",
+    vehicle: "",
+    contract_type: "WARRANTY",
+    provider: "",
+    policy_number: "",
+    start_date: format(new Date(), "yyyy-MM-dd"),
+    end_date: format(addYears(new Date(), 1), "yyyy-MM-dd"),
+    contract_value: "",
+    billing_model: "ONE_TIME",
+    max_services: "",
+    notes: "",
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const res = await fetch("/api/customers/", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch customers");
+      return res.json();
+    },
+    enabled: isDialogOpen,
+  });
+
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+    queryKey: ["vehicles", selectedCustomerId],
+    queryFn: async () => {
+      const url = selectedCustomerId
+        ? `/api/vehicles/?customer_id=${selectedCustomerId}`
+        : "/api/vehicles/";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch vehicles");
+      return res.json();
+    },
+    enabled: isDialogOpen && !!selectedCustomerId,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await fetch("/api/contracts/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          customer: parseInt(data.customer),
+          vehicle: data.vehicle ? parseInt(data.vehicle) : null,
+          contract_type: data.contract_type,
+          provider: data.provider,
+          policy_number: data.policy_number,
+          start_date: data.start_date,
+          end_date: data.end_date,
+          contract_value: data.contract_value || "0",
+          billing_model: data.billing_model,
+          max_services: data.max_services ? parseInt(data.max_services) : null,
+          notes: data.notes,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Failed to create contract");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({ title: "Contract created successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to create contract", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      customer: "",
+      vehicle: "",
+      contract_type: "WARRANTY",
+      provider: "",
+      policy_number: "",
+      start_date: format(new Date(), "yyyy-MM-dd"),
+      end_date: format(addYears(new Date(), 1), "yyyy-MM-dd"),
+      contract_value: "",
+      billing_model: "ONE_TIME",
+      max_services: "",
+      notes: "",
+    });
+    setSelectedCustomerId("");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.customer) {
+      toast({ title: "Please select a customer", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate(formData);
+  };
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
     queryKey: ["contracts", typeFilter, statusFilter],
@@ -172,7 +301,7 @@ export default function Contracts() {
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Contracts & Warranties</h1>
               <p className="text-muted-foreground">Manage warranties, AMC, and service contracts</p>
             </div>
-            <Button data-testid="button-new-contract">
+            <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-contract">
               <Plus className="h-4 w-4 mr-2" />
               New Contract
             </Button>
@@ -417,6 +546,190 @@ export default function Contracts() {
           )}
         </div>
       </main>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Contract</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer</Label>
+              <Select
+                value={formData.customer}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, customer: value, vehicle: "" });
+                  setSelectedCustomerId(value);
+                }}
+              >
+                <SelectTrigger data-testid="select-contract-customer">
+                  <SelectValue placeholder="Select customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id.toString()}>
+                      {customer.name} - {customer.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vehicle">Vehicle (optional)</Label>
+              <Select
+                value={formData.vehicle}
+                onValueChange={(value) => setFormData({ ...formData, vehicle: value })}
+                disabled={!selectedCustomerId}
+              >
+                <SelectTrigger data-testid="select-contract-vehicle">
+                  <SelectValue placeholder="Select vehicle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicles.map((vehicle) => (
+                    <SelectItem key={vehicle.id} value={vehicle.id.toString()}>
+                      {vehicle.make} {vehicle.model} - {vehicle.plate_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contract_type">Contract Type</Label>
+                <Select
+                  value={formData.contract_type}
+                  onValueChange={(value) => setFormData({ ...formData, contract_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WARRANTY">Warranty</SelectItem>
+                    <SelectItem value="EXTENDED_WARRANTY">Extended Warranty</SelectItem>
+                    <SelectItem value="AMC">AMC</SelectItem>
+                    <SelectItem value="SERVICE_PACKAGE">Service Package</SelectItem>
+                    <SelectItem value="INSURANCE">Insurance</SelectItem>
+                    <SelectItem value="FLEET">Fleet Contract</SelectItem>
+                    <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
+                    <SelectItem value="CORPORATE">Corporate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billing_model">Billing Model</Label>
+                <Select
+                  value={formData.billing_model}
+                  onValueChange={(value) => setFormData({ ...formData, billing_model: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ONE_TIME">One Time</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                    <SelectItem value="QUARTERLY">Quarterly</SelectItem>
+                    <SelectItem value="YEARLY">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="provider">Provider</Label>
+                <Input
+                  id="provider"
+                  value={formData.provider}
+                  onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                  placeholder="e.g., OEM, Insurance Co."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="policy_number">Policy Number</Label>
+                <Input
+                  id="policy_number"
+                  value={formData.policy_number}
+                  onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
+                  placeholder="Policy/Contract ID"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start_date">Start Date</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end_date">End Date</Label>
+                <Input
+                  id="end_date"
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contract_value">Contract Value</Label>
+                <Input
+                  id="contract_value"
+                  type="number"
+                  value={formData.contract_value}
+                  onChange={(e) => setFormData({ ...formData, contract_value: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="max_services">Max Services</Label>
+                <Input
+                  id="max_services"
+                  type="number"
+                  value={formData.max_services}
+                  onChange={(e) => setFormData({ ...formData, max_services: e.target.value })}
+                  placeholder="Leave empty for unlimited"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Additional notes..."
+                rows={2}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-contract">
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Contract"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
