@@ -350,6 +350,58 @@ class RoleBasedPermission(permissions.BasePermission):
             'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
                          UserRole.SERVICE_MANAGER, UserRole.SALES_MANAGER, UserRole.CRM_EXECUTIVE],
         },
+        # Admin/System Resources
+        'licenses': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'current': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
+        'system-settings': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+        },
+        'payment-intents': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.ACCOUNTS_MANAGER, UserRole.ACCOUNTANT],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                         UserRole.ACCOUNTS_MANAGER, UserRole.ACCOUNTANT],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_MANAGER, UserRole.ACCOUNTANT, UserRole.SERVICE_ADVISOR],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_MANAGER],
+        },
+        'tally-sync-jobs': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.ACCOUNTS_MANAGER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                         UserRole.ACCOUNTS_MANAGER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_MANAGER],
+        },
+        'tally-ledger-mappings': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                     UserRole.ACCOUNTS_MANAGER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                         UserRole.ACCOUNTS_MANAGER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_MANAGER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER, 
+                       UserRole.ACCOUNTS_MANAGER],
+        },
+        'integrations': {
+            'list': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'retrieve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'create': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'update': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+            'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER],
+            'test_connection': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
+        },
     }
     
     def has_permission(self, request, view):

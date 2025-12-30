@@ -593,7 +593,7 @@ def workflow_stages(request):
 class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = Notification.objects.all()
@@ -1252,7 +1252,7 @@ def analytics_summary(request):
 class LicenseViewSet(viewsets.ModelViewSet):
     queryset = License.objects.all()
     serializer_class = LicenseSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     @action(detail=False, methods=['get'])
     def current(self, request):
@@ -1277,7 +1277,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
 class SystemSettingViewSet(viewsets.ModelViewSet):
     queryset = SystemSetting.objects.all()
     serializer_class = SystemSettingSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = SystemSetting.objects.all()
@@ -1375,7 +1375,7 @@ class PaymentIntentViewSet(viewsets.ModelViewSet):
 class TallySyncJobViewSet(viewsets.ModelViewSet):
     queryset = TallySyncJob.objects.all()
     serializer_class = TallySyncJobSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -1452,7 +1452,7 @@ class TallySyncJobViewSet(viewsets.ModelViewSet):
 class TallyLedgerMappingViewSet(viewsets.ModelViewSet):
     queryset = TallyLedgerMapping.objects.all()
     serializer_class = TallyLedgerMappingSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = TallyLedgerMapping.objects.all()
@@ -1470,7 +1470,7 @@ class TallyLedgerMappingViewSet(viewsets.ModelViewSet):
 class IntegrationConfigViewSet(viewsets.ModelViewSet):
     queryset = IntegrationConfig.objects.all()
     serializer_class = IntegrationConfigSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrManager]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
