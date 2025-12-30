@@ -1528,7 +1528,7 @@ def admin_dashboard(request):
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = Lead.objects.select_related('branch', 'owner', 'assigned_to', 'referred_by_customer').all()
@@ -1652,7 +1652,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 class CustomerInteractionViewSet(viewsets.ModelViewSet):
     queryset = CustomerInteraction.objects.all()
     serializer_class = CustomerInteractionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = CustomerInteraction.objects.select_related(
@@ -1688,7 +1688,7 @@ class CustomerInteractionViewSet(viewsets.ModelViewSet):
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = Ticket.objects.select_related(
@@ -1798,7 +1798,7 @@ class TicketViewSet(viewsets.ModelViewSet):
 class FollowUpTaskViewSet(viewsets.ModelViewSet):
     queryset = FollowUpTask.objects.all()
     serializer_class = FollowUpTaskSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = FollowUpTask.objects.select_related(
@@ -1864,7 +1864,7 @@ class FollowUpTaskViewSet(viewsets.ModelViewSet):
 class CampaignViewSet(viewsets.ModelViewSet):
     queryset = Campaign.objects.all()
     serializer_class = CampaignSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = Campaign.objects.select_related('branch', 'created_by').all()
@@ -1919,7 +1919,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 class CustomerScoreViewSet(viewsets.ModelViewSet):
     queryset = CustomerScore.objects.all()
     serializer_class = CustomerScoreSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = CustomerScore.objects.select_related('customer').all()
@@ -1949,7 +1949,7 @@ class CustomerScoreViewSet(viewsets.ModelViewSet):
 class CRMEventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CRMEvent.objects.all()
     serializer_class = CRMEventSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = CRMEvent.objects.select_related('customer', 'lead', 'triggered_by').all()
