@@ -282,9 +282,9 @@ export default function Appointments() {
   );
 
   return (
-    <div className="flex h-screen w-full bg-background">
+    <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="flex-1 overflow-auto">
+      <main className="ml-64 flex-1 overflow-auto">
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
