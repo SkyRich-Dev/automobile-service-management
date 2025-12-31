@@ -17,6 +17,7 @@ import {
   Truck,
   BarChart3,
   ShieldCheck,
+  Database,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,12 @@ const menuItems: MenuItem[] = [
     text: "Admin Panel", 
     icon: ShieldCheck, 
     path: "/admin",
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
+  },
+  { 
+    text: "Sample Data", 
+    icon: Database, 
+    path: "/sample-data",
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
 ];
