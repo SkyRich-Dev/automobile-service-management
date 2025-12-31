@@ -14,6 +14,21 @@ import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Shield,
   Key,
   CreditCard,
@@ -30,6 +45,10 @@ import {
   Zap,
   Database,
   Server,
+  Plus,
+  Pencil,
+  Trash2,
+  UserCog,
 } from "lucide-react";
 
 interface License {
@@ -59,6 +78,413 @@ interface IntegrationConfig {
   is_enabled: boolean;
   config: Record<string, string>;
   last_sync_at?: string;
+}
+
+interface UserProfile {
+  id: number;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    is_active: boolean;
+  };
+  role: string;
+  branch: number | null;
+  branch_name: string | null;
+  employee_id: string;
+  phone: string;
+  is_available: boolean;
+}
+
+interface Branch {
+  id: number;
+  name: string;
+  code: string;
+}
+
+const USER_ROLES = [
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+  { value: 'CEO_OWNER', label: 'CEO / Owner' },
+  { value: 'REGIONAL_MANAGER', label: 'Regional Manager' },
+  { value: 'BRANCH_MANAGER', label: 'Branch Manager' },
+  { value: 'SERVICE_MANAGER', label: 'Service Manager' },
+  { value: 'SALES_MANAGER', label: 'Sales Manager' },
+  { value: 'ACCOUNTS_MANAGER', label: 'Accounts Manager' },
+  { value: 'SUPERVISOR', label: 'Supervisor' },
+  { value: 'SERVICE_ADVISOR', label: 'Service Advisor' },
+  { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+  { value: 'SALES_EXECUTIVE', label: 'Sales Executive' },
+  { value: 'ACCOUNTANT', label: 'Accountant' },
+  { value: 'INVENTORY_MANAGER', label: 'Inventory Manager' },
+  { value: 'HR_MANAGER', label: 'HR Manager' },
+  { value: 'TECHNICIAN', label: 'Technician' },
+  { value: 'CRM_EXECUTIVE', label: 'CRM Executive' },
+  { value: 'CUSTOMER', label: 'Customer' },
+];
+
+function UserManagementPanel() {
+  const { toast } = useToast();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    password: '',
+    role: 'TECHNICIAN',
+    branch: '',
+    employee_id: '',
+    phone: '',
+  });
+
+  const { data: profiles = [], isLoading } = useQuery<UserProfile[]>({
+    queryKey: ["/api/profiles/"],
+  });
+
+  const { data: branches = [] } = useQuery<Branch[]>({
+    queryKey: ["/api/branches/"],
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/profiles/create_user/", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
+      toast({ title: "User created successfully" });
+      setIsCreateOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<typeof formData> }) => {
+      return apiRequest("PATCH", `/api/profiles/${id}/`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
+      toast({ title: "User updated successfully" });
+      setEditingUser(null);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleUserStatusMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
+      return apiRequest("POST", `/api/profiles/${id}/toggle_status/`, { is_active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
+      toast({ title: "User status updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      email: '',
+      first_name: '',
+      last_name: '',
+      password: '',
+      role: 'TECHNICIAN',
+      branch: '',
+      employee_id: '',
+      phone: '',
+    });
+  };
+
+  const handleEdit = (profile: UserProfile) => {
+    setEditingUser(profile);
+    setFormData({
+      username: profile.user.username,
+      email: profile.user.email,
+      first_name: profile.user.first_name,
+      last_name: profile.user.last_name,
+      password: '',
+      role: profile.role,
+      branch: profile.branch?.toString() || '',
+      employee_id: profile.employee_id || '',
+      phone: profile.phone || '',
+    });
+  };
+
+  const handleSubmit = () => {
+    if (editingUser) {
+      updateProfileMutation.mutate({
+        id: editingUser.id,
+        data: {
+          role: formData.role,
+          branch: formData.branch,
+          employee_id: formData.employee_id,
+          phone: formData.phone,
+        },
+      });
+    } else {
+      createUserMutation.mutate(formData);
+    }
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    const colors: Record<string, string> = {
+      'SUPER_ADMIN': 'bg-red-500/10 text-red-600 border-red-500/20',
+      'CEO_OWNER': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+      'BRANCH_MANAGER': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      'SERVICE_MANAGER': 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+      'TECHNICIAN': 'bg-green-500/10 text-green-600 border-green-500/20',
+    };
+    return colors[role] || 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+  };
+
+  if (isLoading) {
+    return <div className="space-y-4">Loading users...</div>;
+  }
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UserCog className="h-5 w-5 text-primary" />
+              User Management
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Create, edit, and manage user accounts and permissions
+            </CardDescription>
+          </div>
+          <Dialog open={isCreateOpen || !!editingUser} onOpenChange={(open) => {
+            if (!open) {
+              setIsCreateOpen(false);
+              setEditingUser(null);
+              resetForm();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-user">
+                <Plus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                {!editingUser && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Username</Label>
+                        <Input
+                          value={formData.username}
+                          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                          placeholder="username"
+                          data-testid="input-username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="email@example.com"
+                          data-testid="input-email"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>First Name</Label>
+                        <Input
+                          value={formData.first_name}
+                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                          placeholder="First name"
+                          data-testid="input-first-name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Last Name</Label>
+                        <Input
+                          value={formData.last_name}
+                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                          placeholder="Last name"
+                          data-testid="input-last-name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Enter password"
+                        data-testid="input-password"
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value) => setFormData({ ...formData, role: value })}
+                    >
+                      <SelectTrigger data-testid="select-role">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {USER_ROLES.map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Branch</Label>
+                    <Select
+                      value={formData.branch}
+                      onValueChange={(value) => setFormData({ ...formData, branch: value })}
+                    >
+                      <SelectTrigger data-testid="select-branch">
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id.toString()}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Employee ID</Label>
+                    <Input
+                      value={formData.employee_id}
+                      onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                      placeholder="EMP-001"
+                      data-testid="input-employee-id"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+91 98765 43210"
+                      data-testid="input-phone"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setEditingUser(null);
+                    resetForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={createUserMutation.isPending || updateProfileMutation.isPending}
+                  data-testid="button-submit-user"
+                >
+                  {createUserMutation.isPending || updateProfileMutation.isPending ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  {editingUser ? 'Update' : 'Create'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg border">
+          <div className="grid grid-cols-6 gap-4 border-b bg-muted/30 p-3 text-sm font-medium">
+            <div>User</div>
+            <div>Role</div>
+            <div>Branch</div>
+            <div>Employee ID</div>
+            <div>Status</div>
+            <div className="text-right">Actions</div>
+          </div>
+          <div className="divide-y">
+            {profiles.map((profile) => (
+              <div
+                key={profile.id}
+                className="grid grid-cols-6 gap-4 p-3 items-center text-sm"
+                data-testid={`row-user-${profile.id}`}
+              >
+                <div>
+                  <p className="font-medium">{profile.user.first_name} {profile.user.last_name}</p>
+                  <p className="text-xs text-muted-foreground">{profile.user.email}</p>
+                </div>
+                <div>
+                  <Badge variant="outline" className={getRoleBadgeColor(profile.role)}>
+                    {USER_ROLES.find(r => r.value === profile.role)?.label || profile.role}
+                  </Badge>
+                </div>
+                <div className="text-muted-foreground">
+                  {profile.branch_name || '-'}
+                </div>
+                <div className="text-muted-foreground">
+                  {profile.employee_id || '-'}
+                </div>
+                <div>
+                  <Switch
+                    checked={profile.user.is_active}
+                    onCheckedChange={(checked) => 
+                      toggleUserStatusMutation.mutate({ id: profile.id, is_active: checked })
+                    }
+                    data-testid={`switch-user-status-${profile.id}`}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleEdit(profile)}
+                    data-testid={`button-edit-user-${profile.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {profiles.length === 0 && (
+              <div className="p-8 text-center text-muted-foreground">
+                No users found. Click "Add User" to create one.
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function LicenseCard({ license }: { license: License | null }) {
@@ -672,13 +1098,18 @@ export default function AdminPanel() {
           </p>
         </div>
 
-        <Tabs defaultValue="license" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-4" data-testid="admin-tabs">
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList className="grid w-full max-w-xl grid-cols-5" data-testid="admin-tabs">
+            <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
             <TabsTrigger value="license" data-testid="tab-license">License</TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="tally" data-testid="tab-tally">Tally</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="users">
+            <UserManagementPanel />
+          </TabsContent>
 
           <TabsContent value="license" className="space-y-6">
             <LicenseCard license={license || null} />

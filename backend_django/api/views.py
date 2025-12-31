@@ -125,6 +125,58 @@ class ProfileViewSet(viewsets.ModelViewSet):
     def technicians(self, request):
         technicians = Profile.objects.filter(role=UserRole.TECHNICIAN)
         return Response(ProfileSerializer(technicians, many=True).data)
+    
+    @action(detail=False, methods=['post'])
+    def create_user(self, request):
+        data = request.data
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        first_name = data.get('first_name', '')
+        last_name = data.get('last_name', '')
+        role = data.get('role', 'TECHNICIAN')
+        branch_id = data.get('branch')
+        employee_id = data.get('employee_id', '')
+        phone = data.get('phone', '')
+        
+        if not username or not password:
+            return Response({'error': 'Username and password are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+        
+        branch = None
+        if branch_id:
+            try:
+                branch = Branch.objects.get(id=branch_id)
+            except Branch.DoesNotExist:
+                pass
+        
+        profile = Profile.objects.create(
+            user=user,
+            role=role,
+            branch=branch,
+            employee_id=employee_id,
+            phone=phone
+        )
+        
+        return Response(ProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['post'])
+    def toggle_status(self, request, pk=None):
+        profile = self.get_object()
+        is_active = request.data.get('is_active', True)
+        profile.user.is_active = is_active
+        profile.user.save()
+        return Response(ProfileSerializer(profile).data)
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
