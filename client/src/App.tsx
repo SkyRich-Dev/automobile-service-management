@@ -16,7 +16,6 @@ import Contracts from "@/pages/Contracts";
 import Suppliers from "@/pages/Suppliers";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
-import SampleDataLoader from "@/pages/SampleDataLoader";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
@@ -103,7 +102,6 @@ function Router() {
       <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} allowedRoles={routePermissions['/suppliers']} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} allowedRoles={routePermissions['/analytics']} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
-      <Route path="/sample-data" component={() => <ProtectedRoute component={SampleDataLoader} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/analytics']} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
