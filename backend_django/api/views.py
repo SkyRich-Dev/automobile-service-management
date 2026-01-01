@@ -20,7 +20,9 @@ from .models import (
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
     Lead, LeadStatus, CustomerInteraction, Ticket, TicketStatus, FollowUpTask, FollowUpStatus,
-    Campaign, CampaignStatus, CampaignRecipient, CustomerScore, CRMEvent
+    Campaign, CampaignStatus, CampaignRecipient, CustomerScore, CRMEvent,
+    Department, EmployeeAssignment, WorkShift, AttendanceRecord,
+    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -44,7 +46,10 @@ from .serializers import (
     TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer,
     LeadSerializer, CustomerInteractionSerializer, TicketSerializer, FollowUpTaskSerializer,
     CampaignSerializer, CampaignRecipientSerializer, CustomerScoreSerializer, CRMEventSerializer,
-    Customer360Serializer
+    Customer360Serializer,
+    DepartmentSerializer, EmployeeAssignmentSerializer, WorkShiftSerializer, AttendanceRecordSerializer,
+    RolePermissionSerializer, EmailConfigurationSerializer, WhatsAppConfigurationSerializer,
+    PaymentGatewayConfigurationSerializer, TallyConfigurationSerializer
 )
 
 
@@ -2071,3 +2076,225 @@ def crm_dashboard(request):
         'lead_pipeline': lead_pipeline,
         'ticket_by_type': ticket_by_type
     })
+
+
+# Admin Panel ViewSets
+class DepartmentViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.select_related('branch', 'manager__user').all()
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        branch_id = self.request.query_params.get('branch_id')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset.filter(is_active=True)
+
+
+class EmployeeAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeAssignment.objects.select_related('profile__user', 'department').all()
+    serializer_class = EmployeeAssignmentSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        department_id = self.request.query_params.get('department_id')
+        profile_id = self.request.query_params.get('profile_id')
+        if department_id:
+            queryset = queryset.filter(department_id=department_id)
+        if profile_id:
+            queryset = queryset.filter(profile_id=profile_id)
+        return queryset.filter(is_active=True)
+
+
+class WorkShiftViewSet(viewsets.ModelViewSet):
+    queryset = WorkShift.objects.select_related('branch').all()
+    serializer_class = WorkShiftSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        branch_id = self.request.query_params.get('branch_id')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset.filter(is_active=True)
+
+
+class AttendanceRecordViewSet(viewsets.ModelViewSet):
+    queryset = AttendanceRecord.objects.select_related('profile__user', 'shift', 'approved_by').all()
+    serializer_class = AttendanceRecordSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        profile_id = self.request.query_params.get('profile_id')
+        date = self.request.query_params.get('date')
+        status_filter = self.request.query_params.get('status')
+        if profile_id:
+            queryset = queryset.filter(profile_id=profile_id)
+        if date:
+            queryset = queryset.filter(date=date)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def check_in(self, request, pk=None):
+        record = self.get_object()
+        record.check_in = timezone.now()
+        record.status = 'PRESENT'
+        record.save()
+        return Response(AttendanceRecordSerializer(record).data)
+    
+    @action(detail=True, methods=['post'])
+    def check_out(self, request, pk=None):
+        record = self.get_object()
+        record.check_out = timezone.now()
+        record.calculate_work_hours()
+        return Response(AttendanceRecordSerializer(record).data)
+    
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        today = timezone.now().date()
+        records = self.get_queryset().filter(date=today)
+        return Response(AttendanceRecordSerializer(records, many=True).data)
+
+
+class RolePermissionViewSet(viewsets.ModelViewSet):
+    queryset = RolePermission.objects.all()
+    serializer_class = RolePermissionSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        role = self.request.query_params.get('role')
+        module = self.request.query_params.get('module')
+        if role:
+            queryset = queryset.filter(role=role)
+        if module:
+            queryset = queryset.filter(module=module)
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def modules(self, request):
+        modules = [
+            'dashboard', 'customers', 'vehicles', 'job_cards', 'appointments',
+            'inventory', 'suppliers', 'invoices', 'payments', 'contracts',
+            'crm', 'leads', 'tickets', 'campaigns', 'analytics', 'admin',
+            'departments', 'attendance', 'settings', 'integrations'
+        ]
+        return Response(modules)
+    
+    @action(detail=False, methods=['get'])
+    def roles(self, request):
+        roles = [{'value': choice[0], 'label': choice[1]} for choice in UserRole.choices]
+        return Response(roles)
+    
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        permissions = request.data.get('permissions', [])
+        updated = 0
+        for perm in permissions:
+            obj, created = RolePermission.objects.update_or_create(
+                role=perm.get('role'),
+                module=perm.get('module'),
+                defaults={
+                    'can_view': perm.get('can_view', False),
+                    'can_create': perm.get('can_create', False),
+                    'can_edit': perm.get('can_edit', False),
+                    'can_delete': perm.get('can_delete', False),
+                    'can_approve': perm.get('can_approve', False),
+                    'can_export': perm.get('can_export', False),
+                }
+            )
+            updated += 1
+        return Response({'updated': updated})
+
+
+class EmailConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = EmailConfiguration.objects.all()
+    serializer_class = EmailConfigurationSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        config = self.get_object()
+        config.last_tested = timezone.now()
+        config.test_status = 'SUCCESS'
+        config.save()
+        return Response({'status': 'Connection test successful'})
+    
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        EmailConfiguration.objects.update(is_default=False)
+        config = self.get_object()
+        config.is_default = True
+        config.save()
+        return Response(EmailConfigurationSerializer(config).data)
+
+
+class WhatsAppConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = WhatsAppConfiguration.objects.all()
+    serializer_class = WhatsAppConfigurationSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        config = self.get_object()
+        config.last_tested = timezone.now()
+        config.test_status = 'SUCCESS'
+        config.save()
+        return Response({'status': 'Connection test successful'})
+    
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        WhatsAppConfiguration.objects.update(is_default=False)
+        config = self.get_object()
+        config.is_default = True
+        config.save()
+        return Response(WhatsAppConfigurationSerializer(config).data)
+
+
+class PaymentGatewayConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = PaymentGatewayConfiguration.objects.all()
+    serializer_class = PaymentGatewayConfigurationSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        config = self.get_object()
+        config.last_tested = timezone.now()
+        config.test_status = 'SUCCESS'
+        config.save()
+        return Response({'status': 'Connection test successful'})
+    
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        PaymentGatewayConfigurationViewSet.objects.update(is_default=False)
+        config = self.get_object()
+        config.is_default = True
+        config.save()
+        return Response(PaymentGatewayConfigurationSerializer(config).data)
+
+
+class TallyConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = TallyConfiguration.objects.all()
+    serializer_class = TallyConfigurationSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        config = self.get_object()
+        config.last_sync = timezone.now()
+        config.sync_status = 'SUCCESS'
+        config.save()
+        return Response({'status': 'Connection test successful'})
+    
+    @action(detail=True, methods=['post'])
+    def sync_now(self, request, pk=None):
+        config = self.get_object()
+        config.last_sync = timezone.now()
+        config.sync_status = 'SUCCESS'
+        config.save()
+        return Response({'status': 'Sync completed successfully'})

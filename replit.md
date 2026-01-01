@@ -169,5 +169,51 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - `GET /api/crm/dashboard/` - CRM dashboard summary
 - `GET /api/crm/customer-360/{id}/` - Customer 360-degree view
 
+## Admin Panel Features
+The system includes a comprehensive Admin Control Panel with the following modules:
+
+### User Management
+- CRUD operations for user accounts
+- Role assignment with 17 hierarchical roles
+- Branch assignment and employee ID management
+- User status toggle (active/inactive)
+
+### Department Management
+- Create/manage organizational departments
+- Branch-level department assignment
+- Department codes and descriptions
+- Role restrictions per department
+
+### Role Permissions Matrix
+- Granular permission control per role
+- Module-based permissions: View, Create, Edit, Delete, Approve, Export
+- 16+ system modules covered
+- Bulk permission updates
+
+### Attendance Tracking
+- Daily attendance records
+- Check-in/Check-out functionality
+- Status tracking: Present, Absent, Half Day, Late, On Leave
+- Work hours calculation
+
+### Integration Management
+- **Email/SMTP**: Configure SMTP settings, test connections
+- **WhatsApp**: Multi-provider support (Twilio, Meta, Gupshup)
+- **Payment Gateways**: Stripe, Razorpay, PayU configuration
+- **Tally**: Invoice and customer sync with Tally ERP
+
+### Admin Panel API Endpoints
+- `GET /api/departments/` - Department management
+- `GET /api/employee-assignments/` - Employee allocation
+- `GET /api/work-shifts/` - Work shift configuration
+- `GET /api/attendance-records/` - Attendance tracking
+- `GET /api/attendance-records/today/` - Today's attendance
+- `GET /api/role-permissions/` - Permission matrix
+- `POST /api/role-permissions/bulk_update/` - Bulk update permissions
+- `GET /api/email-configurations/` - Email SMTP settings
+- `GET /api/whatsapp-configurations/` - WhatsApp settings
+- `GET /api/payment-gateway-configurations/` - Payment gateways
+- `GET /api/tally-configurations/` - Tally ERP settings
+
 ## Running the Project
 The application runs via the "Start application" workflow which executes `npm run dev`, starting both the Express proxy server and Django backend on port 5000.

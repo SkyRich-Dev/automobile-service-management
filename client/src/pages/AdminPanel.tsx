@@ -49,7 +49,22 @@ import {
   Pencil,
   Trash2,
   UserCog,
+  Building,
+  Calendar,
+  ShieldCheck,
+  Mail,
+  MessageSquare,
+  UserCheck,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface License {
   id: number;
@@ -102,6 +117,81 @@ interface Branch {
   id: number;
   name: string;
   code: string;
+}
+
+interface Department {
+  id: number;
+  name: string;
+  code: string;
+  description: string | null;
+  branch: number;
+  branch_name?: string;
+  manager: number | null;
+  manager_name?: string;
+  allowed_roles: string[];
+  is_active: boolean;
+}
+
+interface RolePermission {
+  id: number;
+  role: string;
+  module: string;
+  can_view: boolean;
+  can_create: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+  can_approve: boolean;
+  can_export: boolean;
+}
+
+interface AttendanceRecord {
+  id: number;
+  profile: number;
+  profile_name?: string;
+  date: string;
+  status: string;
+  check_in: string | null;
+  check_out: string | null;
+  work_hours: number | null;
+  overtime_hours: number;
+  notes: string | null;
+}
+
+interface EmailConfig {
+  id: number;
+  name: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  from_email: string;
+  from_name: string;
+  is_active: boolean;
+  is_default: boolean;
+  test_status: string | null;
+}
+
+interface WhatsAppConfig {
+  id: number;
+  name: string;
+  provider: string;
+  phone_number: string;
+  is_active: boolean;
+  is_default: boolean;
+  test_status: string | null;
+}
+
+interface EmployeeAssignment {
+  id: number;
+  profile: number;
+  profile_name?: string;
+  department: number;
+  department_name?: string;
+  designation: string | null;
+  start_date: string;
+  end_date: string | null;
+  allocation_percentage: number;
+  is_primary: boolean;
+  is_active: boolean;
 }
 
 const USER_ROLES = [
@@ -482,6 +572,1032 @@ function UserManagementPanel() {
             )}
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DepartmentManagementPanel() {
+  const { toast } = useToast();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    description: '',
+    branch: '',
+    allowed_roles: [] as string[],
+  });
+
+  const { data: departments = [], isLoading } = useQuery<Department[]>({
+    queryKey: ["/api/departments/"],
+  });
+
+  const { data: branches = [] } = useQuery<Branch[]>({
+    queryKey: ["/api/branches/"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/departments/", {
+        ...data,
+        branch: parseInt(data.branch),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/departments/"] });
+      toast({ title: "Department created successfully" });
+      setIsCreateOpen(false);
+      setFormData({ name: '', code: '', description: '', branch: '', allowed_roles: [] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create department", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/departments/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/departments/"] });
+      toast({ title: "Department deleted" });
+    },
+  });
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4 flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Building className="h-5 w-5 text-primary" />
+            Department Management
+          </CardTitle>
+          <CardDescription>Create and manage organizational departments</CardDescription>
+        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-department">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Department
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Department</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Service Department"
+                    data-testid="input-department-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Code</Label>
+                  <Input
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="SVC"
+                    data-testid="input-department-code"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Vehicle service operations"
+                  data-testid="input-department-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Select
+                  value={formData.branch}
+                  onValueChange={(val) => setFormData({ ...formData, branch: val })}
+                >
+                  <SelectTrigger data-testid="select-department-branch">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id.toString()}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => createMutation.mutate(formData)}
+                disabled={createMutation.isPending}
+                data-testid="button-submit-department"
+              >
+                {createMutation.isPending ? "Creating..." : "Create Department"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Branch</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell>
+              </TableRow>
+            ) : departments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">No departments found</TableCell>
+              </TableRow>
+            ) : (
+              departments.map((dept) => (
+                <TableRow key={dept.id} data-testid={`row-department-${dept.id}`}>
+                  <TableCell className="font-medium">{dept.name}</TableCell>
+                  <TableCell>{dept.code}</TableCell>
+                  <TableCell>{dept.branch_name || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant={dept.is_active ? "default" : "secondary"}>
+                      {dept.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteMutation.mutate(dept.id)}
+                      data-testid={`button-delete-department-${dept.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+const MODULES = [
+  'dashboard', 'customers', 'vehicles', 'job_cards', 'appointments',
+  'inventory', 'suppliers', 'invoices', 'payments', 'contracts',
+  'crm', 'leads', 'tickets', 'campaigns', 'analytics', 'admin'
+];
+
+function RolePermissionPanel() {
+  const { toast } = useToast();
+  const [selectedRole, setSelectedRole] = useState('BRANCH_MANAGER');
+
+  const { data: permissions = [], isLoading } = useQuery<RolePermission[]>({
+    queryKey: ["/api/role-permissions/", selectedRole],
+    queryFn: async () => {
+      const res = await fetch(`/api/role-permissions/?role=${selectedRole}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { permissions: Partial<RolePermission>[] }) => {
+      return apiRequest("POST", "/api/role-permissions/bulk_update/", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/role-permissions/"] });
+      toast({ title: "Permissions updated" });
+    },
+  });
+
+  const getPermissionForModule = (module: string) => {
+    return permissions.find(p => p.module === module) || {
+      role: selectedRole,
+      module,
+      can_view: false,
+      can_create: false,
+      can_edit: false,
+      can_delete: false,
+      can_approve: false,
+      can_export: false,
+    };
+  };
+
+  const handlePermissionChange = (module: string, field: keyof RolePermission, value: boolean) => {
+    const perm = getPermissionForModule(module);
+    const updated = { ...perm, [field]: value };
+    updateMutation.mutate({
+      permissions: [updated],
+    });
+  };
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4 flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Role Permissions Matrix
+          </CardTitle>
+          <CardDescription>Configure granular permissions for each role</CardDescription>
+        </div>
+        <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <SelectTrigger className="w-48" data-testid="select-role-permission">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            {USER_ROLES.map((role) => (
+              <SelectItem key={role.value} value={role.value}>
+                {role.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Module</TableHead>
+              <TableHead className="text-center">View</TableHead>
+              <TableHead className="text-center">Create</TableHead>
+              <TableHead className="text-center">Edit</TableHead>
+              <TableHead className="text-center">Delete</TableHead>
+              <TableHead className="text-center">Approve</TableHead>
+              <TableHead className="text-center">Export</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {MODULES.map((module) => {
+              const perm = getPermissionForModule(module);
+              return (
+                <TableRow key={module} data-testid={`row-permission-${module}`}>
+                  <TableCell className="font-medium capitalize">{module.replace('_', ' ')}</TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_view}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_view', !!checked)}
+                      data-testid={`checkbox-${module}-view`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_create}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_create', !!checked)}
+                      data-testid={`checkbox-${module}-create`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_edit}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_edit', !!checked)}
+                      data-testid={`checkbox-${module}-edit`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_delete}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_delete', !!checked)}
+                      data-testid={`checkbox-${module}-delete`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_approve}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_approve', !!checked)}
+                      data-testid={`checkbox-${module}-approve`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={perm.can_export}
+                      onCheckedChange={(checked) => handlePermissionChange(module, 'can_export', !!checked)}
+                      data-testid={`checkbox-${module}-export`}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+const ATTENDANCE_STATUS = [
+  { value: 'PRESENT', label: 'Present', color: 'bg-emerald-500/10 text-emerald-600' },
+  { value: 'ABSENT', label: 'Absent', color: 'bg-red-500/10 text-red-600' },
+  { value: 'HALF_DAY', label: 'Half Day', color: 'bg-amber-500/10 text-amber-600' },
+  { value: 'LATE', label: 'Late', color: 'bg-orange-500/10 text-orange-600' },
+  { value: 'ON_LEAVE', label: 'On Leave', color: 'bg-blue-500/10 text-blue-600' },
+];
+
+function AttendancePanel() {
+  const { toast } = useToast();
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: attendanceRecords = [], isLoading } = useQuery<AttendanceRecord[]>({
+    queryKey: ["/api/attendance-records/today/"],
+  });
+
+  const { data: profiles = [] } = useQuery<UserProfile[]>({
+    queryKey: ["/api/profiles/"],
+  });
+
+  const checkInMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("POST", `/api/attendance-records/${id}/check_in/`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance-records/today/"] });
+      toast({ title: "Checked in successfully" });
+    },
+  });
+
+  const checkOutMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("POST", `/api/attendance-records/${id}/check_out/`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance-records/today/"] });
+      toast({ title: "Checked out successfully" });
+    },
+  });
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = ATTENDANCE_STATUS.find(s => s.value === status);
+    return statusConfig ? (
+      <Badge variant="outline" className={statusConfig.color}>{statusConfig.label}</Badge>
+    ) : (
+      <Badge variant="outline">{status}</Badge>
+    );
+  };
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <UserCheck className="h-5 w-5 text-primary" />
+          Attendance Tracking
+        </CardTitle>
+        <CardDescription>Today's attendance records - {today}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Check In</TableHead>
+              <TableHead>Check Out</TableHead>
+              <TableHead>Work Hours</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">Loading...</TableCell>
+              </TableRow>
+            ) : attendanceRecords.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  No attendance records for today
+                </TableCell>
+              </TableRow>
+            ) : (
+              attendanceRecords.map((record) => (
+                <TableRow key={record.id} data-testid={`row-attendance-${record.id}`}>
+                  <TableCell className="font-medium">{record.profile_name || `Employee #${record.profile}`}</TableCell>
+                  <TableCell>{getStatusBadge(record.status)}</TableCell>
+                  <TableCell>{record.check_in ? new Date(record.check_in).toLocaleTimeString() : '-'}</TableCell>
+                  <TableCell>{record.check_out ? new Date(record.check_out).toLocaleTimeString() : '-'}</TableCell>
+                  <TableCell>{record.work_hours ? `${record.work_hours}h` : '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {!record.check_in && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => checkInMutation.mutate(record.id)}
+                          disabled={checkInMutation.isPending}
+                          data-testid={`button-checkin-${record.id}`}
+                        >
+                          Check In
+                        </Button>
+                      )}
+                      {record.check_in && !record.check_out && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => checkOutMutation.mutate(record.id)}
+                          disabled={checkOutMutation.isPending}
+                          data-testid={`button-checkout-${record.id}`}
+                        >
+                          Check Out
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmployeeAllocationPanel() {
+  const { toast } = useToast();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    profile: '',
+    department: '',
+    designation: '',
+    start_date: new Date().toISOString().split('T')[0],
+    allocation_percentage: 100,
+    is_primary: true,
+  });
+
+  const { data: assignments = [], isLoading } = useQuery<EmployeeAssignment[]>({
+    queryKey: ["/api/employee-assignments/"],
+  });
+
+  const { data: profiles = [] } = useQuery<UserProfile[]>({
+    queryKey: ["/api/profiles/"],
+  });
+
+  const { data: departments = [] } = useQuery<Department[]>({
+    queryKey: ["/api/departments/"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/employee-assignments/", {
+        ...data,
+        profile: parseInt(data.profile),
+        department: parseInt(data.department),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employee-assignments/"] });
+      toast({ title: "Employee assigned successfully" });
+      setIsCreateOpen(false);
+      setFormData({
+        profile: '',
+        department: '',
+        designation: '',
+        start_date: new Date().toISOString().split('T')[0],
+        allocation_percentage: 100,
+        is_primary: true,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to assign employee", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/employee-assignments/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employee-assignments/"] });
+      toast({ title: "Assignment removed" });
+    },
+  });
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4 flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Users className="h-5 w-5 text-primary" />
+            Employee Allocation
+          </CardTitle>
+          <CardDescription>Assign employees to departments</CardDescription>
+        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-assignment">
+              <Plus className="mr-2 h-4 w-4" />
+              Assign Employee
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Employee to Department</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Employee</Label>
+                <Select
+                  value={formData.profile}
+                  onValueChange={(val) => setFormData({ ...formData, profile: val })}
+                >
+                  <SelectTrigger data-testid="select-assignment-profile">
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id.toString()}>
+                        {profile.user.first_name} {profile.user.last_name} ({profile.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select
+                  value={formData.department}
+                  onValueChange={(val) => setFormData({ ...formData, department: val })}
+                >
+                  <SelectTrigger data-testid="select-assignment-department">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Input
+                    value={formData.designation}
+                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                    placeholder="e.g., Senior Technician"
+                    data-testid="input-assignment-designation"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Allocation %</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={formData.allocation_percentage}
+                    onChange={(e) => setFormData({ ...formData, allocation_percentage: parseInt(e.target.value) || 100 })}
+                    data-testid="input-allocation-percentage"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  data-testid="input-start-date"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.is_primary}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_primary: checked })}
+                  data-testid="switch-is-primary"
+                />
+                <Label>Primary Assignment</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => createMutation.mutate(formData)}
+                disabled={createMutation.isPending}
+                data-testid="button-submit-assignment"
+              >
+                {createMutation.isPending ? "Assigning..." : "Assign Employee"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Designation</TableHead>
+              <TableHead>Allocation</TableHead>
+              <TableHead>Primary</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">Loading...</TableCell>
+              </TableRow>
+            ) : assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">No employee assignments found</TableCell>
+              </TableRow>
+            ) : (
+              assignments.map((assignment) => (
+                <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
+                  <TableCell className="font-medium">{assignment.profile_name || `Employee #${assignment.profile}`}</TableCell>
+                  <TableCell>{assignment.department_name || `Dept #${assignment.department}`}</TableCell>
+                  <TableCell>{assignment.designation || '-'}</TableCell>
+                  <TableCell>{assignment.allocation_percentage}%</TableCell>
+                  <TableCell>
+                    <Badge variant={assignment.is_primary ? "default" : "secondary"}>
+                      {assignment.is_primary ? "Primary" : "Secondary"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteMutation.mutate(assignment.id)}
+                      data-testid={`button-delete-assignment-${assignment.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmailIntegrationPanel() {
+  const { toast } = useToast();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: 'Default',
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_username: '',
+    smtp_password: '',
+    from_email: '',
+    from_name: '',
+    use_tls: true,
+  });
+
+  const { data: configs = [], isLoading } = useQuery<EmailConfig[]>({
+    queryKey: ["/api/email-configurations/"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/email-configurations/", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-configurations/"] });
+      toast({ title: "Email configuration saved" });
+      setIsCreateOpen(false);
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("POST", `/api/email-configurations/${id}/test_connection/`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-configurations/"] });
+      toast({ title: "Connection test successful" });
+    },
+    onError: () => {
+      toast({ title: "Connection test failed", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4 flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Mail className="h-5 w-5 text-primary" />
+            Email / SMTP Configuration
+          </CardTitle>
+          <CardDescription>Configure email sending for notifications and alerts</CardDescription>
+        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-email-config">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Configuration
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Email Configuration</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>SMTP Host</Label>
+                  <Input
+                    value={formData.smtp_host}
+                    onChange={(e) => setFormData({ ...formData, smtp_host: e.target.value })}
+                    placeholder="smtp.gmail.com"
+                    data-testid="input-smtp-host"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>SMTP Port</Label>
+                  <Input
+                    type="number"
+                    value={formData.smtp_port}
+                    onChange={(e) => setFormData({ ...formData, smtp_port: parseInt(e.target.value) })}
+                    data-testid="input-smtp-port"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <Input
+                    value={formData.smtp_username}
+                    onChange={(e) => setFormData({ ...formData, smtp_username: e.target.value })}
+                    data-testid="input-smtp-username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    value={formData.smtp_password}
+                    onChange={(e) => setFormData({ ...formData, smtp_password: e.target.value })}
+                    data-testid="input-smtp-password"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>From Email</Label>
+                  <Input
+                    type="email"
+                    value={formData.from_email}
+                    onChange={(e) => setFormData({ ...formData, from_email: e.target.value })}
+                    placeholder="noreply@example.com"
+                    data-testid="input-from-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>From Name</Label>
+                  <Input
+                    value={formData.from_name}
+                    onChange={(e) => setFormData({ ...formData, from_name: e.target.value })}
+                    placeholder="Service Center"
+                    data-testid="input-from-name"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.use_tls}
+                  onCheckedChange={(checked) => setFormData({ ...formData, use_tls: checked })}
+                  data-testid="switch-use-tls"
+                />
+                <Label>Use TLS</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => createMutation.mutate(formData)}
+                disabled={createMutation.isPending}
+                data-testid="button-save-email-config"
+              >
+                {createMutation.isPending ? "Saving..." : "Save Configuration"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {configs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No email configurations. Click "Add Configuration" to set up email.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {configs.map((config) => (
+              <div
+                key={config.id}
+                className="flex items-center justify-between p-4 rounded-lg border"
+                data-testid={`row-email-config-${config.id}`}
+              >
+                <div>
+                  <p className="font-medium">{config.name}</p>
+                  <p className="text-sm text-muted-foreground">{config.smtp_host}:{config.smtp_port}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={config.is_active ? "default" : "secondary"}>
+                    {config.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                  <Badge variant="outline" className={
+                    config.test_status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-600' :
+                    config.test_status === 'FAILED' ? 'bg-red-500/10 text-red-600' : ''
+                  }>
+                    {config.test_status || 'Not Tested'}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => testMutation.mutate(config.id)}
+                    disabled={testMutation.isPending}
+                    data-testid={`button-test-email-${config.id}`}
+                  >
+                    Test Connection
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function WhatsAppIntegrationPanel() {
+  const { toast } = useToast();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: 'Default',
+    provider: 'twilio',
+    api_key: '',
+    api_secret: '',
+    phone_number: '',
+    account_sid: '',
+  });
+
+  const { data: configs = [], isLoading } = useQuery<WhatsAppConfig[]>({
+    queryKey: ["/api/whatsapp-configurations/"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/whatsapp-configurations/", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-configurations/"] });
+      toast({ title: "WhatsApp configuration saved" });
+      setIsCreateOpen(false);
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("POST", `/api/whatsapp-configurations/${id}/test_connection/`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-configurations/"] });
+      toast({ title: "Connection test successful" });
+    },
+    onError: () => {
+      toast({ title: "Connection test failed", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card className="border-border/50 overflow-visible">
+      <CardHeader className="pb-4 flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            WhatsApp Integration
+          </CardTitle>
+          <CardDescription>Configure WhatsApp for customer notifications</CardDescription>
+        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-whatsapp-config">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Configuration
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>WhatsApp Configuration</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Provider</Label>
+                <Select
+                  value={formData.provider}
+                  onValueChange={(val) => setFormData({ ...formData, provider: val })}
+                >
+                  <SelectTrigger data-testid="select-whatsapp-provider">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="twilio">Twilio</SelectItem>
+                    <SelectItem value="meta">Meta Business</SelectItem>
+                    <SelectItem value="gupshup">Gupshup</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <Input
+                    value={formData.api_key}
+                    onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                    data-testid="input-whatsapp-api-key"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>API Secret</Label>
+                  <Input
+                    type="password"
+                    value={formData.api_secret}
+                    onChange={(e) => setFormData({ ...formData, api_secret: e.target.value })}
+                    data-testid="input-whatsapp-api-secret"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Input
+                  value={formData.phone_number}
+                  onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                  placeholder="+1234567890"
+                  data-testid="input-whatsapp-phone"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => createMutation.mutate(formData)}
+                disabled={createMutation.isPending}
+                data-testid="button-save-whatsapp-config"
+              >
+                {createMutation.isPending ? "Saving..." : "Save Configuration"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {configs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No WhatsApp configurations. Click "Add Configuration" to set up WhatsApp.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {configs.map((config) => (
+              <div
+                key={config.id}
+                className="flex items-center justify-between p-4 rounded-lg border"
+                data-testid={`row-whatsapp-config-${config.id}`}
+              >
+                <div>
+                  <p className="font-medium">{config.name}</p>
+                  <p className="text-sm text-muted-foreground">{config.provider} - {config.phone_number}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={config.is_active ? "default" : "secondary"}>
+                    {config.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => testMutation.mutate(config.id)}
+                    disabled={testMutation.isPending}
+                    data-testid={`button-test-whatsapp-${config.id}`}
+                  >
+                    Test Connection
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1099,16 +2215,42 @@ export default function AdminPanel() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full max-w-xl grid-cols-5" data-testid="admin-tabs">
+          <TabsList className="flex flex-wrap gap-1 h-auto p-1 w-full max-w-4xl" data-testid="admin-tabs">
             <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
+            <TabsTrigger value="departments" data-testid="tab-departments">Departments</TabsTrigger>
+            <TabsTrigger value="allocation" data-testid="tab-allocation">Allocation</TabsTrigger>
+            <TabsTrigger value="permissions" data-testid="tab-permissions">Permissions</TabsTrigger>
+            <TabsTrigger value="attendance" data-testid="tab-attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="license" data-testid="tab-license">License</TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
-            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
-            <TabsTrigger value="tally" data-testid="tab-tally">Tally</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
             <UserManagementPanel />
+          </TabsContent>
+
+          <TabsContent value="departments">
+            <DepartmentManagementPanel />
+          </TabsContent>
+
+          <TabsContent value="allocation">
+            <EmployeeAllocationPanel />
+          </TabsContent>
+
+          <TabsContent value="permissions">
+            <RolePermissionPanel />
+          </TabsContent>
+
+          <TabsContent value="attendance">
+            <AttendancePanel />
+          </TabsContent>
+
+          <TabsContent value="integrations" className="space-y-6">
+            <EmailIntegrationPanel />
+            <WhatsAppIntegrationPanel />
+            <PaymentGatewaysPanel />
+            <TallySyncPanel />
           </TabsContent>
 
           <TabsContent value="license" className="space-y-6">
@@ -1118,20 +2260,6 @@ export default function AdminPanel() {
 
           <TabsContent value="settings">
             <SettingsForm settings={settings} />
-          </TabsContent>
-
-          <TabsContent value="integrations" className="space-y-4">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Payment Gateways</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure payment processing integrations
-              </p>
-            </div>
-            <PaymentGatewaysPanel />
-          </TabsContent>
-
-          <TabsContent value="tally">
-            <TallySyncPanel />
           </TabsContent>
         </Tabs>
       </main>

@@ -12,7 +12,9 @@ from .models import (
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
     Lead, CustomerInteraction, Ticket, FollowUpTask, Campaign, CampaignRecipient, CustomerScore, CRMEvent,
     LeadSource, LeadStatus, InteractionType, InteractionOutcome, TicketType, TicketStatus, TicketPriority,
-    FollowUpType, FollowUpStatus, CampaignType, CampaignStatus, CustomerCategory, CommunicationChannel
+    FollowUpType, FollowUpStatus, CampaignType, CampaignStatus, CustomerCategory, CommunicationChannel,
+    Department, EmployeeAssignment, WorkShift, AttendanceRecord, AttendanceStatus,
+    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration
 )
 
 
@@ -858,3 +860,127 @@ class Customer360Serializer(serializers.ModelSerializer):
     
     def get_pending_tasks_count(self, obj):
         return obj.follow_up_tasks.filter(status__in=['PENDING', 'IN_PROGRESS']).count()
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    manager_name = serializers.SerializerMethodField()
+    employee_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'code', 'branch', 'branch_name', 'manager', 'manager_name', 
+                  'description', 'allowed_roles', 'is_active', 'employee_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_manager_name(self, obj):
+        if obj.manager and obj.manager.user:
+            return f"{obj.manager.user.first_name} {obj.manager.user.last_name}".strip() or obj.manager.user.username
+        return None
+    
+    def get_employee_count(self, obj):
+        return obj.employees.filter(is_active=True).count()
+
+
+class EmployeeAssignmentSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+    employee_email = serializers.SerializerMethodField()
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    
+    class Meta:
+        model = EmployeeAssignment
+        fields = ['id', 'profile', 'employee_name', 'employee_email', 'department', 'department_name',
+                  'designation', 'start_date', 'end_date', 'allocation_percentage', 'is_primary', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def get_employee_name(self, obj):
+        if obj.profile and obj.profile.user:
+            return f"{obj.profile.user.first_name} {obj.profile.user.last_name}".strip() or obj.profile.user.username
+        return None
+    
+    def get_employee_email(self, obj):
+        if obj.profile and obj.profile.user:
+            return obj.profile.user.email
+        return None
+
+
+class WorkShiftSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = WorkShift
+        fields = ['id', 'name', 'branch', 'branch_name', 'start_time', 'end_time', 
+                  'break_duration_minutes', 'working_days', 'is_active']
+        read_only_fields = ['id']
+
+
+class AttendanceRecordSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+    shift_name = serializers.CharField(source='shift.name', read_only=True, allow_null=True)
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AttendanceRecord
+        fields = ['id', 'profile', 'employee_name', 'date', 'status', 'check_in', 'check_out',
+                  'work_hours', 'overtime_hours', 'shift', 'shift_name', 'source', 'notes',
+                  'approved_by', 'approved_by_name', 'created_at']
+        read_only_fields = ['id', 'created_at', 'work_hours']
+    
+    def get_employee_name(self, obj):
+        if obj.profile and obj.profile.user:
+            return f"{obj.profile.user.first_name} {obj.profile.user.last_name}".strip() or obj.profile.user.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class RolePermissionSerializer(serializers.ModelSerializer):
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    
+    class Meta:
+        model = RolePermission
+        fields = ['id', 'role', 'role_display', 'module', 'can_view', 'can_create', 
+                  'can_edit', 'can_delete', 'can_approve', 'can_export', 'custom_permissions']
+        read_only_fields = ['id']
+
+
+class EmailConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailConfiguration
+        fields = ['id', 'name', 'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+                  'use_tls', 'use_ssl', 'from_email', 'from_name', 'is_active', 'is_default',
+                  'last_tested', 'test_status', 'created_at']
+        read_only_fields = ['id', 'last_tested', 'test_status', 'created_at']
+        extra_kwargs = {'smtp_password': {'write_only': True}}
+
+
+class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WhatsAppConfiguration
+        fields = ['id', 'name', 'provider', 'api_key', 'api_secret', 'phone_number', 
+                  'account_sid', 'webhook_url', 'is_active', 'is_default',
+                  'last_tested', 'test_status', 'created_at']
+        read_only_fields = ['id', 'last_tested', 'test_status', 'created_at']
+        extra_kwargs = {'api_key': {'write_only': True}, 'api_secret': {'write_only': True}}
+
+
+class PaymentGatewayConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentGatewayConfiguration
+        fields = ['id', 'name', 'gateway_type', 'api_key', 'api_secret', 'merchant_id',
+                  'webhook_secret', 'environment', 'is_active', 'is_default',
+                  'supported_currencies', 'config', 'last_tested', 'test_status', 'created_at']
+        read_only_fields = ['id', 'last_tested', 'test_status', 'created_at']
+        extra_kwargs = {'api_key': {'write_only': True}, 'api_secret': {'write_only': True}, 'webhook_secret': {'write_only': True}}
+
+
+class TallyConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TallyConfiguration
+        fields = ['id', 'name', 'tally_url', 'company_name', 'port', 'sync_invoices',
+                  'sync_customers', 'sync_payments', 'auto_sync_enabled', 'sync_interval_minutes',
+                  'last_sync', 'sync_status', 'is_active', 'created_at']
+        read_only_fields = ['id', 'last_sync', 'sync_status', 'created_at']

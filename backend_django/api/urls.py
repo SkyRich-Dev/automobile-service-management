@@ -41,6 +41,17 @@ router.register(r'campaigns', views.CampaignViewSet, basename='campaigns')
 router.register(r'customer-scores', views.CustomerScoreViewSet, basename='customer-scores')
 router.register(r'crm-events', views.CRMEventViewSet, basename='crm-events')
 
+# Admin Panel Routes
+router.register(r'departments', views.DepartmentViewSet, basename='departments')
+router.register(r'employee-assignments', views.EmployeeAssignmentViewSet, basename='employee-assignments')
+router.register(r'work-shifts', views.WorkShiftViewSet, basename='work-shifts')
+router.register(r'attendance-records', views.AttendanceRecordViewSet, basename='attendance-records')
+router.register(r'role-permissions', views.RolePermissionViewSet, basename='role-permissions')
+router.register(r'email-configurations', views.EmailConfigurationViewSet, basename='email-configurations')
+router.register(r'whatsapp-configurations', views.WhatsAppConfigurationViewSet, basename='whatsapp-configurations')
+router.register(r'payment-gateway-configurations', views.PaymentGatewayConfigurationViewSet, basename='payment-gateway-configurations')
+router.register(r'tally-configurations', views.TallyConfigurationViewSet, basename='tally-configurations')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),

@@ -93,31 +93,6 @@ class Branch(models.Model):
         return f"{self.code} - {self.name}"
 
 
-class Permission(models.Model):
-    code = models.CharField(max_length=100, unique=True)
-    name = models.CharField(max_length=255)
-    module = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-
-    def __str__(self):
-        return f"{self.module}.{self.code}"
-
-
-class RolePermission(models.Model):
-    role = models.CharField(max_length=30, choices=UserRole.choices)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
-    can_create = models.BooleanField(default=False)
-    can_read = models.BooleanField(default=True)
-    can_update = models.BooleanField(default=False)
-    can_delete = models.BooleanField(default=False)
-
-    class Meta:
-        unique_together = ['role', 'permission']
-
-    def __str__(self):
-        return f"{self.role} - {self.permission.code}"
-
-
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=30, choices=UserRole.choices, default=UserRole.CUSTOMER)
@@ -1789,3 +1764,184 @@ class CRMEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_id} - {self.event_type}"
+
+
+class AttendanceStatus(models.TextChoices):
+    PRESENT = 'PRESENT', 'Present'
+    ABSENT = 'ABSENT', 'Absent'
+    HALF_DAY = 'HALF_DAY', 'Half Day'
+    LATE = 'LATE', 'Late'
+    ON_LEAVE = 'ON_LEAVE', 'On Leave'
+    HOLIDAY = 'HOLIDAY', 'Holiday'
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20, unique=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='departments')
+    manager = models.ForeignKey('Profile', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_departments')
+    description = models.TextField(blank=True, null=True)
+    allowed_roles = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.branch.name})"
+
+
+class EmployeeAssignment(models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='assignments')
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='employees')
+    designation = models.CharField(max_length=100, blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    allocation_percentage = models.IntegerField(default=100)
+    is_primary = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    def __str__(self):
+        return f"{self.profile.user.get_full_name()} - {self.department.name}"
+
+
+class WorkShift(models.Model):
+    name = models.CharField(max_length=50)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='shifts')
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    break_duration_minutes = models.IntegerField(default=60)
+    working_days = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.branch.name})"
+
+
+class AttendanceRecord(models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='attendance_records')
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=AttendanceStatus.choices, default=AttendanceStatus.PRESENT)
+    check_in = models.DateTimeField(null=True, blank=True)
+    check_out = models.DateTimeField(null=True, blank=True)
+    work_hours = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    overtime_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    shift = models.ForeignKey(WorkShift, on_delete=models.SET_NULL, null=True, blank=True)
+    source = models.CharField(max_length=20, default='MANUAL')
+    notes = models.TextField(blank=True, null=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        unique_together = ['profile', 'date']
+        ordering = ['-date']
+
+    def calculate_work_hours(self):
+        if self.check_in and self.check_out:
+            delta = self.check_out - self.check_in
+            hours = delta.total_seconds() / 3600
+            if self.shift and self.shift.break_duration_minutes:
+                hours -= self.shift.break_duration_minutes / 60
+            self.work_hours = max(0, round(hours, 2))
+            self.save()
+
+    def __str__(self):
+        return f"{self.profile.user.username} - {self.date} ({self.status})"
+
+
+class RolePermission(models.Model):
+    role = models.CharField(max_length=50, choices=UserRole.choices)
+    module = models.CharField(max_length=50, default='dashboard')
+    can_view = models.BooleanField(default=False)
+    can_create = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
+    can_approve = models.BooleanField(default=False)
+    can_export = models.BooleanField(default=False)
+    custom_permissions = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ['role', 'module']
+
+    def __str__(self):
+        return f"{self.role} - {self.module}"
+
+
+class EmailConfiguration(models.Model):
+    name = models.CharField(max_length=100, default='Default')
+    smtp_host = models.CharField(max_length=255)
+    smtp_port = models.IntegerField(default=587)
+    smtp_username = models.CharField(max_length=255)
+    smtp_password = models.CharField(max_length=255)
+    use_tls = models.BooleanField(default=True)
+    use_ssl = models.BooleanField(default=False)
+    from_email = models.EmailField()
+    from_name = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    last_tested = models.DateTimeField(null=True, blank=True)
+    test_status = models.CharField(max_length=20, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.smtp_host})"
+
+
+class WhatsAppConfiguration(models.Model):
+    name = models.CharField(max_length=100, default='Default')
+    provider = models.CharField(max_length=50, default='twilio')
+    api_key = models.CharField(max_length=255)
+    api_secret = models.CharField(max_length=255, blank=True)
+    phone_number = models.CharField(max_length=20)
+    account_sid = models.CharField(max_length=255, blank=True)
+    webhook_url = models.CharField(max_length=500, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    last_tested = models.DateTimeField(null=True, blank=True)
+    test_status = models.CharField(max_length=20, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.provider})"
+
+
+class PaymentGatewayConfiguration(models.Model):
+    name = models.CharField(max_length=100)
+    gateway_type = models.CharField(max_length=50)
+    api_key = models.CharField(max_length=255)
+    api_secret = models.CharField(max_length=255, blank=True)
+    merchant_id = models.CharField(max_length=255, blank=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
+    environment = models.CharField(max_length=20, default='sandbox')
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    supported_currencies = models.JSONField(default=list)
+    config = models.JSONField(default=dict, blank=True)
+    last_tested = models.DateTimeField(null=True, blank=True)
+    test_status = models.CharField(max_length=20, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.gateway_type})"
+
+
+class TallyConfiguration(models.Model):
+    name = models.CharField(max_length=100, default='Default')
+    tally_url = models.CharField(max_length=255)
+    company_name = models.CharField(max_length=255)
+    port = models.IntegerField(default=9000)
+    sync_invoices = models.BooleanField(default=True)
+    sync_customers = models.BooleanField(default=True)
+    sync_payments = models.BooleanField(default=True)
+    auto_sync_enabled = models.BooleanField(default=False)
+    sync_interval_minutes = models.IntegerField(default=30)
+    last_sync = models.DateTimeField(null=True, blank=True)
+    sync_status = models.CharField(max_length=20, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.company_name})"
