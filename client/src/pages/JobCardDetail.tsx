@@ -72,6 +72,15 @@ import {
   UserCheck,
   Settings,
 } from "lucide-react";
+import {
+  getStageLabel,
+  getTaskStatusLabel,
+  getEventTypeConfig,
+  PRIORITY_DEFINITIONS,
+  BUSINESS_RULES,
+  MESSAGES,
+  STAGE_BADGE_COLORS,
+} from "@/config";
 
 function LoadingSkeleton() {
   return (
@@ -94,19 +103,7 @@ function LoadingSkeleton() {
   );
 }
 
-const STAGE_COLORS: Record<string, string> = {
-  APPOINTMENT: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  CHECK_IN: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
-  INSPECTION: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
-  JOB_CARD: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  ESTIMATE: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200",
-  APPROVAL: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  EXECUTION: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  QC: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
-  BILLING: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-  DELIVERY: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-  COMPLETED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-};
+const STAGE_COLORS = STAGE_BADGE_COLORS;
 
 function SLACountdown({ deadline }: { deadline: string | null | undefined }) {
   const [timeLeft, setTimeLeft] = useState("");

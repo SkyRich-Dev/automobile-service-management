@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_CONFIG } from "@/config";
 
 interface Vehicle {
   id: number;
@@ -131,7 +132,7 @@ interface JobCardDetail extends JobCard {
   customer_detail: Customer;
 }
 
-const API_BASE = "/api";
+const API_BASE = API_CONFIG.BASE_URL;
 
 export function useJobCards(stage?: string) {
   return useQuery<JobCard[]>({

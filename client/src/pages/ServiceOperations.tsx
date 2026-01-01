@@ -58,24 +58,24 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import {
+  WORKFLOW_STAGES,
+  WORKFLOW_STAGE_DEFINITIONS,
+  getStageConfig,
+  getStageLabel,
+  getEventTypeConfig,
+  isHighPriority,
+  PRIORITY_DEFINITIONS,
+  MESSAGES,
+  formatMessage,
+  UI_CONFIG,
+} from "@/config";
 
 type ViewMode = "kanban" | "list" | "activity";
 type SortField = "job_card_number" | "customer_name" | "workflow_stage" | "priority" | "created_at" | "estimated_amount";
 type SortDirection = "asc" | "desc";
 
-const WORKFLOW_COLUMNS = [
-  { id: "APPOINTMENT", label: "Appointment", gradient: "from-blue-500 to-blue-600", bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400" },
-  { id: "CHECK_IN", label: "Check-in", gradient: "from-cyan-500 to-cyan-600", bg: "bg-cyan-500/10", text: "text-cyan-600 dark:text-cyan-400" },
-  { id: "INSPECTION", label: "Inspection", gradient: "from-teal-500 to-teal-600", bg: "bg-teal-500/10", text: "text-teal-600 dark:text-teal-400" },
-  { id: "JOB_CARD", label: "Job Card", gradient: "from-emerald-500 to-emerald-600", bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" },
-  { id: "ESTIMATE", label: "Estimate", gradient: "from-green-500 to-green-600", bg: "bg-green-500/10", text: "text-green-600 dark:text-green-400" },
-  { id: "APPROVAL", label: "Approval", gradient: "from-lime-500 to-lime-600", bg: "bg-lime-500/10", text: "text-lime-600 dark:text-lime-400" },
-  { id: "EXECUTION", label: "Execution", gradient: "from-yellow-500 to-yellow-600", bg: "bg-yellow-500/10", text: "text-yellow-700 dark:text-yellow-400" },
-  { id: "QC", label: "QC", gradient: "from-amber-500 to-amber-600", bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" },
-  { id: "BILLING", label: "Billing", gradient: "from-orange-500 to-orange-600", bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400" },
-  { id: "DELIVERY", label: "Delivery", gradient: "from-red-500 to-red-600", bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400" },
-  { id: "COMPLETED", label: "Completed", gradient: "from-slate-500 to-slate-600", bg: "bg-slate-500/10", text: "text-slate-600 dark:text-slate-400" },
-];
+const WORKFLOW_COLUMNS = WORKFLOW_STAGES;
 
 
 function LoadingSkeleton() {

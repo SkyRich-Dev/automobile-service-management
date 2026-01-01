@@ -194,6 +194,34 @@ export const WORKFLOW_STAGES = Object.values(WORKFLOW_STAGE_DEFINITIONS).sort(
   (a, b) => a.order - b.order
 );
 
+export const STAGE_BADGE_COLORS: Record<string, string> = {
+  APPOINTMENT: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  CHECK_IN: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+  INSPECTION: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  JOB_CARD: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  ESTIMATE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  APPROVAL: "bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200",
+  EXECUTION: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  QC: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  BILLING: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  DELIVERY: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  COMPLETED: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200",
+};
+
+export const STAGE_CHART_COLORS: Record<string, string> = {
+  APPOINTMENT: "from-blue-400 to-blue-500",
+  CHECK_IN: "from-cyan-400 to-cyan-500",
+  INSPECTION: "from-teal-400 to-teal-500",
+  JOB_CARD: "from-emerald-400 to-emerald-500",
+  ESTIMATE: "from-green-400 to-green-500",
+  APPROVAL: "from-lime-400 to-lime-500",
+  EXECUTION: "from-yellow-400 to-yellow-500",
+  QC: "from-amber-400 to-amber-500",
+  BILLING: "from-orange-400 to-orange-500",
+  DELIVERY: "from-red-400 to-red-500",
+  COMPLETED: "from-slate-400 to-slate-500",
+};
+
 export const getStageConfig = (stageId: string): WorkflowStageConfig | undefined => {
   return WORKFLOW_STAGE_DEFINITIONS[stageId];
 };
@@ -271,6 +299,15 @@ export const TASK_STATUS_DEFINITIONS: Record<string, StatusConfig> = {
 
 export const getTaskStatusLabel = (status: string): string => {
   return TASK_STATUS_DEFINITIONS[status]?.label || status;
+};
+
+export const getTaskStatusConfig = (status: string): StatusConfig => {
+  return TASK_STATUS_DEFINITIONS[status] || {
+    value: status,
+    label: status,
+    isTerminal: false,
+    color: "slate",
+  };
 };
 
 // =============================================================================

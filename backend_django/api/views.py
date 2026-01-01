@@ -790,9 +790,10 @@ def dashboard_stats(request):
 
 @api_view(['GET'])
 def workflow_stages(request):
+    from .config import WORKFLOW_STAGE_DEFINITIONS
     return Response([
-        {'value': stage.value, 'label': stage.label}
-        for stage in WorkflowStage
+        {'value': config.value, 'label': config.label, 'order': config.order, 'color': config.color}
+        for config in WORKFLOW_STAGE_DEFINITIONS.values()
     ])
 
 

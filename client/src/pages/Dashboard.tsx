@@ -24,20 +24,18 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import {
+  WORKFLOW_STAGES as WORKFLOW_STAGE_CONFIG,
+  WORKFLOW_STAGE_DEFINITIONS,
+  BUSINESS_RULES,
+  STAGE_CHART_COLORS,
+} from "@/config";
 
-const WORKFLOW_STAGES = [
-  { id: "APPOINTMENT", label: "Appt", color: "from-blue-400 to-blue-500" },
-  { id: "CHECK_IN", label: "Check-in", color: "from-cyan-400 to-cyan-500" },
-  { id: "INSPECTION", label: "Inspect", color: "from-teal-400 to-teal-500" },
-  { id: "JOB_CARD", label: "Job Card", color: "from-emerald-400 to-emerald-500" },
-  { id: "ESTIMATE", label: "Estimate", color: "from-green-400 to-green-500" },
-  { id: "APPROVAL", label: "Approval", color: "from-lime-400 to-lime-500" },
-  { id: "EXECUTION", label: "Exec", color: "from-yellow-400 to-yellow-500" },
-  { id: "QC", label: "QC", color: "from-amber-400 to-amber-500" },
-  { id: "BILLING", label: "Billing", color: "from-orange-400 to-orange-500" },
-  { id: "DELIVERY", label: "Delivery", color: "from-red-400 to-red-500" },
-  { id: "COMPLETED", label: "Done", color: "from-slate-400 to-slate-500" },
-];
+const WORKFLOW_STAGES = WORKFLOW_STAGE_CONFIG.map((stage) => ({
+  id: stage.id,
+  label: stage.label.length > 8 ? stage.label.substring(0, 7) : stage.label,
+  color: STAGE_CHART_COLORS[stage.id] || "from-slate-400 to-slate-500",
+}));
 
 function StatCard({
   title,
@@ -122,7 +120,7 @@ export default function Dashboard() {
   const statsCards = [
     {
       title: "Total Revenue",
-      value: `$${revenue.toLocaleString()}`,
+      value: `${BUSINESS_RULES.CURRENCY_SYMBOL}${revenue.toLocaleString()}`,
       subtitle: "From all service jobs",
       icon: TrendingUp,
       trend: "+12%",
