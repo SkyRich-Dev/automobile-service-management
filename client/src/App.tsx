@@ -14,6 +14,7 @@ import JobCardDetail from "@/pages/JobCardDetail";
 import Appointments from "@/pages/Appointments";
 import Contracts from "@/pages/Contracts";
 import Suppliers from "@/pages/Suppliers";
+import PODetail from "@/pages/PODetail";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
 import PaymentSuccess from "@/pages/PaymentSuccess";
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/appointments" component={() => <ProtectedRoute component={Appointments} allowedRoles={routePermissions['/appointments']} />} />
       <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} allowedRoles={routePermissions['/contracts']} />} />
       <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} allowedRoles={routePermissions['/suppliers']} />} />
+      <Route path="/purchase-orders/:id" component={() => <ProtectedRoute component={PODetail} allowedRoles={routePermissions['/suppliers']} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} allowedRoles={routePermissions['/analytics']} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/analytics']} />} />

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
@@ -466,10 +467,19 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
         model = PurchaseOrderLine
         fields = ['id', 'purchase_order', 'part', 'part_name', 'part_sku', 'quantity_ordered',
                   'quantity_received', 'unit_price', 'tax_rate', 'total']
+        read_only_fields = ['id', 'purchase_order']
+
+
+class PurchaseOrderLineWriteSerializer(serializers.Serializer):
+    part = serializers.IntegerField()
+    quantity_ordered = serializers.IntegerField(min_value=1)
+    unit_price = serializers.DecimalField(max_digits=12, decimal_places=2)
+    tax_rate = serializers.DecimalField(max_digits=5, decimal_places=2, default=18)
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     lines = PurchaseOrderLineSerializer(many=True, read_only=True)
+    lines_data = PurchaseOrderLineWriteSerializer(many=True, write_only=True, required=False)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
@@ -479,13 +489,51 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         fields = ['id', 'po_number', 'branch', 'branch_name', 'supplier', 'supplier_name',
                   'status', 'order_date', 'expected_delivery', 'actual_delivery', 'subtotal',
                   'tax', 'shipping', 'grand_total', 'notes', 'created_by', 'created_by_name',
-                  'approved_by', 'created_at', 'updated_at', 'lines']
+                  'approved_by', 'created_at', 'updated_at', 'lines', 'lines_data']
         read_only_fields = ['id', 'po_number', 'created_at', 'updated_at']
     
     def get_created_by_name(self, obj):
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
         return None
+    
+    def create(self, validated_data):
+        lines_data = validated_data.pop('lines_data', [])
+        po = PurchaseOrder.objects.create(**validated_data)
+        
+        subtotal = Decimal('0')
+        tax_total = Decimal('0')
+        
+        for line_data in lines_data:
+            part = Part.objects.get(id=line_data['part'])
+            quantity = line_data['quantity_ordered']
+            unit_price_val = line_data.get('unit_price')
+            if unit_price_val is not None:
+                unit_price = Decimal(str(unit_price_val))
+            else:
+                unit_price = part.cost_price if part.cost_price else Decimal('0')
+            tax_rate = Decimal(str(line_data.get('tax_rate', 18)))
+            line_total = quantity * unit_price
+            line_tax = line_total * (tax_rate / 100)
+            
+            PurchaseOrderLine.objects.create(
+                purchase_order=po,
+                part=part,
+                quantity_ordered=quantity,
+                unit_price=unit_price,
+                tax_rate=tax_rate,
+                total=line_total + line_tax
+            )
+            subtotal += line_total
+            tax_total += line_tax
+        
+        po.subtotal = subtotal
+        po.tax = tax_total
+        shipping = po.shipping if po.shipping is not None else Decimal('0')
+        po.grand_total = subtotal + tax_total + shipping
+        po.save()
+        
+        return po
 
 
 class TechnicianScheduleSerializer(serializers.ModelSerializer):

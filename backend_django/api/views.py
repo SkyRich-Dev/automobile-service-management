@@ -246,6 +246,8 @@ class PartViewSet(viewsets.ModelViewSet):
         category = self.request.query_params.get('category', None)
         low_stock = self.request.query_params.get('low_stock', None)
         search = self.request.query_params.get('search', None)
+        supplier_id = self.request.query_params.get('supplier', None)
+        branch_id = self.request.query_params.get('branch', None)
         
         if category:
             queryset = queryset.filter(category=category)
@@ -257,6 +259,16 @@ class PartViewSet(viewsets.ModelViewSet):
                 Q(sku__icontains=search) |
                 Q(part_number__icontains=search)
             )
+        if supplier_id:
+            try:
+                queryset = queryset.filter(primary_supplier_id=int(supplier_id))
+            except (ValueError, TypeError):
+                pass
+        if branch_id:
+            try:
+                queryset = queryset.filter(branch_id=int(branch_id))
+            except (ValueError, TypeError):
+                pass
         
         return queryset.order_by('name')
 

@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useSupplierPerformance } from "@/hooks/use-inventory";
+import { useSupplierPerformance, useParts } from "@/hooks/use-inventory";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Truck,
@@ -23,6 +24,7 @@ import {
   BarChart3,
   Clock,
   CheckCircle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,7 +113,14 @@ export default function Suppliers() {
     pan_number: "",
     payment_terms: "NET_30",
     credit_limit: "",
+    categories: "",
   });
+
+  interface POLineItem {
+    part: string;
+    quantity_ordered: string;
+    unit_price: string;
+  }
 
   const [poForm, setPoForm] = useState({
     supplier: "",
@@ -119,11 +128,21 @@ export default function Suppliers() {
     notes: "",
   });
 
+  const [poLineItems, setPoLineItems] = useState<POLineItem[]>([
+    { part: "", quantity_ordered: "", unit_price: "" },
+  ]);
+
+  const { data: parts = [], isLoading: partsLoading } = useParts();
+
   const createSupplier = useMutation({
     mutationFn: async (data: typeof supplierForm) => {
+      const categoriesArray = data.categories
+        ? data.categories.split(",").map((c) => c.trim()).filter(Boolean)
+        : [];
       const res = await apiRequest("POST", "/api/suppliers/", {
         ...data,
         credit_limit: data.credit_limit || "0",
+        categories: categoriesArray,
       });
       return res.json();
     },
@@ -142,6 +161,7 @@ export default function Suppliers() {
         pan_number: "",
         payment_terms: "NET_30",
         credit_limit: "",
+        categories: "",
       });
       toast({ title: "Supplier created successfully" });
     },
@@ -151,15 +171,24 @@ export default function Suppliers() {
   });
 
   const createPO = useMutation({
-    mutationFn: async (data: typeof poForm) => {
+    mutationFn: async (data: { form: typeof poForm; lines: POLineItem[] }) => {
       if (!profile?.branch) {
         throw new Error("No branch assigned to your profile");
       }
+      const lines_data = data.lines
+        .filter((line) => line.part && line.quantity_ordered)
+        .map((line) => ({
+          part: parseInt(line.part),
+          quantity_ordered: parseInt(line.quantity_ordered),
+          unit_price: line.unit_price ? parseFloat(line.unit_price) : undefined,
+        }));
+
       const res = await apiRequest("POST", "/api/purchase-orders/", {
         branch: profile.branch,
-        supplier: parseInt(data.supplier),
-        expected_delivery: data.expected_delivery || null,
-        notes: data.notes,
+        supplier: parseInt(data.form.supplier),
+        expected_delivery: data.form.expected_delivery || null,
+        notes: data.form.notes,
+        lines_data: lines_data.length > 0 ? lines_data : undefined,
       });
       return res.json();
     },
@@ -167,6 +196,7 @@ export default function Suppliers() {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       setPoDialogOpen(false);
       setPoForm({ supplier: "", expected_delivery: "", notes: "" });
+      setPoLineItems([{ part: "", quantity_ordered: "", unit_price: "" }]);
       toast({ title: "Purchase order created successfully" });
     },
     onError: (error) => {
@@ -189,7 +219,38 @@ export default function Suppliers() {
       toast({ title: "Please select a supplier", variant: "destructive" });
       return;
     }
-    createPO.mutate(poForm);
+    const validLines = poLineItems.filter((line) => line.part && line.quantity_ordered);
+    for (const line of validLines) {
+      if (!line.unit_price || parseFloat(line.unit_price) <= 0) {
+        toast({ title: "Please enter a valid unit price for all items", variant: "destructive" });
+        return;
+      }
+    }
+    createPO.mutate({ form: poForm, lines: poLineItems });
+  };
+
+  const addLineItem = () => {
+    setPoLineItems([...poLineItems, { part: "", quantity_ordered: "", unit_price: "" }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    if (poLineItems.length > 1) {
+      setPoLineItems(poLineItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateLineItem = (index: number, field: keyof POLineItem, value: string) => {
+    const updated = [...poLineItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setPoLineItems(updated);
+  };
+
+  const calculateSubtotal = () => {
+    return poLineItems.reduce((sum, line) => {
+      const qty = parseFloat(line.quantity_ordered) || 0;
+      const price = parseFloat(line.unit_price) || 0;
+      return sum + qty * price;
+    }, 0);
   };
 
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<Supplier[]>({
@@ -462,7 +523,14 @@ export default function Suppliers() {
                       <div className="flex items-center justify-between gap-4 flex-wrap">
                         <div className="flex items-center gap-4">
                           <div>
-                            <p className="font-medium">{po.po_number}</p>
+                            <Link href={`/purchase-orders/${po.id}`}>
+                              <span
+                                className="font-medium text-primary underline-offset-4 hover:underline cursor-pointer"
+                                data-testid={`link-po-${po.id}`}
+                              >
+                                {po.po_number}
+                              </span>
+                            </Link>
                             <p className="text-sm text-muted-foreground">{po.supplier_name}</p>
                           </div>
                         </div>
@@ -480,9 +548,11 @@ export default function Suppliers() {
                           <Badge className={cn("text-xs", PO_STATUS_COLORS[po.status])}>
                             {po.status.replace(/_/g, " ")}
                           </Badge>
-                          <Button size="sm" variant="outline" data-testid={`button-view-po-${po.id}`}>
-                            View
-                          </Button>
+                          <Link href={`/purchase-orders/${po.id}`}>
+                            <Button size="sm" variant="outline" data-testid={`button-view-po-${po.id}`}>
+                              View
+                            </Button>
+                          </Link>
                         </div>
                       </div>
                     </CardContent>
@@ -717,6 +787,20 @@ export default function Suppliers() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="categories">Item Categories (comma-separated)</Label>
+              <Input
+                id="categories"
+                value={supplierForm.categories}
+                onChange={(e) => setSupplierForm({ ...supplierForm, categories: e.target.value })}
+                placeholder="e.g., Filters, Oil, Brakes, Tyres"
+                data-testid="input-supplier-categories"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the types of items this supplier delivers
+              </p>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setSupplierDialogOpen(false)}>
                 Cancel
@@ -737,38 +821,131 @@ export default function Suppliers() {
       </Dialog>
 
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Purchase Order</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePOSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="po_supplier">Supplier</Label>
-              <Select
-                value={poForm.supplier}
-                onValueChange={(value) => setPoForm({ ...poForm, supplier: value })}
-              >
-                <SelectTrigger data-testid="select-po-supplier">
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.filter(s => s.is_active).map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="po_supplier">Supplier</Label>
+                <Select
+                  value={poForm.supplier}
+                  onValueChange={(value) => setPoForm({ ...poForm, supplier: value })}
+                >
+                  <SelectTrigger data-testid="select-po-supplier">
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.filter(s => s.is_active).map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expected_delivery">Expected Delivery</Label>
+                <Input
+                  id="expected_delivery"
+                  type="date"
+                  value={poForm.expected_delivery}
+                  onChange={(e) => setPoForm({ ...poForm, expected_delivery: e.target.value })}
+                  data-testid="input-expected-delivery"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="expected_delivery">Expected Delivery</Label>
-              <Input
-                id="expected_delivery"
-                type="date"
-                value={poForm.expected_delivery}
-                onChange={(e) => setPoForm({ ...poForm, expected_delivery: e.target.value })}
-              />
+              <div className="flex items-center justify-between gap-2">
+                <Label>Line Items</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addLineItem}
+                  data-testid="button-add-line"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </div>
+
+              <div className="space-y-2 border rounded-md p-3">
+                {poLineItems.map((line, index) => (
+                  <div key={index} className="flex items-center gap-2" data-testid={`line-item-${index}`}>
+                    <div className="flex-1">
+                      <Select
+                        value={line.part}
+                        onValueChange={(value) => {
+                          updateLineItem(index, "part", value);
+                          const selectedPart = parts.find((p) => p.id.toString() === value);
+                          if (selectedPart && !line.unit_price) {
+                            updateLineItem(index, "unit_price", selectedPart.price);
+                          }
+                        }}
+                      >
+                        <SelectTrigger data-testid={`select-part-${index}`}>
+                          <SelectValue placeholder="Select part" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {partsLoading ? (
+                            <SelectItem value="" disabled>
+                              Loading...
+                            </SelectItem>
+                          ) : (
+                            parts.map((part) => (
+                              <SelectItem key={part.id} value={part.id.toString()}>
+                                {part.name} ({part.sku})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Qty"
+                      className="w-20"
+                      value={line.quantity_ordered}
+                      onChange={(e) => updateLineItem(index, "quantity_ordered", e.target.value)}
+                      data-testid={`input-qty-${index}`}
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Price"
+                      className="w-24"
+                      value={line.unit_price}
+                      onChange={(e) => updateLineItem(index, "unit_price", e.target.value)}
+                      data-testid={`input-price-${index}`}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeLineItem(index)}
+                      disabled={poLineItems.length === 1}
+                      data-testid={`button-remove-line-${index}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Estimated Subtotal</p>
+                  <p className="text-lg font-semibold" data-testid="text-subtotal">
+                    ${calculateSubtotal().toFixed(2)}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -778,12 +955,13 @@ export default function Suppliers() {
                 value={poForm.notes}
                 onChange={(e) => setPoForm({ ...poForm, notes: e.target.value })}
                 placeholder="Order notes..."
-                rows={3}
+                rows={2}
+                data-testid="textarea-notes"
               />
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPoDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setPoDialogOpen(false)} data-testid="button-cancel-po">
                 Cancel
               </Button>
               <Button type="submit" disabled={createPO.isPending} data-testid="button-submit-po">
