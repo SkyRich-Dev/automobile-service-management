@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useSupplierPerformance } from "@/hooks/use-inventory";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Truck,
   Package,
@@ -90,6 +91,7 @@ const PO_STATUS_COLORS: Record<string, string> = {
 
 export default function Suppliers() {
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<"suppliers" | "orders" | "performance">("suppliers");
   const { data: supplierPerformance = [], isLoading: performanceLoading } = useSupplierPerformance();
   const [searchQuery, setSearchQuery] = useState("");
@@ -150,7 +152,11 @@ export default function Suppliers() {
 
   const createPO = useMutation({
     mutationFn: async (data: typeof poForm) => {
+      if (!profile?.branch_id) {
+        throw new Error("No branch assigned to your profile");
+      }
       const res = await apiRequest("POST", "/api/purchase-orders/", {
+        branch: Number(profile.branch_id),
         supplier: parseInt(data.supplier),
         expected_delivery: data.expected_delivery || null,
         notes: data.notes,
