@@ -1,0 +1,186 @@
+MASTER PROMPT — SERVICE OPERATIONS & JOB CARD ENHANCEMENT
+(Usability + Traceability + Customer & Management Intimation)
+ROLE & OBJECTIVE
+You are a senior product engineering team tasked with enhancing the existing Service Operations and Job Card module of an Automobile Car & Bike Service Management System.
+⚠️ Important:
+Do NOT change the basic workflow, architecture, or core requirements
+Do NOT remove any existing features
+Your task is to improve usability, traceability, communication, and escalation handling
+1. CORE ENHANCEMENT GOALS (NON-NEGOTIABLE)
+Enhance the Job Card module so that it is:
+Extremely easy to use for service staff
+Fully traceable at every stage
+Transparent to the customer
+Accountable to management
+Date & time tracked at every step
+Notification-driven and configurable
+2. JOB CARD – FRIENDLY & TRACEABLE STRUCTURE
+2.1 Job Card Identity & Header (Always Visible)
+Enhance the job card header to permanently display:
+Job Card ID
+Service Tracking ID
+Vehicle details (Reg No, Model, VIN)
+Customer name & contact
+Current service stage (with color badge)
+Assigned service advisor
+Assigned technician(s)
+Job start date & time
+Expected completion date & time
+SLA countdown indicator
+This header must remain sticky while scrolling.
+3. SERVICE STAGE MANAGEMENT (CONTROLLED & AUDITABLE)
+3.1 Service Stages (Do Not Change Order)
+Appointment
+→ Check-in
+→ Inspection
+→ Job Started
+→ Work In Progress
+→ Waiting (Parts / Approval)
+→ Quality Check
+→ Job Completed
+→ Invoice Generated
+→ Vehicle Delivered
+3.2 Stage Change Rules
+Stage can be changed only by:
+Service Technician (limited stages)
+Supervisor
+Service Advisor
+Manager (full access)
+Each stage change must capture:
+Changed by (user + role)
+Date & time
+Remarks (mandatory for delays or rollback)
+Stage change must create a service event log entry
+4. DATE & TIME TRACKING (MANDATORY EVERYWHERE)
+For every job card, track and display:
+Stage start date & time
+Stage end date & time
+Technician task start & stop time
+Waiting / idle duration
+Total service duration
+Delay duration vs SLA
+All timestamps must be:
+Visible in UI
+Stored for audit
+Shown in service timeline
+5. JOB CARD DETAILING PAGE (360° VIEW)
+Enhance the Job Card Detail page to include clear, structured sections:
+5.1 Work Summary
+What issues were reported
+What diagnosis was done
+What work was carried out
+What issues were resolved
+What issues are pending (if any)
+5.2 Task Execution Details
+For each task:
+Task name
+Assigned technician
+Start & end time
+Status
+Before / after notes
+Photos / videos (if uploaded)
+5.3 Spare Parts & Consumables Used
+Part name & number
+OEM / aftermarket
+Quantity used
+Warranty / contract covered or not
+Issued by & issued time
+5.4 Quality Check & Verification
+QC checklist
+QC done by
+QC date & time
+Rework flag (if any)
+RCA reference (if applicable)
+5.5 Future Advice & Recommendations
+Preventive maintenance advice
+Upcoming service suggestions
+Parts to be replaced in next visit
+Safety recommendations
+5.6 Complete Service Timeline (READ-ONLY)
+Chronological view of:
+Every stage
+Every task
+Every approval
+Every delay
+Every communication sent
+6. CUSTOMER & COMPANY INTIMATION (AUTOMATED)
+6.1 Notification Triggers (MANDATORY)
+Send notifications automatically when:
+Job started
+Additional work identified
+Approval required
+Delay beyond SLA
+Job completed
+Invoice generated
+Vehicle ready for delivery
+6.2 Notification Channels (CONFIGURABLE)
+Based on Admin configuration, send via:
+WhatsApp
+SMS
+Email
+Each notification must include:
+Job Card ID
+Vehicle details
+Current status
+Date & time
+Next action (if required)
+6.3 Notification Logging
+Every notification must be logged with:
+Channel used
+Sent date & time
+Delivery status
+Linked job card
+7. DELAY HANDLING & ESCALATION (CRITICAL)
+7.1 Delay Detection
+System must automatically detect:
+SLA breach
+Stage overrun
+Technician idle delay
+Waiting for approval delay
+7.2 Escalation Rules
+When delay occurs:
+Notify service advisor
+Escalate to manager after configured time
+Highlight delayed job in manager dashboard
+Mandatory delay reason entry
+8. ACCESS CONTROL (DO NOT CHANGE CORE RBAC)
+Technician:
+Update task status
+Add remarks
+Upload evidence
+Supervisor:
+Change service stage
+Reassign technician
+Service Advisor:
+Communicate with customer
+Trigger approvals
+Manager:
+Override stages
+Close escalations
+Approve delays
+All actions must be logged and auditable.
+9. UI / UX IMPROVEMENTS (WITHOUT REDESIGN)
+Use collapsible sections for clarity
+Use icons & color indicators for status
+Use timeline visualization for traceability
+Use quick-action buttons:
+Notify customer
+Escalate
+Add remark
+No hidden data
+No dead actions
+10. FINAL VALIDATION RULES
+After enhancement:
+✅ Customer always knows job status
+✅ Management sees delays instantly
+✅ Every action has date & time
+✅ Job card shows complete service story
+✅ Notifications are automatic & logged
+✅ No workflow bypass possible
+11. FINAL INSTRUCTION
+Enhance the Service Operations & Job Card module as if it will be:
+Used by technicians daily
+Audited by management
+Trusted by customers
+Scaled across multiple branches
+This is a usability + accountability upgrade, not a redesign.

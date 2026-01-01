@@ -67,6 +67,16 @@ interface Estimate {
   created_at: string;
 }
 
+interface DigitalInspection {
+  id: number;
+  is_completed: boolean;
+  findings?: string;
+  recommendations?: string;
+  checklist_data?: Record<string, unknown>;
+  photos?: string[];
+  videos?: string[];
+}
+
 interface JobCard {
   id: number;
   job_card_number: string;
@@ -90,6 +100,8 @@ interface JobCard {
   estimated_hours: string;
   estimated_amount: string;
   actual_amount?: string;
+  labor_amount?: string;
+  parts_amount?: string;
   is_warranty: boolean;
   is_amc: boolean;
   is_insurance: boolean;
@@ -108,6 +120,7 @@ interface JobCardDetail extends JobCard {
   tasks: Task[];
   timeline_events: ServiceEvent[];
   estimates: Estimate[];
+  inspection?: DigitalInspection;
   vehicle_detail: Vehicle;
   customer_detail: Customer;
 }
@@ -350,4 +363,70 @@ export function useCompleteTask() {
   });
 }
 
-export type { JobCard, JobCardDetail, Task, ServiceEvent, Estimate, Vehicle, Customer };
+export function useAddRemark() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ jobCardId, remark }: { jobCardId: number; remark: string }) => {
+      const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/add_remark/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remark }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to add remark");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.jobCardId] });
+    },
+  });
+}
+
+export function useNotifyCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ jobCardId, message, channel }: { jobCardId: number; message?: string; channel?: string }) => {
+      const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/notify_customer/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, channel }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to notify customer");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.jobCardId] });
+    },
+  });
+}
+
+export function useEscalate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ jobCardId, reason, level }: { jobCardId: number; reason: string; level?: string }) => {
+      const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/escalate/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason, level }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to escalate");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["job-cards", variables.jobCardId] });
+    },
+  });
+}
+
+export type { JobCard, JobCardDetail, Task, ServiceEvent, Estimate, Vehicle, Customer, DigitalInspection };

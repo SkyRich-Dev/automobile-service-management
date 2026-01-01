@@ -352,6 +352,135 @@ class JobCardViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['post'])
+    def add_remark(self, request, pk=None):
+        job_card = self.get_object()
+        remark = request.data.get('remark', '')
+        
+        if not remark:
+            return Response({'error': 'Remark text is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        actor_role = None
+        if request.user.is_authenticated:
+            try:
+                actor_role = request.user.profile.role
+            except:
+                pass
+        
+        ServiceEvent.objects.create(
+            job_card=job_card,
+            event_type=ServiceEventType.REMARK_ADDED,
+            actor=request.user if request.user.is_authenticated else None,
+            actor_role=actor_role,
+            new_value=remark[:100],
+            comment=remark
+        )
+        
+        return Response({'message': 'Remark added successfully'})
+    
+    @action(detail=True, methods=['post'])
+    def notify_customer(self, request, pk=None):
+        job_card = self.get_object()
+        message = request.data.get('message', f'Update on your vehicle service {job_card.job_card_number}')
+        channel = request.data.get('channel', 'EMAIL')
+        
+        actor_role = None
+        if request.user.is_authenticated:
+            try:
+                actor_role = request.user.profile.role
+            except:
+                pass
+        
+        ServiceEvent.objects.create(
+            job_card=job_card,
+            event_type=ServiceEventType.CUSTOMER_NOTIFIED,
+            actor=request.user if request.user.is_authenticated else None,
+            actor_role=actor_role,
+            new_value=f'{channel}: {message[:50]}',
+            comment=message,
+            metadata={
+                'channel': channel, 
+                'customer_phone': job_card.customer.phone, 
+                'customer_email': job_card.customer.email,
+                'customer_name': job_card.customer.name,
+                'sent_by': request.user.get_full_name() or request.user.username if request.user.is_authenticated else 'System'
+            }
+        )
+        
+        Notification.objects.create(
+            recipient=request.user,
+            title=f'Customer Notification Sent - {job_card.job_card_number}',
+            message=f'Notification sent to {job_card.customer.name} via {channel}',
+            notification_type='INFO',
+            related_job_card=job_card
+        )
+        
+        return Response({
+            'message': f'Customer notification sent via {channel}',
+            'customer': job_card.customer.name,
+            'channel': channel
+        })
+    
+    @action(detail=True, methods=['post'])
+    def escalate(self, request, pk=None):
+        job_card = self.get_object()
+        reason = request.data.get('reason', '')
+        escalation_level = request.data.get('level', 'MANAGER')
+        
+        if not reason:
+            return Response({'error': 'Escalation reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        actor_role = None
+        if request.user.is_authenticated:
+            try:
+                actor_role = request.user.profile.role
+            except:
+                pass
+        
+        ServiceEvent.objects.create(
+            job_card=job_card,
+            event_type=ServiceEventType.ESCALATION,
+            actor=request.user if request.user.is_authenticated else None,
+            actor_role=actor_role,
+            new_value=f'Escalated to {escalation_level}',
+            comment=reason,
+            metadata={'level': escalation_level, 'reason': reason, 'escalated_by': request.user.username if request.user.is_authenticated else 'System'}
+        )
+        
+        role_map = {
+            'SUPERVISOR': UserRole.SUPERVISOR,
+            'MANAGER': UserRole.BRANCH_MANAGER,
+            'REGIONAL_MANAGER': UserRole.REGIONAL_MANAGER,
+        }
+        target_role = role_map.get(escalation_level, UserRole.BRANCH_MANAGER)
+        
+        managers = Profile.objects.filter(
+            role=target_role,
+            branch=job_card.branch
+        ).select_related('user')
+        
+        for manager_profile in managers:
+            Notification.objects.create(
+                recipient=manager_profile.user,
+                title=f'Escalation - {job_card.job_card_number}',
+                message=f'Job card escalated by {request.user.get_full_name() or request.user.username}: {reason[:100]}',
+                notification_type='ALERT',
+                priority='HIGH',
+                related_job_card=job_card
+            )
+        
+        if not managers.exists():
+            Notification.objects.create(
+                recipient=request.user,
+                title=f'Escalation Created - {job_card.job_card_number}',
+                message=f'Job card escalated to {escalation_level}. No managers found to notify.',
+                notification_type='WARNING',
+                priority='HIGH',
+                related_job_card=job_card
+            )
+        
+        return Response({'message': f'Job card escalated to {escalation_level}', 'managers_notified': managers.count()})
+    
+    @action(detail=True, methods=['post'])
     def ai_insight(self, request, pk=None):
         job_card = self.get_object()
         

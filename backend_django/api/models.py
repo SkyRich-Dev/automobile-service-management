@@ -569,6 +569,9 @@ class ServiceEventType(models.TextChoices):
     APPROVAL = 'APPROVAL', 'Approval'
     SYSTEM = 'SYSTEM', 'System'
     AI_INSIGHT = 'AI_INSIGHT', 'AI Insight'
+    REMARK_ADDED = 'REMARK_ADDED', 'Remark Added'
+    CUSTOMER_NOTIFIED = 'CUSTOMER_NOTIFIED', 'Customer Notified'
+    ESCALATION = 'ESCALATION', 'Escalation'
 
 
 class ServiceEvent(models.Model):
