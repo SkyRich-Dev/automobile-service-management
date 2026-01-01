@@ -152,11 +152,11 @@ export default function Suppliers() {
 
   const createPO = useMutation({
     mutationFn: async (data: typeof poForm) => {
-      if (!profile?.branch_id) {
+      if (!profile?.branch) {
         throw new Error("No branch assigned to your profile");
       }
       const res = await apiRequest("POST", "/api/purchase-orders/", {
-        branch: Number(profile.branch_id),
+        branch: profile.branch,
         supplier: parseInt(data.supplier),
         expected_delivery: data.expected_delivery || null,
         notes: data.notes,

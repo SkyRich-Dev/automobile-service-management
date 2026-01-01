@@ -12,7 +12,8 @@ interface User {
 interface Profile {
   id: number;
   role: string;
-  branch_id: string | null;
+  branch: number | null;
+  branch_name: string | null;
   phone: string | null;
   utilization: number;
   avatar: string | null;

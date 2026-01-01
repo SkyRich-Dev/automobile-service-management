@@ -633,11 +633,11 @@ function AlertsTab() {
   };
 
   const handleGenerateAlerts = () => {
-    if (!profile?.branch_id) {
+    if (!profile?.branch) {
       toast({ title: "Cannot generate alerts", description: "Branch information not available", variant: "destructive" });
       return;
     }
-    generateAlerts.mutate(Number(profile.branch_id), {
+    generateAlerts.mutate(profile.branch, {
       onSuccess: (data) => toast({ title: "Alert scan complete", description: `Generated ${data.created || 0} new alerts` }),
       onError: (error) => toast({ title: "Failed to generate alerts", description: error.message, variant: "destructive" }),
     });
@@ -677,7 +677,7 @@ function AlertsTab() {
         </div>
         <Button
           onClick={handleGenerateAlerts}
-          disabled={generateAlerts.isPending || !profile?.branch_id}
+          disabled={generateAlerts.isPending || !profile?.branch}
           data-testid="button-generate-alerts"
         >
           {generateAlerts.isPending ? (
