@@ -234,6 +234,119 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 Q(model__icontains=search)
             )
         return queryset
+    
+    @action(detail=True, methods=['get'])
+    def service_history(self, request, pk=None):
+        vehicle = self.get_object()
+        job_cards = JobCard.objects.filter(
+            vehicle=vehicle, is_deleted=False
+        ).select_related(
+            'customer', 'service_advisor', 'lead_technician', 'branch'
+        ).prefetch_related(
+            'events', 'tasks', 'estimates', 'invoices'
+        ).order_by('-created_at')
+        
+        year_filter = request.query_params.get('year')
+        stage_filter = request.query_params.get('stage')
+        job_type_filter = request.query_params.get('job_type')
+        
+        if year_filter:
+            job_cards = job_cards.filter(created_at__year=int(year_filter))
+        if stage_filter:
+            job_cards = job_cards.filter(workflow_stage=stage_filter)
+        if job_type_filter:
+            job_cards = job_cards.filter(job_type__icontains=job_type_filter)
+        
+        timeline_events = []
+        for jc in job_cards:
+            events = jc.events.all().order_by('-created_at')
+            event_list = []
+            for event in events:
+                event_list.append({
+                    'id': event.id,
+                    'event_type': event.event_type,
+                    'actor': event.actor.username if event.actor else None,
+                    'old_value': event.old_value,
+                    'new_value': event.new_value,
+                    'comment': event.comment,
+                    'created_at': event.created_at.isoformat() if event.created_at else None,
+                })
+            
+            tasks = jc.tasks.all()
+            task_list = [{'id': t.id, 'name': t.name, 'status': t.status, 'labor_cost': float(t.labor_cost)} for t in tasks]
+            
+            estimates = jc.estimates.all()
+            estimate_list = [{'id': e.id, 'estimate_number': e.estimate_number, 'grand_total': float(e.grand_total), 'approval_status': e.approval_status} for e in estimates]
+            
+            invoices = jc.invoices.all()
+            invoice_list = [{'id': i.id, 'invoice_number': i.invoice_number, 'grand_total': float(i.grand_total), 'payment_status': i.payment_status} for i in invoices]
+            
+            timeline_events.append({
+                'id': jc.id,
+                'job_card_number': jc.job_card_number,
+                'service_tracking_id': jc.service_tracking_id,
+                'workflow_stage': jc.workflow_stage,
+                'job_type': jc.job_type,
+                'priority': jc.priority,
+                'complaint': jc.complaint,
+                'diagnosis': jc.diagnosis,
+                'odometer_in': jc.odometer_in,
+                'odometer_out': jc.odometer_out,
+                'estimated_amount': float(jc.estimated_amount) if jc.estimated_amount else 0,
+                'actual_amount': float(jc.actual_amount) if jc.actual_amount else 0,
+                'is_warranty': jc.is_warranty,
+                'is_amc': jc.is_amc,
+                'customer_rating': jc.customer_rating,
+                'customer_feedback': jc.customer_feedback,
+                'created_at': jc.created_at.isoformat() if jc.created_at else None,
+                'promised_delivery': jc.promised_delivery.isoformat() if jc.promised_delivery else None,
+                'actual_delivery': jc.actual_delivery.isoformat() if jc.actual_delivery else None,
+                'branch': {'id': jc.branch.id, 'name': jc.branch.name} if jc.branch else None,
+                'service_advisor': jc.service_advisor.username if jc.service_advisor else None,
+                'lead_technician': jc.lead_technician.username if jc.lead_technician else None,
+                'events': event_list,
+                'tasks': task_list,
+                'estimates': estimate_list,
+                'invoices': invoice_list,
+            })
+        
+        total_services = job_cards.count()
+        completed_services = job_cards.filter(workflow_stage=WorkflowStage.COMPLETED).count()
+        total_spent = sum(float(jc.actual_amount or 0) for jc in job_cards)
+        avg_rating = job_cards.filter(customer_rating__isnull=False).aggregate(avg=models.Avg('customer_rating'))['avg'] or 0
+        warranty_services = job_cards.filter(is_warranty=True).count()
+        amc_services = job_cards.filter(is_amc=True).count()
+        years = list(job_cards.dates('created_at', 'year', order='DESC').values_list('created_at__year', flat=True).distinct())
+        
+        return Response({
+            'vehicle': {
+                'id': vehicle.id,
+                'vehicle_id': vehicle.vehicle_id,
+                'plate_number': vehicle.plate_number,
+                'make': vehicle.make,
+                'model': vehicle.model,
+                'variant': vehicle.variant,
+                'year': vehicle.year,
+                'color': vehicle.color,
+                'current_odometer': vehicle.current_odometer,
+                'vehicle_type': vehicle.vehicle_type,
+                'customer': {
+                    'id': vehicle.customer.id,
+                    'name': vehicle.customer.name,
+                    'phone': vehicle.customer.phone,
+                }
+            },
+            'summary': {
+                'total_services': total_services,
+                'completed_services': completed_services,
+                'total_spent': total_spent,
+                'average_rating': round(avg_rating, 1),
+                'warranty_services': warranty_services,
+                'amc_services': amc_services,
+            },
+            'available_years': years,
+            'timeline': timeline_events,
+        })
 
 
 class PartViewSet(viewsets.ModelViewSet):

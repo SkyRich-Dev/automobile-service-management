@@ -17,6 +17,7 @@ import {
   Truck,
   BarChart3,
   ShieldCheck,
+  History,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,12 @@ const menuItems: MenuItem[] = [
     icon: Wrench, 
     path: "/service",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
+  },
+  { 
+    text: "Service History", 
+    icon: History, 
+    path: "/service-history",
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN', 'CRM_EXECUTIVE']
   },
   { 
     text: "Appointments", 

@@ -17,6 +17,7 @@ import Suppliers from "@/pages/Suppliers";
 import PODetail from "@/pages/PODetail";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
+import ServiceHistoryTimeline from "@/pages/ServiceHistoryTimeline";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
@@ -43,6 +44,7 @@ type UserRole =
 const routePermissions: Record<string, UserRole[]> = {
   '/': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'SALES_EXECUTIVE', 'ACCOUNTANT', 'INVENTORY_MANAGER', 'TECHNICIAN', 'CRM_EXECUTIVE'],
   '/service': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN'],
+  '/service-history': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN', 'CRM_EXECUTIVE'],
   '/appointments': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'CRM_EXECUTIVE'],
   '/inventory': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'INVENTORY_MANAGER'],
   '/suppliers': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'INVENTORY_MANAGER'],
@@ -99,6 +101,7 @@ function Router() {
       <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/']} />} />
       <Route path="/service" component={() => <ProtectedRoute component={ServiceOperations} allowedRoles={routePermissions['/service']} />} />
+      <Route path="/service-history" component={() => <ProtectedRoute component={ServiceHistoryTimeline} allowedRoles={routePermissions['/service-history']} />} />
       <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} allowedRoles={routePermissions['/inventory']} />} />
       <Route path="/crm" component={() => <ProtectedRoute component={CRM} allowedRoles={routePermissions['/crm']} />} />
       <Route path="/job-cards/:id" component={() => <ProtectedRoute component={JobCardDetail} allowedRoles={routePermissions['/service']} />} />
