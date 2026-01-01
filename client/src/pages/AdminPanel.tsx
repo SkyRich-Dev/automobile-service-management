@@ -183,7 +183,7 @@ interface WhatsAppConfig {
 interface EmployeeAssignment {
   id: number;
   profile: number;
-  profile_name?: string;
+  employee_name?: string;
   department: number;
   department_name?: string;
   designation: string | null;
@@ -1222,7 +1222,7 @@ function EmployeeAllocationPanel() {
             ) : (
               assignments.map((assignment) => (
                 <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
-                  <TableCell className="font-medium">{assignment.profile_name || `Employee #${assignment.profile}`}</TableCell>
+                  <TableCell className="font-medium">{assignment.employee_name || `Employee #${assignment.profile}`}</TableCell>
                   <TableCell>{assignment.department_name || `Dept #${assignment.department}`}</TableCell>
                   <TableCell>{assignment.designation || '-'}</TableCell>
                   <TableCell>{assignment.allocation_percentage}%</TableCell>
