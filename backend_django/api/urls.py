@@ -22,6 +22,15 @@ router.register(r'notifications', views.NotificationViewSet, basename='notificat
 router.register(r'contracts', views.ContractViewSet, basename='contracts')
 router.register(r'suppliers', views.SupplierViewSet, basename='suppliers')
 router.register(r'purchase-orders', views.PurchaseOrderViewSet, basename='purchase-orders')
+
+# Enhanced Inventory Module Routes
+router.register(r'part-reservations', views.PartReservationViewSet, basename='part-reservations')
+router.register(r'grns', views.GoodsReceiptNoteViewSet, basename='grns')
+router.register(r'stock-transfers', views.StockTransferViewSet, basename='stock-transfers')
+router.register(r'purchase-requisitions', views.PurchaseRequisitionViewSet, basename='purchase-requisitions')
+router.register(r'supplier-performance', views.SupplierPerformanceViewSet, basename='supplier-performance')
+router.register(r'inventory-alerts', views.InventoryAlertViewSet, basename='inventory-alerts')
+
 router.register(r'technician-schedules', views.TechnicianScheduleViewSet, basename='technician-schedules')
 router.register(r'appointments', views.AppointmentViewSet, basename='appointments')
 router.register(r'analytics-snapshots', views.AnalyticsSnapshotViewSet, basename='analytics-snapshots')

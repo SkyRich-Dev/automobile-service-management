@@ -16,7 +16,10 @@ from .models import (
     WorkflowStage, UserRole, ServiceEventType,
     Notification, Contract, ContractStatus, ContractVehicle, ContractCoverageRule,
     ContractConsumption, ContractApproval, ContractApprovalStatus, ContractAuditLog, ContractAuditAction,
-    Supplier, PurchaseOrder, PurchaseOrderLine,
+    Supplier, PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus,
+    PartReservation, ReservationStatus, GoodsReceiptNote, GRNLine, GRNStatus,
+    StockTransfer, StockTransferLine, StockTransferStatus,
+    PurchaseRequisition, PRLine, PRStatus, SupplierPerformance, InventoryAlert, AlertType,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
     Lead, LeadStatus, CustomerInteraction, Ticket, TicketStatus, FollowUpTask, FollowUpStatus,
@@ -40,7 +43,12 @@ from .serializers import (
     NotificationSerializer, ContractSerializer, ContractVehicleSerializer,
     ContractCoverageRuleSerializer, ContractConsumptionSerializer,
     ContractApprovalSerializer, ContractAuditLogSerializer,
-    SupplierSerializer, PurchaseOrderSerializer, TechnicianScheduleSerializer,
+    SupplierSerializer, PurchaseOrderSerializer,
+    PartReservationSerializer, GoodsReceiptNoteSerializer, GRNLineSerializer,
+    StockTransferSerializer, StockTransferLineSerializer,
+    PurchaseRequisitionSerializer, PRLineSerializer,
+    SupplierPerformanceSerializer, InventoryAlertSerializer,
+    TechnicianScheduleSerializer,
     AppointmentSerializer, AnalyticsSnapshotSerializer,
     LicenseSerializer, SystemSettingSerializer, PaymentIntentSerializer,
     TallySyncJobSerializer, TallyLedgerMappingSerializer, IntegrationConfigSerializer,
@@ -1104,6 +1112,658 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         po.save()
         
         return Response(PurchaseOrderSerializer(po).data)
+
+
+class PartReservationViewSet(viewsets.ModelViewSet):
+    queryset = PartReservation.objects.all()
+    serializer_class = PartReservationSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = PartReservation.objects.all()
+        job_card_id = self.request.query_params.get('job_card_id', None)
+        part_id = self.request.query_params.get('part_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        
+        if job_card_id:
+            queryset = queryset.filter(job_card_id=job_card_id)
+        if part_id:
+            queryset = queryset.filter(part_id=part_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('-reserved_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(reserved_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def release(self, request, pk=None):
+        reservation = self.get_object()
+        reservation.release()
+        return Response(PartReservationSerializer(reservation).data)
+    
+    @action(detail=True, methods=['post'])
+    def issue(self, request, pk=None):
+        from decimal import Decimal
+        from django.db import transaction
+        
+        reservation_id = self.get_object().id
+        unit_price_raw = request.data.get('unit_price')
+        
+        with transaction.atomic():
+            reservation = PartReservation.objects.select_for_update().get(id=reservation_id)
+            
+            if reservation.status != ReservationStatus.ACTIVE:
+                return Response({'error': 'Reservation is not active or already issued'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            part = Part.objects.select_for_update().get(id=reservation.part.id)
+            
+            if part.available_stock < reservation.quantity:
+                return Response({'error': 'Insufficient stock available'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            unit_price = Decimal(str(unit_price_raw)) if unit_price_raw else part.selling_price
+            quantity = Decimal(str(reservation.quantity))
+            
+            part.reserved = max(0, part.reserved - reservation.quantity)
+            part.stock = max(0, part.stock - reservation.quantity)
+            part.save()
+            
+            PartIssue.objects.create(
+                job_card=reservation.job_card,
+                task=reservation.task,
+                part=part,
+                quantity=reservation.quantity,
+                unit_price=unit_price,
+                total=quantity * unit_price,
+                issued_by=request.user
+            )
+            
+            reservation.status = ReservationStatus.ISSUED
+            reservation.issued_at = timezone.now()
+            reservation.save(update_fields=['status', 'issued_at'])
+        
+        reservation.refresh_from_db()
+        return Response(PartReservationSerializer(reservation).data)
+    
+    @action(detail=False, methods=['get'])
+    def by_job_card(self, request):
+        job_card_id = request.query_params.get('job_card_id')
+        if not job_card_id:
+            return Response({'error': 'job_card_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        reservations = self.get_queryset().filter(job_card_id=job_card_id, status=ReservationStatus.ACTIVE)
+        return Response(PartReservationSerializer(reservations, many=True).data)
+
+
+class GoodsReceiptNoteViewSet(viewsets.ModelViewSet):
+    queryset = GoodsReceiptNote.objects.all()
+    serializer_class = GoodsReceiptNoteSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = GoodsReceiptNote.objects.all()
+        po_id = self.request.query_params.get('purchase_order_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        branch_id = self.request.query_params.get('branch_id', None)
+        
+        if po_id:
+            queryset = queryset.filter(purchase_order_id=po_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(received_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def inspect(self, request, pk=None):
+        grn = self.get_object()
+        grn.inspected_by = request.user
+        grn.inspection_date = timezone.now()
+        grn.inspection_notes = request.data.get('notes', '')
+        grn.status = GRNStatus.INSPECTED
+        grn.save()
+        return Response(GoodsReceiptNoteSerializer(grn).data)
+    
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        from django.db import transaction
+        
+        grn = self.get_object()
+        lines_data = request.data.get('lines', [])
+        
+        errors = []
+        for line_data in lines_data:
+            try:
+                line = GRNLine.objects.get(id=line_data['id'])
+                qty_accepted = max(0, int(line_data.get('quantity_accepted', 0)))
+                qty_rejected = max(0, int(line_data.get('quantity_rejected', 0)))
+                
+                if qty_accepted + qty_rejected > line.quantity_received:
+                    errors.append(f"Line {line.id}: accepted + rejected cannot exceed received quantity")
+            except (ValueError, GRNLine.DoesNotExist) as e:
+                errors.append(f"Invalid line data: {str(e)}")
+        
+        if errors:
+            return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            total_accepted = 0
+            total_rejected = 0
+            
+            for line_data in lines_data:
+                line = GRNLine.objects.select_for_update().get(id=line_data['id'])
+                qty_accepted = max(0, int(line_data.get('quantity_accepted', 0)))
+                qty_rejected = max(0, int(line_data.get('quantity_rejected', 0)))
+                
+                line.quantity_accepted = qty_accepted
+                line.quantity_rejected = qty_rejected
+                line.rejection_reason = line_data.get('rejection_reason', '')
+                line.save()
+                
+                if qty_accepted > 0:
+                    part = Part.objects.select_for_update().get(id=line.part.id)
+                    part.stock += qty_accepted
+                    part.last_purchase_cost = line.unit_cost
+                    part.save()
+                
+                total_accepted += qty_accepted
+                total_rejected += qty_rejected
+            
+            grn.total_accepted_qty = total_accepted
+            grn.total_rejected_qty = total_rejected
+            grn.status = GRNStatus.ACCEPTED if total_rejected == 0 else GRNStatus.PARTIAL_ACCEPT
+            grn.save()
+            
+            po = grn.purchase_order
+            all_received = all(
+                line.quantity_received >= line.quantity_ordered 
+                for line in po.lines.all()
+            )
+            po.status = PurchaseOrderStatus.RECEIVED if all_received else PurchaseOrderStatus.PARTIALLY_RECEIVED
+            po.save()
+        
+        grn.refresh_from_db()
+        return Response(GoodsReceiptNoteSerializer(grn).data)
+    
+    @action(detail=True, methods=['post'])
+    def add_line(self, request, pk=None):
+        grn = self.get_object()
+        serializer = GRNLineSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(grn=grn)
+            grn.total_received_qty = sum(line.quantity_received for line in grn.lines.all())
+            grn.save()
+            return Response(GoodsReceiptNoteSerializer(grn).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StockTransferViewSet(viewsets.ModelViewSet):
+    queryset = StockTransfer.objects.all()
+    serializer_class = StockTransferSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = StockTransfer.objects.all()
+        from_branch = self.request.query_params.get('from_branch_id', None)
+        to_branch = self.request.query_params.get('to_branch_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        
+        if from_branch:
+            queryset = queryset.filter(from_branch_id=from_branch)
+        if to_branch:
+            queryset = queryset.filter(to_branch_id=to_branch)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def submit_for_approval(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status == StockTransferStatus.DRAFT:
+            transfer.status = StockTransferStatus.PENDING_APPROVAL
+            transfer.save()
+        return Response(StockTransferSerializer(transfer).data)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status == StockTransferStatus.PENDING_APPROVAL:
+            transfer.status = StockTransferStatus.APPROVED
+            transfer.approved_by = request.user
+            transfer.save()
+        return Response(StockTransferSerializer(transfer).data)
+    
+    @action(detail=True, methods=['post'], url_path='dispatch-transfer')
+    def dispatch_transfer(self, request, pk=None):
+        transfer = self.get_object()
+        transfer.vehicle_number = request.data.get('vehicle_number', '')
+        transfer.driver_name = request.data.get('driver_name', '')
+        transfer.driver_phone = request.data.get('driver_phone', '')
+        transfer.save()
+        transfer.dispatch()
+        return Response(StockTransferSerializer(transfer).data)
+    
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        from django.db import transaction
+        
+        transfer = self.get_object()
+        if transfer.status != StockTransferStatus.IN_TRANSIT:
+            return Response({'error': 'Transfer must be in transit to receive'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        lines_data = request.data.get('lines', [])
+        
+        errors = []
+        for line_data in lines_data:
+            try:
+                line = StockTransferLine.objects.get(id=line_data['id'])
+                qty_received = max(0, int(line_data.get('quantity_received', line.quantity)))
+                if qty_received > line.quantity:
+                    errors.append(f"Line {line.id}: received quantity cannot exceed transferred quantity")
+            except (ValueError, StockTransferLine.DoesNotExist) as e:
+                errors.append(f"Invalid line data: {str(e)}")
+        
+        if errors:
+            return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            for line_data in lines_data:
+                line = StockTransferLine.objects.select_for_update().get(id=line_data['id'])
+                qty_received = max(0, int(line_data.get('quantity_received', line.quantity)))
+                line.quantity_received = qty_received
+                line.save()
+                
+                part = Part.objects.select_for_update().get(id=line.part.id)
+                destination_part = Part.objects.filter(
+                    part_number=part.part_number,
+                    branch=transfer.to_branch
+                ).first()
+                
+                if destination_part:
+                    destination_part.stock += qty_received
+                    destination_part.save()
+            
+            transfer.status = StockTransferStatus.RECEIVED
+            transfer.received_at = timezone.now()
+            transfer.received_by = request.user
+            transfer.save()
+        
+        transfer.refresh_from_db()
+        return Response(StockTransferSerializer(transfer).data)
+    
+    @action(detail=True, methods=['post'])
+    def add_line(self, request, pk=None):
+        transfer = self.get_object()
+        serializer = StockTransferLineSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(transfer=transfer)
+            return Response(StockTransferSerializer(transfer).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PurchaseRequisitionViewSet(viewsets.ModelViewSet):
+    queryset = PurchaseRequisition.objects.all()
+    serializer_class = PurchaseRequisitionSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = PurchaseRequisition.objects.all()
+        branch_id = self.request.query_params.get('branch_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        source = self.request.query_params.get('source', None)
+        priority = self.request.query_params.get('priority', None)
+        
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if source:
+            queryset = queryset.filter(source=source)
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def submit_for_approval(self, request, pk=None):
+        pr = self.get_object()
+        if pr.status == PRStatus.DRAFT:
+            pr.status = PRStatus.PENDING_APPROVAL
+            pr.save()
+        return Response(PurchaseRequisitionSerializer(pr).data)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        pr = self.get_object()
+        if pr.status == PRStatus.PENDING_APPROVAL:
+            pr.status = PRStatus.APPROVED
+            pr.approved_by = request.user
+            pr.approval_date = timezone.now()
+            pr.save()
+        return Response(PurchaseRequisitionSerializer(pr).data)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        pr = self.get_object()
+        if pr.status == PRStatus.PENDING_APPROVAL:
+            pr.status = PRStatus.REJECTED
+            pr.rejection_reason = request.data.get('reason', '')
+            pr.save()
+        return Response(PurchaseRequisitionSerializer(pr).data)
+    
+    @action(detail=True, methods=['post'])
+    def convert_to_po(self, request, pk=None):
+        pr = self.get_object()
+        supplier_id = request.data.get('supplier_id')
+        if not supplier_id:
+            return Response({'error': 'supplier_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        supplier = Supplier.objects.get(id=supplier_id)
+        po = pr.convert_to_po(supplier, request.user)
+        
+        if po:
+            return Response(PurchaseOrderSerializer(po).data, status=status.HTTP_201_CREATED)
+        return Response({'error': 'Could not convert PR to PO'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def add_line(self, request, pk=None):
+        pr = self.get_object()
+        serializer = PRLineSerializer(data=request.data)
+        if serializer.is_valid():
+            part = Part.objects.get(id=request.data['part'])
+            serializer.save(
+                purchase_requisition=pr,
+                current_stock=part.stock,
+                min_stock=part.min_stock
+            )
+            return Response(PurchaseRequisitionSerializer(pr).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post'])
+    def generate_from_low_stock(self, request):
+        branch_id = request.data.get('branch_id')
+        if not branch_id:
+            return Response({'error': 'branch_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        branch = Branch.objects.get(id=branch_id)
+        
+        pending_prs = PurchaseRequisition.objects.filter(
+            branch=branch,
+            source='LOW_STOCK',
+            status__in=[PRStatus.DRAFT, PRStatus.PENDING_APPROVAL]
+        )
+        pending_part_ids = set(
+            PRLine.objects.filter(purchase_requisition__in=pending_prs).values_list('part_id', flat=True)
+        )
+        
+        low_stock_parts = Part.objects.filter(
+            branch=branch,
+            is_active=True,
+            stock__lte=F('min_stock'),
+            reorder_quantity__gt=0
+        ).exclude(id__in=pending_part_ids)
+        
+        if not low_stock_parts.exists():
+            return Response({'message': 'No new low stock parts found or all already have pending PRs'})
+        
+        pr = PurchaseRequisition.objects.create(
+            branch=branch,
+            source='LOW_STOCK',
+            priority='HIGH',
+            created_by=request.user,
+            notes='Auto-generated from low stock alert'
+        )
+        
+        for part in low_stock_parts:
+            PRLine.objects.create(
+                purchase_requisition=pr,
+                part=part,
+                quantity=max(1, part.reorder_quantity),
+                current_stock=part.stock,
+                min_stock=part.min_stock
+            )
+        
+        return Response(PurchaseRequisitionSerializer(pr).data, status=status.HTTP_201_CREATED)
+
+
+class SupplierPerformanceViewSet(viewsets.ModelViewSet):
+    queryset = SupplierPerformance.objects.all()
+    serializer_class = SupplierPerformanceSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = SupplierPerformance.objects.all()
+        supplier_id = self.request.query_params.get('supplier_id', None)
+        
+        if supplier_id:
+            queryset = queryset.filter(supplier_id=supplier_id)
+        
+        return queryset.order_by('-period_end')
+    
+    @action(detail=False, methods=['post'])
+    def calculate_for_period(self, request):
+        supplier_id = request.data.get('supplier_id')
+        period_start = request.data.get('period_start')
+        period_end = request.data.get('period_end')
+        
+        if not all([supplier_id, period_start, period_end]):
+            return Response({'error': 'supplier_id, period_start, and period_end are required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        supplier = Supplier.objects.get(id=supplier_id)
+        
+        pos = PurchaseOrder.objects.filter(
+            supplier=supplier,
+            order_date__gte=period_start,
+            order_date__lte=period_end,
+            status__in=[PurchaseOrderStatus.RECEIVED, PurchaseOrderStatus.PARTIALLY_RECEIVED]
+        )
+        
+        total_orders = pos.count()
+        orders_on_time = pos.filter(actual_delivery__lte=F('expected_delivery')).count()
+        orders_late = total_orders - orders_on_time
+        
+        grn_lines = GRNLine.objects.filter(grn__purchase_order__in=pos)
+        total_items = grn_lines.aggregate(total=Sum('quantity_received'))['total'] or 0
+        items_accepted = grn_lines.aggregate(total=Sum('quantity_accepted'))['total'] or 0
+        items_rejected = grn_lines.aggregate(total=Sum('quantity_rejected'))['total'] or 0
+        
+        total_value = pos.aggregate(total=Sum('grand_total'))['total'] or 0
+        
+        perf, created = SupplierPerformance.objects.update_or_create(
+            supplier=supplier,
+            period_start=period_start,
+            period_end=period_end,
+            defaults={
+                'total_orders': total_orders,
+                'orders_on_time': orders_on_time,
+                'orders_late': orders_late,
+                'total_items_ordered': total_items,
+                'items_accepted': items_accepted,
+                'items_rejected': items_rejected,
+                'total_value': total_value
+            }
+        )
+        perf.calculate_scores()
+        
+        return Response(SupplierPerformanceSerializer(perf).data)
+    
+    @action(detail=False, methods=['get'])
+    def scorecard(self, request):
+        supplier_id = request.query_params.get('supplier_id')
+        if not supplier_id:
+            return Response({'error': 'supplier_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        performances = self.get_queryset().filter(supplier_id=supplier_id)[:12]
+        latest = performances.first() if performances else None
+        
+        return Response({
+            'supplier_id': supplier_id,
+            'overall_score': latest.overall_score if latest else 0,
+            'on_time_rate': latest.on_time_rate if latest else 0,
+            'quality_rate': latest.quality_rate if latest else 0,
+            'performance_history': SupplierPerformanceSerializer(performances, many=True).data
+        })
+
+
+class InventoryAlertViewSet(viewsets.ModelViewSet):
+    queryset = InventoryAlert.objects.all()
+    serializer_class = InventoryAlertSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = InventoryAlert.objects.all()
+        branch_id = self.request.query_params.get('branch_id', None)
+        alert_type = self.request.query_params.get('alert_type', None)
+        is_resolved = self.request.query_params.get('is_resolved', None)
+        severity = self.request.query_params.get('severity', None)
+        
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if alert_type:
+            queryset = queryset.filter(alert_type=alert_type)
+        if is_resolved is not None:
+            queryset = queryset.filter(is_resolved=is_resolved.lower() == 'true')
+        if severity:
+            queryset = queryset.filter(severity=severity)
+        
+        return queryset.order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        alert = self.get_object()
+        alert.is_read = True
+        alert.save()
+        return Response(InventoryAlertSerializer(alert).data)
+    
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        alert = self.get_object()
+        alert.resolve(request.user, request.data.get('notes', ''))
+        return Response(InventoryAlertSerializer(alert).data)
+    
+    @action(detail=False, methods=['post'])
+    def generate_alerts(self, request):
+        branch_id = request.data.get('branch_id')
+        if not branch_id:
+            return Response({'error': 'branch_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        branch = Branch.objects.get(id=branch_id)
+        alerts_created = []
+        
+        existing_unresolved = InventoryAlert.objects.filter(branch=branch, is_resolved=False)
+        existing_low_stock_parts = set(existing_unresolved.filter(alert_type=AlertType.LOW_STOCK).values_list('part_id', flat=True))
+        existing_overstock_parts = set(existing_unresolved.filter(alert_type=AlertType.OVERSTOCK).values_list('part_id', flat=True))
+        existing_expiry_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRY_WARNING).values_list('part_id', flat=True))
+        existing_expired_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRED).values_list('part_id', flat=True))
+        
+        low_stock = Part.objects.filter(
+            branch=branch,
+            is_active=True,
+            stock__lte=F('min_stock')
+        ).exclude(id__in=existing_low_stock_parts)
+        
+        for part in low_stock:
+            alert = InventoryAlert.objects.create(
+                part=part,
+                branch=branch,
+                alert_type=AlertType.LOW_STOCK,
+                message=f"Low stock alert: {part.name} has {part.stock} units (minimum: {part.min_stock})",
+                severity='CRITICAL' if part.stock == 0 else 'HIGH'
+            )
+            alerts_created.append(alert)
+        
+        overstock = Part.objects.filter(
+            branch=branch,
+            is_active=True,
+            stock__gt=F('max_stock')
+        ).exclude(id__in=existing_overstock_parts)
+        
+        for part in overstock:
+            alert = InventoryAlert.objects.create(
+                part=part,
+                branch=branch,
+                alert_type=AlertType.OVERSTOCK,
+                message=f"Overstock alert: {part.name} has {part.stock} units (maximum: {part.max_stock})",
+                severity='LOW'
+            )
+            alerts_created.append(alert)
+        
+        from datetime import timedelta
+        expiry_threshold = timezone.now().date() + timedelta(days=30)
+        expiring = Part.objects.filter(
+            branch=branch,
+            is_active=True,
+            expiry_date__lte=expiry_threshold,
+            expiry_date__gt=timezone.now().date()
+        ).exclude(id__in=existing_expiry_parts)
+        
+        for part in expiring:
+            days_left = (part.expiry_date - timezone.now().date()).days
+            alert = InventoryAlert.objects.create(
+                part=part,
+                branch=branch,
+                alert_type=AlertType.EXPIRY_WARNING,
+                message=f"Expiry warning: {part.name} expires in {days_left} days",
+                severity='HIGH' if days_left <= 7 else 'MEDIUM'
+            )
+            alerts_created.append(alert)
+        
+        expired = Part.objects.filter(
+            branch=branch,
+            is_active=True,
+            expiry_date__lte=timezone.now().date()
+        ).exclude(id__in=existing_expired_parts)
+        
+        for part in expired:
+            alert = InventoryAlert.objects.create(
+                part=part,
+                branch=branch,
+                alert_type=AlertType.EXPIRED,
+                message=f"Expired stock: {part.name} expired on {part.expiry_date}",
+                severity='CRITICAL'
+            )
+            alerts_created.append(alert)
+        
+        return Response({
+            'alerts_created': len(alerts_created),
+            'alerts': InventoryAlertSerializer(alerts_created, many=True).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        branch_id = request.query_params.get('branch_id')
+        queryset = self.get_queryset()
+        
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        unresolved = queryset.filter(is_resolved=False)
+        
+        return Response({
+            'total_alerts': unresolved.count(),
+            'critical': unresolved.filter(severity='CRITICAL').count(),
+            'high': unresolved.filter(severity='HIGH').count(),
+            'medium': unresolved.filter(severity='MEDIUM').count(),
+            'low': unresolved.filter(severity='LOW').count(),
+            'by_type': {
+                'low_stock': unresolved.filter(alert_type=AlertType.LOW_STOCK).count(),
+                'overstock': unresolved.filter(alert_type=AlertType.OVERSTOCK).count(),
+                'expiry_warning': unresolved.filter(alert_type=AlertType.EXPIRY_WARNING).count(),
+                'expired': unresolved.filter(alert_type=AlertType.EXPIRED).count()
+            }
+        })
 
 
 class TechnicianScheduleViewSet(viewsets.ModelViewSet):

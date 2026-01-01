@@ -4,7 +4,7 @@
 A comprehensive enterprise-grade Automobile Car & Bike Service Management System built with Django REST Framework backend and Shadcn/UI + Tailwind CSS frontend. The system implements a strict 11-stage service workflow with comprehensive RBAC (12+ user roles), immutable audit logging, multi-branch support, and enterprise features including appointment scheduling, contract management, supplier procurement, and analytics.
 
 ## Current State
-**Status:** Fully functional enterprise service management system with complete workflow enforcement, RBAC, enterprise modules, and comprehensive CRM module.
+**Status:** Fully functional enterprise service management system with complete workflow enforcement, RBAC, enterprise modules, comprehensive CRM module, and enhanced inventory & supplier management.
 
 ## Recent Changes (December 2024)
 - Implemented 11-stage workflow state machine: Appointment → Check-in → Inspection → Job Card → Estimate → Approval → Execution → QC → Billing → Delivery → Completed
@@ -35,6 +35,14 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
   - **Contracts:** Full lifecycle management with approval workflow
   - **Suppliers:** Vendor management with purchase orders
   - **Analytics:** Business KPIs, revenue trends, stage distribution
+- **Enhanced Inventory & Supplier Module (January 2025):**
+  - **Enhanced Part Model:** 15+ new fields (item_type, tax_category, hsn_code, valuation_method, compatible_vehicles, warranty_eligible, is_returnable, primary_supplier, lead_time_days, rack/bin locations, serial tracking)
+  - **Part Reservation System:** PartReservation model linking Job Card to parts with auto-release on cancel, atomic issue operations with row-level locking
+  - **GRN (Goods Receipt Note):** GoodsReceiptNote and GRNLine models for PO receiving with quantity/quality verification, inspection workflow (Draft → Pending Inspection → Inspected → Accepted)
+  - **Stock Transfer:** Inter-branch transfers with approval workflow (Draft → Pending Approval → Approved → In Transit → Received)
+  - **Purchase Requisition:** PurchaseRequisition with auto-generation from low stock, approval workflow, and conversion to PO
+  - **Supplier Performance:** KPI tracking (on-time delivery, quality rate, price variance) with overall scoring
+  - **Inventory Alerts:** Alert system for low stock, overstock, expiry warnings with severity levels and resolution tracking
 
 ## User Credentials
 - **Branch Manager:** demo / demo123
@@ -68,6 +76,8 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
   - TechnicianSchedule, Appointment, AnalyticsSnapshot
   - Lead, CustomerInteraction, Ticket, FollowUpTask
   - Campaign, CampaignRecipient, CustomerScore, CRMEvent
+  - PartReservation, GoodsReceiptNote, GRNLine, StockTransfer, StockTransferLine
+  - PurchaseRequisition, PRLine, SupplierPerformance, InventoryAlert
 
 ## Workflow Stages (11 Total)
 1. **APPOINTMENT** - Customer books service
@@ -138,6 +148,34 @@ A comprehensive enterprise-grade Automobile Car & Bike Service Management System
 - `GET /api/purchase-orders/` - Purchase order management
 - `GET /api/notifications/` - System notifications
 - `GET /api/analytics/summary/` - Analytics summary with KPIs
+
+### Enhanced Inventory & Supplier Module
+- `GET /api/part-reservations/` - Part reservation management
+- `POST /api/part-reservations/{id}/issue/` - Issue reserved parts (decrements stock)
+- `POST /api/part-reservations/{id}/release/` - Release reservation (restores reserved count)
+- `GET /api/part-reservations/by_job_card/` - Get reservations for a job card
+- `GET /api/grns/` - Goods Receipt Notes
+- `POST /api/grns/{id}/inspect/` - Mark GRN as inspected
+- `POST /api/grns/{id}/accept/` - Accept GRN lines (updates stock)
+- `POST /api/grns/{id}/add_line/` - Add line to GRN
+- `GET /api/stock-transfers/` - Inter-branch stock transfers
+- `POST /api/stock-transfers/{id}/submit_for_approval/` - Submit transfer for approval
+- `POST /api/stock-transfers/{id}/approve/` - Approve transfer
+- `POST /api/stock-transfers/{id}/dispatch-transfer/` - Dispatch transfer
+- `POST /api/stock-transfers/{id}/receive/` - Receive transfer at destination
+- `GET /api/purchase-requisitions/` - Purchase requisitions
+- `POST /api/purchase-requisitions/{id}/submit_for_approval/` - Submit PR for approval
+- `POST /api/purchase-requisitions/{id}/approve/` - Approve PR
+- `POST /api/purchase-requisitions/{id}/convert_to_po/` - Convert PR to Purchase Order
+- `POST /api/purchase-requisitions/generate_from_low_stock/` - Auto-generate PRs from low stock
+- `GET /api/supplier-performance/` - Supplier KPI tracking
+- `GET /api/supplier-performance/by_supplier/` - Get performance for a supplier
+- `POST /api/supplier-performance/{id}/recalculate/` - Recalculate supplier scores
+- `GET /api/inventory-alerts/` - Inventory alerts (low stock, overstock, expiry)
+- `POST /api/inventory-alerts/{id}/acknowledge/` - Acknowledge alert
+- `POST /api/inventory-alerts/{id}/resolve/` - Resolve alert
+- `POST /api/inventory-alerts/generate_alerts/` - Generate alerts for branch
+- `GET /api/inventory-alerts/dashboard_stats/` - Alert statistics
 
 ### CRM Module
 - `GET /api/leads/` - Lead management

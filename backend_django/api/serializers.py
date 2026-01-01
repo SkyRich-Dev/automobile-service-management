@@ -8,13 +8,16 @@ from .models import (
     Notification, Contract, ContractVehicle, ContractCoverageRule,
     ContractConsumption, ContractApproval, ContractAuditLog,
     Supplier, PurchaseOrder, PurchaseOrderLine,
+    PartReservation, GoodsReceiptNote, GRNLine, StockTransfer, StockTransferLine,
+    PurchaseRequisition, PRLine, SupplierPerformance, InventoryAlert,
     TechnicianSchedule, Appointment, AnalyticsSnapshot,
     License, SystemSetting, PaymentIntent, TallySyncJob, TallyLedgerMapping, IntegrationConfig,
     Lead, CustomerInteraction, Ticket, FollowUpTask, Campaign, CampaignRecipient, CustomerScore, CRMEvent,
     LeadSource, LeadStatus, InteractionType, InteractionOutcome, TicketType, TicketStatus, TicketPriority,
     FollowUpType, FollowUpStatus, CampaignType, CampaignStatus, CustomerCategory, CommunicationChannel,
     Department, EmployeeAssignment, WorkShift, AttendanceRecord, AttendanceStatus,
-    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration
+    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration,
+    ItemType, TaxCategory, ValuationMethod, ReservationStatus, GRNStatus, StockTransferStatus, PRStatus, AlertType
 )
 
 
@@ -88,13 +91,20 @@ class PartSerializer(serializers.ModelSerializer):
     available_stock = serializers.IntegerField(read_only=True)
     is_low_stock = serializers.BooleanField(read_only=True)
     price = serializers.DecimalField(source='selling_price', max_digits=12, decimal_places=2)
+    primary_supplier_name = serializers.CharField(source='primary_supplier.name', read_only=True, allow_null=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
     
     class Meta:
         model = Part
-        fields = ['id', 'part_number', 'name', 'sku', 'category', 'subcategory', 'brand', 'is_oem',
-                  'cost_price', 'price', 'mrp', 'stock', 'min_stock', 'max_stock', 'reserved', 
-                  'location', 'available_stock', 'is_low_stock', 'is_active']
-        read_only_fields = ['id', 'part_number']
+        fields = ['id', 'branch', 'branch_name', 'part_number', 'name', 'sku', 'category', 'subcategory', 
+                  'brand', 'item_type', 'is_oem', 'unit', 'cost_price', 'price', 'mrp', 'tax_rate',
+                  'tax_category', 'hsn_code', 'stock', 'min_stock', 'max_stock', 'reserved', 
+                  'reorder_quantity', 'location', 'rack_number', 'bin_number', 'batch_number',
+                  'serial_number', 'expiry_date', 'last_purchase_date', 'valuation_method',
+                  'average_cost', 'compatible_vehicles', 'warranty_eligible', 'warranty_period_months',
+                  'is_returnable', 'return_period_days', 'primary_supplier', 'primary_supplier_name',
+                  'lead_time_days', 'available_stock', 'is_low_stock', 'is_active', 'created_at']
+        read_only_fields = ['id', 'part_number', 'created_at']
 
 
 class PartIssueSerializer(serializers.ModelSerializer):
@@ -984,3 +994,182 @@ class TallyConfigurationSerializer(serializers.ModelSerializer):
                   'sync_customers', 'sync_payments', 'auto_sync_enabled', 'sync_interval_minutes',
                   'last_sync', 'sync_status', 'is_active', 'created_at']
         read_only_fields = ['id', 'last_sync', 'sync_status', 'created_at']
+
+
+class PartReservationSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    reserved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PartReservation
+        fields = ['id', 'reservation_number', 'job_card', 'job_card_number', 'part', 'part_name',
+                  'part_sku', 'task', 'quantity', 'status', 'reserved_by', 'reserved_by_name',
+                  'reserved_at', 'expires_at', 'issued_at', 'released_at', 'notes']
+        read_only_fields = ['id', 'reservation_number', 'reserved_at', 'issued_at', 'released_at']
+    
+    def get_reserved_by_name(self, obj):
+        if obj.reserved_by:
+            return f"{obj.reserved_by.first_name} {obj.reserved_by.last_name}".strip() or obj.reserved_by.username
+        return None
+
+
+class GRNLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    
+    class Meta:
+        model = GRNLine
+        fields = ['id', 'grn', 'po_line', 'part', 'part_name', 'part_sku',
+                  'quantity_received', 'quantity_accepted', 'quantity_rejected',
+                  'rejection_reason', 'batch_number', 'expiry_date', 'location', 'quality_rating']
+        read_only_fields = ['id']
+
+
+class GoodsReceiptNoteSerializer(serializers.ModelSerializer):
+    po_number = serializers.CharField(source='purchase_order.po_number', read_only=True)
+    supplier_name = serializers.CharField(source='purchase_order.supplier.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    received_by_name = serializers.SerializerMethodField()
+    inspected_by_name = serializers.SerializerMethodField()
+    lines = GRNLineSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = GoodsReceiptNote
+        fields = ['id', 'grn_number', 'purchase_order', 'po_number', 'supplier_name',
+                  'branch', 'branch_name', 'status', 'receipt_date', 'invoice_number',
+                  'invoice_date', 'invoice_amount', 'delivery_challan', 'vehicle_number',
+                  'received_by', 'received_by_name', 'inspected_by', 'inspected_by_name',
+                  'inspection_date', 'inspection_notes', 'total_received_qty',
+                  'total_accepted_qty', 'total_rejected_qty', 'notes', 'lines', 'created_at']
+        read_only_fields = ['id', 'grn_number', 'receipt_date', 'created_at']
+    
+    def get_received_by_name(self, obj):
+        if obj.received_by:
+            return f"{obj.received_by.first_name} {obj.received_by.last_name}".strip() or obj.received_by.username
+        return None
+    
+    def get_inspected_by_name(self, obj):
+        if obj.inspected_by:
+            return f"{obj.inspected_by.first_name} {obj.inspected_by.last_name}".strip() or obj.inspected_by.username
+        return None
+
+
+class StockTransferLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    
+    class Meta:
+        model = StockTransferLine
+        fields = ['id', 'transfer', 'part', 'part_name', 'part_sku',
+                  'quantity', 'quantity_received', 'batch_number', 'notes']
+        read_only_fields = ['id']
+
+
+class StockTransferSerializer(serializers.ModelSerializer):
+    from_branch_name = serializers.CharField(source='from_branch.name', read_only=True)
+    to_branch_name = serializers.CharField(source='to_branch.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    received_by_name = serializers.SerializerMethodField()
+    lines = StockTransferLineSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = StockTransfer
+        fields = ['id', 'transfer_number', 'from_branch', 'from_branch_name',
+                  'to_branch', 'to_branch_name', 'status', 'transfer_date',
+                  'expected_arrival', 'actual_arrival', 'created_by', 'created_by_name',
+                  'approved_by', 'approved_by_name', 'received_by', 'received_by_name',
+                  'vehicle_number', 'driver_name', 'driver_phone', 'notes', 'lines',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'transfer_number', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+    
+    def get_received_by_name(self, obj):
+        if obj.received_by:
+            return f"{obj.received_by.first_name} {obj.received_by.last_name}".strip() or obj.received_by.username
+        return None
+
+
+class PRLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    
+    class Meta:
+        model = PRLine
+        fields = ['id', 'purchase_requisition', 'part', 'part_name', 'part_sku',
+                  'quantity', 'current_stock', 'min_stock', 'notes']
+        read_only_fields = ['id']
+
+
+class PurchaseRequisitionSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    supplier_name = serializers.CharField(source='suggested_supplier.name', read_only=True, allow_null=True)
+    po_number = serializers.CharField(source='purchase_order.po_number', read_only=True, allow_null=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    lines = PRLineSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = PurchaseRequisition
+        fields = ['id', 'pr_number', 'branch', 'branch_name', 'status', 'source',
+                  'priority', 'required_date', 'job_card', 'job_card_number',
+                  'suggested_supplier', 'supplier_name', 'purchase_order', 'po_number',
+                  'created_by', 'created_by_name', 'approved_by', 'approved_by_name',
+                  'approval_date', 'rejection_reason', 'notes', 'lines',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'pr_number', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class SupplierPerformanceSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    
+    class Meta:
+        model = SupplierPerformance
+        fields = ['id', 'supplier', 'supplier_name', 'period_start', 'period_end',
+                  'total_orders', 'orders_on_time', 'orders_late', 'total_items_ordered',
+                  'items_accepted', 'items_rejected', 'total_value', 'price_variance',
+                  'avg_delivery_days', 'on_time_rate', 'quality_rate', 'overall_score',
+                  'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class InventoryAlertSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    resolved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = InventoryAlert
+        fields = ['id', 'alert_id', 'alert_type', 'part', 'part_name', 'part_sku',
+                  'branch', 'branch_name', 'message', 'severity', 'is_read',
+                  'is_resolved', 'resolved_by', 'resolved_by_name', 'resolved_at',
+                  'resolution_notes', 'created_at']
+        read_only_fields = ['id', 'alert_id', 'created_at']
+    
+    def get_resolved_by_name(self, obj):
+        if obj.resolved_by:
+            return f"{obj.resolved_by.first_name} {obj.resolved_by.last_name}".strip() or obj.resolved_by.username
+        return None

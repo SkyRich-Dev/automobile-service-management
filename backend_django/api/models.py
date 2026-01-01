@@ -447,6 +447,29 @@ class Task(models.Model):
         return f"{self.task_number} - {self.description[:50]}"
 
 
+class ItemType(models.TextChoices):
+    SPARE_PART = 'SPARE_PART', 'Spare Part'
+    CONSUMABLE = 'CONSUMABLE', 'Consumable'
+    LUBRICANT = 'LUBRICANT', 'Lubricant'
+    ACCESSORY = 'ACCESSORY', 'Accessory'
+    TOOL = 'TOOL', 'Tool'
+    SERVICE_KIT = 'SERVICE_KIT', 'Service Kit'
+
+
+class TaxCategory(models.TextChoices):
+    GST_5 = 'GST_5', 'GST 5%'
+    GST_12 = 'GST_12', 'GST 12%'
+    GST_18 = 'GST_18', 'GST 18%'
+    GST_28 = 'GST_28', 'GST 28%'
+    EXEMPT = 'EXEMPT', 'Exempt'
+
+
+class ValuationMethod(models.TextChoices):
+    FIFO = 'FIFO', 'First In First Out'
+    LIFO = 'LIFO', 'Last In First Out'
+    AVERAGE = 'AVERAGE', 'Weighted Average'
+
+
 class Part(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='parts', null=True, blank=True)
     part_number = models.CharField(max_length=100, unique=True, blank=True, null=True)
@@ -455,21 +478,36 @@ class Part(models.Model):
     category = models.CharField(max_length=100)
     subcategory = models.CharField(max_length=100, blank=True)
     brand = models.CharField(max_length=100, blank=True)
+    item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.SPARE_PART)
     is_oem = models.BooleanField(default=True)
     unit = models.CharField(max_length=50, default='Nos')
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     mrp = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    tax_category = models.CharField(max_length=20, choices=TaxCategory.choices, default=TaxCategory.GST_18)
+    hsn_code = models.CharField(max_length=20, blank=True)
     stock = models.IntegerField(default=0)
     min_stock = models.IntegerField(default=5)
     max_stock = models.IntegerField(default=100)
     reserved = models.IntegerField(default=0)
     reorder_quantity = models.IntegerField(default=10)
     location = models.CharField(max_length=100, blank=True, null=True)
+    rack_number = models.CharField(max_length=50, blank=True)
+    bin_number = models.CharField(max_length=50, blank=True)
     batch_number = models.CharField(max_length=100, blank=True, null=True)
+    serial_number = models.CharField(max_length=100, blank=True, null=True)
     expiry_date = models.DateField(null=True, blank=True)
     last_purchase_date = models.DateField(null=True, blank=True)
+    valuation_method = models.CharField(max_length=20, choices=ValuationMethod.choices, default=ValuationMethod.AVERAGE)
+    average_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    compatible_vehicles = models.JSONField(default=list, blank=True)
+    warranty_eligible = models.BooleanField(default=False)
+    warranty_period_months = models.IntegerField(default=0)
+    is_returnable = models.BooleanField(default=True)
+    return_period_days = models.IntegerField(default=7)
+    primary_supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_parts')
+    lead_time_days = models.IntegerField(default=3)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
@@ -1031,6 +1069,347 @@ class PurchaseOrderLine(models.Model):
 
     def __str__(self):
         return f"{self.part.name} x {self.quantity_ordered}"
+
+
+class ReservationStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', 'Active'
+    ISSUED = 'ISSUED', 'Issued'
+    RELEASED = 'RELEASED', 'Released'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    EXPIRED = 'EXPIRED', 'Expired'
+
+
+class PartReservation(models.Model):
+    reservation_number = models.CharField(max_length=50, unique=True, blank=True)
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='part_reservations')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='reservations')
+    task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name='reserved_parts')
+    quantity = models.IntegerField(default=1)
+    status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.ACTIVE)
+    reserved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='part_reservations')
+    reserved_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    issued_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.reservation_number:
+            self.reservation_number = f"RES-{uuid.uuid4().hex[:8].upper()}"
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and self.status == ReservationStatus.ACTIVE:
+            self.part.reserved += self.quantity
+            self.part.save()
+
+    def release(self):
+        if self.status == ReservationStatus.ACTIVE:
+            self.part.reserved = max(0, self.part.reserved - self.quantity)
+            self.part.save()
+            self.status = ReservationStatus.RELEASED
+            self.released_at = timezone.now()
+            self.save(update_fields=['status', 'released_at'])
+
+    def __str__(self):
+        return f"{self.reservation_number} - {self.part.name}"
+
+
+class GRNStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_INSPECTION = 'PENDING_INSPECTION', 'Pending Inspection'
+    INSPECTED = 'INSPECTED', 'Inspected'
+    ACCEPTED = 'ACCEPTED', 'Accepted'
+    PARTIAL_ACCEPT = 'PARTIAL_ACCEPT', 'Partially Accepted'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
+class GoodsReceiptNote(models.Model):
+    grn_number = models.CharField(max_length=50, unique=True, blank=True)
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='grns')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='grns')
+    status = models.CharField(max_length=20, choices=GRNStatus.choices, default=GRNStatus.DRAFT)
+    receipt_date = models.DateTimeField(auto_now_add=True)
+    invoice_number = models.CharField(max_length=100, blank=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    invoice_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    delivery_challan = models.CharField(max_length=100, blank=True)
+    vehicle_number = models.CharField(max_length=50, blank=True)
+    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='received_grns')
+    inspected_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='inspected_grns')
+    inspection_date = models.DateTimeField(null=True, blank=True)
+    inspection_notes = models.TextField(blank=True)
+    total_received_qty = models.IntegerField(default=0)
+    total_accepted_qty = models.IntegerField(default=0)
+    total_rejected_qty = models.IntegerField(default=0)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.grn_number:
+            self.grn_number = f"GRN-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.grn_number} - {self.purchase_order.po_number}"
+
+
+class GRNLine(models.Model):
+    grn = models.ForeignKey(GoodsReceiptNote, on_delete=models.CASCADE, related_name='lines')
+    po_line = models.ForeignKey(PurchaseOrderLine, on_delete=models.CASCADE, related_name='grn_lines')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity_received = models.IntegerField(default=0)
+    quantity_accepted = models.IntegerField(default=0)
+    quantity_rejected = models.IntegerField(default=0)
+    rejection_reason = models.TextField(blank=True)
+    batch_number = models.CharField(max_length=100, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    location = models.CharField(max_length=100, blank=True)
+    quality_rating = models.IntegerField(default=5)
+
+    def accept_stock(self):
+        if self.quantity_accepted > 0:
+            self.part.stock += self.quantity_accepted
+            self.part.last_purchase_date = timezone.now().date()
+            if self.batch_number:
+                self.part.batch_number = self.batch_number
+            if self.expiry_date:
+                self.part.expiry_date = self.expiry_date
+            self.part.save()
+            self.po_line.quantity_received += self.quantity_accepted
+            self.po_line.save()
+
+    def __str__(self):
+        return f"{self.grn.grn_number} - {self.part.name}"
+
+
+class StockTransferStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    IN_TRANSIT = 'IN_TRANSIT', 'In Transit'
+    RECEIVED = 'RECEIVED', 'Received'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class StockTransfer(models.Model):
+    transfer_number = models.CharField(max_length=50, unique=True, blank=True)
+    from_branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='outgoing_transfers')
+    to_branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='incoming_transfers')
+    status = models.CharField(max_length=20, choices=StockTransferStatus.choices, default=StockTransferStatus.DRAFT)
+    transfer_date = models.DateField(null=True, blank=True)
+    expected_arrival = models.DateField(null=True, blank=True)
+    actual_arrival = models.DateField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_transfers')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_transfers')
+    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_transfers')
+    vehicle_number = models.CharField(max_length=50, blank=True)
+    driver_name = models.CharField(max_length=100, blank=True)
+    driver_phone = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.transfer_number:
+            self.transfer_number = f"TRF-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def dispatch(self):
+        if self.status == StockTransferStatus.APPROVED:
+            for line in self.lines.all():
+                line.part.stock = max(0, line.part.stock - line.quantity)
+                line.part.save()
+            self.status = StockTransferStatus.IN_TRANSIT
+            self.transfer_date = timezone.now().date()
+            self.save()
+
+    def receive(self, received_by):
+        if self.status == StockTransferStatus.IN_TRANSIT:
+            for line in self.lines.all():
+                to_part = Part.objects.filter(sku=line.part.sku, branch=self.to_branch).first()
+                if to_part:
+                    to_part.stock += line.quantity_received or line.quantity
+                    to_part.save()
+            self.status = StockTransferStatus.RECEIVED
+            self.actual_arrival = timezone.now().date()
+            self.received_by = received_by
+            self.save()
+
+    def __str__(self):
+        return f"{self.transfer_number}"
+
+
+class StockTransferLine(models.Model):
+    transfer = models.ForeignKey(StockTransfer, on_delete=models.CASCADE, related_name='lines')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+    quantity_received = models.IntegerField(default=0)
+    batch_number = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.part.name} x {self.quantity}"
+
+
+class PRStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+    CONVERTED_TO_PO = 'CONVERTED_TO_PO', 'Converted to PO'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class PRSource(models.TextChoices):
+    MANUAL = 'MANUAL', 'Manual Request'
+    LOW_STOCK = 'LOW_STOCK', 'Low Stock Alert'
+    JOB_CARD = 'JOB_CARD', 'Job Card Requirement'
+    SCHEDULED = 'SCHEDULED', 'Scheduled Replenishment'
+
+
+class PurchaseRequisition(models.Model):
+    pr_number = models.CharField(max_length=50, unique=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='purchase_requisitions')
+    status = models.CharField(max_length=20, choices=PRStatus.choices, default=PRStatus.DRAFT)
+    source = models.CharField(max_length=20, choices=PRSource.choices, default=PRSource.MANUAL)
+    priority = models.CharField(max_length=20, default='NORMAL', choices=[('LOW', 'Low'), ('NORMAL', 'Normal'), ('HIGH', 'High'), ('URGENT', 'Urgent')])
+    required_date = models.DateField(null=True, blank=True)
+    job_card = models.ForeignKey(JobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_requisitions')
+    suggested_supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='suggested_prs')
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='source_prs')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_prs')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_prs')
+    approval_date = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.pr_number:
+            self.pr_number = f"PR-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def convert_to_po(self, supplier, created_by):
+        if self.status == PRStatus.APPROVED:
+            po = PurchaseOrder.objects.create(
+                branch=self.branch,
+                supplier=supplier,
+                status=PurchaseOrderStatus.DRAFT,
+                created_by=created_by,
+                notes=f"Created from PR: {self.pr_number}"
+            )
+            for line in self.lines.all():
+                PurchaseOrderLine.objects.create(
+                    purchase_order=po,
+                    part=line.part,
+                    quantity_ordered=line.quantity,
+                    unit_price=line.part.cost_price,
+                    total=line.quantity * line.part.cost_price
+                )
+            self.purchase_order = po
+            self.status = PRStatus.CONVERTED_TO_PO
+            self.save()
+            return po
+        return None
+
+    def __str__(self):
+        return f"{self.pr_number}"
+
+
+class PRLine(models.Model):
+    purchase_requisition = models.ForeignKey(PurchaseRequisition, on_delete=models.CASCADE, related_name='lines')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+    current_stock = models.IntegerField(default=0)
+    min_stock = models.IntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.part.name} x {self.quantity}"
+
+
+class SupplierPerformance(models.Model):
+    supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE, related_name='performance_records')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    total_orders = models.IntegerField(default=0)
+    orders_on_time = models.IntegerField(default=0)
+    orders_late = models.IntegerField(default=0)
+    total_items_ordered = models.IntegerField(default=0)
+    items_accepted = models.IntegerField(default=0)
+    items_rejected = models.IntegerField(default=0)
+    total_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    price_variance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    avg_delivery_days = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    on_time_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    quality_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    overall_score = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['supplier', 'period_start', 'period_end']
+        ordering = ['-period_end']
+
+    def calculate_scores(self):
+        if self.total_orders > 0:
+            self.on_time_rate = round((self.orders_on_time / self.total_orders) * 100, 2)
+        else:
+            self.on_time_rate = 0
+        
+        if self.total_items_ordered > 0:
+            self.quality_rate = round((self.items_accepted / self.total_items_ordered) * 100, 2)
+        else:
+            self.quality_rate = 0
+        
+        price_score = 50 - min(50, abs(float(self.price_variance)) / 100) if self.price_variance else 50
+        self.overall_score = round((self.on_time_rate * 0.4) + (self.quality_rate * 0.4) + (price_score * 0.2), 2)
+        self.save()
+
+    def __str__(self):
+        return f"{self.supplier.name} - {self.period_start} to {self.period_end}"
+
+
+class AlertType(models.TextChoices):
+    LOW_STOCK = 'LOW_STOCK', 'Low Stock'
+    OVERSTOCK = 'OVERSTOCK', 'Overstock'
+    EXPIRY_WARNING = 'EXPIRY_WARNING', 'Expiry Warning'
+    EXPIRED = 'EXPIRED', 'Expired'
+    RESERVATION_EXPIRY = 'RESERVATION_EXPIRY', 'Reservation Expiry'
+    REORDER_POINT = 'REORDER_POINT', 'Reorder Point'
+
+
+class InventoryAlert(models.Model):
+    alert_id = models.CharField(max_length=50, unique=True, blank=True)
+    alert_type = models.CharField(max_length=30, choices=AlertType.choices)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='alerts')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='inventory_alerts')
+    message = models.TextField()
+    severity = models.CharField(max_length=20, default='MEDIUM', choices=[('LOW', 'Low'), ('MEDIUM', 'Medium'), ('HIGH', 'High'), ('CRITICAL', 'Critical')])
+    is_read = models.BooleanField(default=False)
+    is_resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_alerts')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.alert_id:
+            self.alert_id = f"ALT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def resolve(self, user, notes=''):
+        self.is_resolved = True
+        self.resolved_by = user
+        self.resolved_at = timezone.now()
+        self.resolution_notes = notes
+        self.save()
+
+    def __str__(self):
+        return f"{self.alert_id} - {self.alert_type}"
 
 
 class TechnicianSchedule(models.Model):
