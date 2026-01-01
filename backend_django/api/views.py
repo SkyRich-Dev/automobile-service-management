@@ -1101,6 +1101,41 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return Response(PurchaseOrderSerializer(po).data)
     
     @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        po = self.get_object()
+        new_status = request.data.get('status')
+        valid_statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']
+        if new_status not in valid_statuses:
+            return Response({'error': f'Invalid status. Must be one of: {valid_statuses}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if new_status == 'APPROVED' and not po.approved_by:
+            po.approved_by = request.user
+        if new_status == 'RECEIVED':
+            po.actual_delivery = timezone.now().date()
+        
+        po.status = new_status
+        po.save()
+        return Response(PurchaseOrderSerializer(po).data)
+    
+    @action(detail=True, methods=['get'])
+    def allowed_transitions(self, request, pk=None):
+        po = self.get_object()
+        transitions = {
+            'DRAFT': ['PENDING_APPROVAL', 'CANCELLED'],
+            'PENDING_APPROVAL': ['APPROVED', 'DRAFT', 'CANCELLED'],
+            'APPROVED': ['ORDERED', 'CANCELLED'],
+            'ORDERED': ['PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'],
+            'PARTIALLY_RECEIVED': ['RECEIVED', 'CANCELLED'],
+            'RECEIVED': [],
+            'CANCELLED': ['DRAFT'],
+        }
+        allowed = transitions.get(po.status, [])
+        return Response({
+            'current_status': po.status,
+            'allowed_transitions': [{'value': s, 'label': s.replace('_', ' ').title()} for s in allowed]
+        })
+    
+    @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
         po = self.get_object()
         lines = request.data.get('lines', [])

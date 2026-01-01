@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
 import { cn } from "@/lib/utils";
 import {
@@ -8,10 +8,13 @@ import {
   Calendar,
   Building,
   Truck,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -52,6 +55,16 @@ interface PurchaseOrderDetail {
   lines: POLine[];
 }
 
+interface AllowedTransition {
+  value: string;
+  label: string;
+}
+
+interface TransitionsResponse {
+  current_status: string;
+  allowed_transitions: AllowedTransition[];
+}
+
 const PO_STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
   PENDING_APPROVAL: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
@@ -64,6 +77,7 @@ const PO_STATUS_COLORS: Record<string, string> = {
 
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
   const { data: order, isLoading, error } = useQuery<PurchaseOrderDetail>({
     queryKey: ["/api/purchase-orders", id],
@@ -73,6 +87,32 @@ export default function PODetail() {
       return res.json();
     },
     enabled: !!id,
+  });
+
+  const { data: transitions } = useQuery<TransitionsResponse>({
+    queryKey: ["/api/purchase-orders", id, "allowed_transitions"],
+    queryFn: async () => {
+      const res = await fetch(`/api/purchase-orders/${id}/allowed_transitions/`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch transitions");
+      return res.json();
+    },
+    enabled: !!id && !!order,
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: async (newStatus: string) => {
+      const res = await apiRequest("POST", `/api/purchase-orders/${id}/update_status/`, { status: newStatus });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/purchase-orders", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/purchase-orders", id, "allowed_transitions"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      toast({ title: "Status updated successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -132,9 +172,28 @@ export default function PODetail() {
                 <p className="text-muted-foreground">Purchase Order Details</p>
               </div>
             </div>
-            <Badge className={cn("text-sm", PO_STATUS_COLORS[order.status])} data-testid="badge-status">
-              {order.status.replace(/_/g, " ")}
-            </Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className={cn("text-sm", PO_STATUS_COLORS[order.status])} data-testid="badge-status">
+                {order.status.replace(/_/g, " ")}
+              </Badge>
+              {transitions?.allowed_transitions && transitions.allowed_transitions.length > 0 && (
+                <>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  {transitions.allowed_transitions.map((t) => (
+                    <Button
+                      key={t.value}
+                      size="sm"
+                      variant={t.value === "CANCELLED" ? "destructive" : "default"}
+                      onClick={() => updateStatus.mutate(t.value)}
+                      disabled={updateStatus.isPending}
+                      data-testid={`button-transition-${t.value.toLowerCase()}`}
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-4">
