@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useJobCards, useTransitionJobCard, useCreateJobCard } from "@/hooks/use-job-cards";
+import { useJobCards, useTransitionJobCard, useCreateJobCard, useServiceEvents } from "@/hooks/use-job-cards";
 import { useCustomers, useVehicles } from "@/hooks/use-crm";
 import { Link } from "wouter";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +51,17 @@ import {
   User,
   DollarSign,
   Loader2,
+  LayoutGrid,
+  List,
+  Activity,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
+
+type ViewMode = "kanban" | "list" | "activity";
+type SortField = "job_card_number" | "customer_name" | "workflow_stage" | "priority" | "created_at" | "estimated_amount";
+type SortDirection = "asc" | "desc";
 
 const WORKFLOW_COLUMNS = [
   { id: "APPOINTMENT", label: "Appointment", gradient: "from-blue-500 to-blue-600", bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400" },
@@ -412,11 +431,336 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
   );
 }
 
+interface ListViewProps {
+  jobCards: ReturnType<typeof useJobCards>["data"];
+  onTransition: (jobId: number, newStage: string) => void;
+  isPending: boolean;
+}
+
+function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const sortedJobs = useMemo(() => {
+    if (!jobCards) return [];
+    return [...jobCards].sort((a, b) => {
+      let aVal: string | number = "";
+      let bVal: string | number = "";
+      switch (sortField) {
+        case "job_card_number":
+          aVal = a.job_card_number || "";
+          bVal = b.job_card_number || "";
+          break;
+        case "customer_name":
+          aVal = a.customer_name || "";
+          bVal = b.customer_name || "";
+          break;
+        case "workflow_stage":
+          aVal = WORKFLOW_COLUMNS.findIndex((c) => c.id === a.workflow_stage);
+          bVal = WORKFLOW_COLUMNS.findIndex((c) => c.id === b.workflow_stage);
+          break;
+        case "priority":
+          const priorityOrder = { CRITICAL: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+          aVal = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 2;
+          bVal = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 2;
+          break;
+        case "created_at":
+          aVal = new Date(a.created_at || 0).getTime();
+          bVal = new Date(b.created_at || 0).getTime();
+          break;
+        case "estimated_amount":
+          aVal = parseFloat(a.estimated_amount || "0");
+          bVal = parseFloat(b.estimated_amount || "0");
+          break;
+      }
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [jobCards, sortField, sortDirection]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+    <TableHead
+      className="cursor-pointer select-none"
+      onClick={() => toggleSort(field)}
+      data-testid={`header-sort-${field}`}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field ? (
+          sortDirection === "asc" ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )
+        ) : (
+          <ArrowUpDown className="h-4 w-4 opacity-30" />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  return (
+    <Card className="border-border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <SortHeader field="job_card_number">Job Card</SortHeader>
+            <TableHead>Vehicle</TableHead>
+            <SortHeader field="customer_name">Customer</SortHeader>
+            <SortHeader field="workflow_stage">Stage</SortHeader>
+            <SortHeader field="priority">Priority</SortHeader>
+            <SortHeader field="estimated_amount">Amount</SortHeader>
+            <SortHeader field="created_at">Created</SortHeader>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedJobs.map((job) => {
+            const column = WORKFLOW_COLUMNS.find((c) => c.id === job.workflow_stage);
+            const isOverdue = job.sla_deadline && new Date(job.sla_deadline) < new Date();
+            const allowedTransitions = job.allowed_transitions || [];
+            return (
+              <TableRow key={job.id} data-testid={`row-job-${job.id}`}>
+                <TableCell>
+                  <Link href={`/job-cards/${job.id}`} className="font-mono text-sm hover:underline">
+                    {job.job_card_number || `#${job.id}`}
+                  </Link>
+                  {isOverdue && <AlertTriangle className="ml-1 inline h-3.5 w-3.5 text-destructive" />}
+                </TableCell>
+                <TableCell className="flex items-center gap-2">
+                  <Car className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{job.vehicle_info?.split(" - ")[0] || "Vehicle"}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm">{job.customer_name || "Customer"}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge className={cn("text-xs", column?.bg, column?.text)}>
+                    {column?.label || job.workflow_stage}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={job.priority === "CRITICAL" || job.priority === "HIGH" ? "destructive" : "secondary"}
+                    className="text-xs"
+                  >
+                    {job.priority}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <DollarSign className="h-3.5 w-3.5" />
+                    {job.estimated_amount || "0"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {job.created_at ? formatDistanceToNow(new Date(job.created_at), { addSuffix: true }) : ""}
+                </TableCell>
+                <TableCell>
+                  {allowedTransitions.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" disabled={isPending}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {allowedTransitions.map((transition) => {
+                          const stage = WORKFLOW_COLUMNS.find((c) => c.id === transition.value);
+                          return (
+                            <DropdownMenuItem key={transition.value} onClick={() => onTransition(job.id, transition.value)}>
+                              Move to {stage?.label || transition.label}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+          {sortedJobs.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                No job cards found
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
+function ActivityView() {
+  const { data: serviceEvents, isLoading } = useServiceEvents();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const eventIcon = (eventType: string) => {
+    switch (eventType) {
+      case "WORKFLOW_TRANSITION":
+        return <ArrowRight className="h-4 w-4 text-blue-500" />;
+      case "REMARK_ADDED":
+        return <Activity className="h-4 w-4 text-green-500" />;
+      case "CUSTOMER_NOTIFIED":
+        return <User className="h-4 w-4 text-purple-500" />;
+      case "ESCALATION":
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const eventLabel = (eventType: string) => {
+    switch (eventType) {
+      case "WORKFLOW_TRANSITION":
+        return "Stage Change";
+      case "REMARK_ADDED":
+        return "Remark Added";
+      case "CUSTOMER_NOTIFIED":
+        return "Customer Notified";
+      case "ESCALATION":
+        return "Escalation";
+      case "TASK_STARTED":
+        return "Task Started";
+      case "TASK_COMPLETED":
+        return "Task Completed";
+      case "PART_ISSUED":
+        return "Part Issued";
+      case "AI_INSIGHT":
+        return "AI Insight";
+      default:
+        return eventType.replace(/_/g, " ");
+    }
+  };
+
+  return (
+    <Card className="border-border">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-220px)]">
+          <div className="divide-y divide-border">
+            {serviceEvents?.map((event) => (
+              <div key={event.id} className="flex gap-4 p-4 hover-elevate" data-testid={`activity-${event.id}`}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                  {eventIcon(event.event_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {eventLabel(event.event_type)}
+                    </Badge>
+                    {event.job_card_number && (
+                      <Link href={`/job-cards/${event.job_card_id}`} className="font-mono text-xs text-primary hover:underline">
+                        {event.job_card_number}
+                      </Link>
+                    )}
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {event.timestamp ? format(new Date(event.timestamp), "MMM d, h:mm a") : ""}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm">{event.comment || event.new_value || "No description"}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    by {event.actor_name || "System"} {event.actor_role && `(${event.actor_role})`}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {(!serviceEvents || serviceEvents.length === 0) && (
+              <div className="flex h-24 items-center justify-center text-muted-foreground">
+                No recent activity
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface KanbanViewProps {
+  jobCards: ReturnType<typeof useJobCards>["data"];
+  onTransition: (jobId: number, newStage: string) => void;
+  isPending: boolean;
+}
+
+function KanbanView({ jobCards, onTransition, isPending }: KanbanViewProps) {
+  return (
+    <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
+      {WORKFLOW_COLUMNS.map((column) => {
+        const jobsInColumn = jobCards?.filter((j) => j.workflow_stage === column.id) || [];
+
+        return (
+          <div key={column.id} className="kanban-column">
+            <div
+              className={cn(
+                "kanban-header text-white",
+                `bg-gradient-to-r ${column.gradient}`
+              )}
+            >
+              <span className="text-xs font-bold uppercase tracking-wider">
+                {column.label}
+              </span>
+              <Badge
+                variant="secondary"
+                className="bg-white/20 text-white hover:bg-white/30"
+              >
+                {jobsInColumn.length}
+              </Badge>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {jobsInColumn.map((job) => (
+                <JobCardItem
+                  key={job.id}
+                  job={job}
+                  column={column}
+                  onTransition={(newStage) => onTransition(job.id, newStage)}
+                  isPending={isPending}
+                />
+              ))}
+
+              {jobsInColumn.length === 0 && (
+                <div className="flex h-24 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30">
+                  <span className="text-xs text-muted-foreground">
+                    No jobs in this stage
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ServiceOperations() {
   const { data: jobCards, isLoading, refetch } = useJobCards();
   const transitionMutation = useTransitionJobCard();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
 
   const handleTransition = async (jobId: number, newStage: string) => {
     try {
@@ -447,69 +791,76 @@ export default function ServiceOperations() {
     <div className="flex min-h-screen bg-background" data-testid="page-service">
       <AppSidebar />
       <main className="ml-64 flex-1 overflow-x-auto p-6">
-        <header className="mb-6 flex items-start justify-between gap-4">
+        <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Service Operations</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              11-Stage Workflow: Drag jobs through the pipeline or use quick actions
+              {viewMode === "kanban" && "11-Stage Workflow: Drag jobs through the pipeline or use quick actions"}
+              {viewMode === "list" && "View all job cards in a sortable table format"}
+              {viewMode === "activity" && "Recent activity timeline across all job cards"}
             </p>
           </div>
-          <Button
-            className="gap-2"
-            onClick={() => setCreateDialogOpen(true)}
-            data-testid="button-add-job"
-          >
-            <Plus className="h-4 w-4" />
-            New Job Card
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-md border border-border p-1" data-testid="view-toggle">
+              <Button
+                variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setViewMode("kanban")}
+                data-testid="button-view-kanban"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Kanban
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setViewMode("list")}
+                data-testid="button-view-list"
+              >
+                <List className="h-4 w-4" />
+                List
+              </Button>
+              <Button
+                variant={viewMode === "activity" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setViewMode("activity")}
+                data-testid="button-view-activity"
+              >
+                <Activity className="h-4 w-4" />
+                Activity
+              </Button>
+            </div>
+            <Button
+              className="gap-2"
+              onClick={() => setCreateDialogOpen(true)}
+              data-testid="button-add-job"
+            >
+              <Plus className="h-4 w-4" />
+              New Job Card
+            </Button>
+          </div>
         </header>
 
-        <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
-          {WORKFLOW_COLUMNS.map((column) => {
-            const jobsInColumn = jobCards?.filter((j) => j.workflow_stage === column.id) || [];
+        {viewMode === "kanban" && (
+          <KanbanView
+            jobCards={jobCards}
+            onTransition={handleTransition}
+            isPending={transitionMutation.isPending}
+          />
+        )}
 
-            return (
-              <div key={column.id} className="kanban-column">
-                <div
-                  className={cn(
-                    "kanban-header text-white",
-                    `bg-gradient-to-r ${column.gradient}`
-                  )}
-                >
-                  <span className="text-xs font-bold uppercase tracking-wider">
-                    {column.label}
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className="bg-white/20 text-white hover:bg-white/30"
-                  >
-                    {jobsInColumn.length}
-                  </Badge>
-                </div>
+        {viewMode === "list" && (
+          <ListView
+            jobCards={jobCards}
+            onTransition={handleTransition}
+            isPending={transitionMutation.isPending}
+          />
+        )}
 
-                <div className="flex flex-col gap-3">
-                  {jobsInColumn.map((job) => (
-                    <JobCardItem
-                      key={job.id}
-                      job={job}
-                      column={column}
-                      onTransition={(newStage) => handleTransition(job.id, newStage)}
-                      isPending={transitionMutation.isPending}
-                    />
-                  ))}
-
-                  {jobsInColumn.length === 0 && (
-                    <div className="flex h-24 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30">
-                      <span className="text-xs text-muted-foreground">
-                        No jobs in this stage
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {viewMode === "activity" && <ActivityView />}
       </main>
 
       <CreateJobDialog

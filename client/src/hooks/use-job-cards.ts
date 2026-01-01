@@ -77,6 +77,11 @@ interface DigitalInspection {
   videos?: string[];
 }
 
+interface AllowedTransition {
+  value: string;
+  label: string;
+}
+
 interface JobCard {
   id: number;
   job_card_number: string;
@@ -103,6 +108,7 @@ interface JobCard {
   labor_amount?: string;
   parts_amount?: string;
   is_warranty: boolean;
+  allowed_transitions?: AllowedTransition[];
   is_amc: boolean;
   is_insurance: boolean;
   is_goodwill: boolean;
@@ -425,6 +431,32 @@ export function useEscalate() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["job-cards", variables.jobCardId] });
+    },
+  });
+}
+
+export interface ServiceEventItem {
+  id: number;
+  event_type: string;
+  actor_name: string;
+  actor_role?: string;
+  old_value?: string;
+  new_value?: string;
+  comment?: string;
+  timestamp: string;
+  job_card_number?: string;
+  job_card_id?: number;
+}
+
+export function useServiceEvents() {
+  return useQuery<ServiceEventItem[]>({
+    queryKey: ["service-events"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/service-events/`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch service events");
+      return res.json();
     },
   });
 }
