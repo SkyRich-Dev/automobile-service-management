@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useSupplierPerformance } from "@/hooks/use-inventory";
 import {
   Truck,
   Package,
@@ -17,6 +18,10 @@ import {
   Filter,
   Building,
   Loader2,
+  TrendingUp,
+  BarChart3,
+  Clock,
+  CheckCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,7 +90,8 @@ const PO_STATUS_COLORS: Record<string, string> = {
 
 export default function Suppliers() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"suppliers" | "orders">("suppliers");
+  const [activeTab, setActiveTab] = useState<"suppliers" | "orders" | "performance">("suppliers");
+  const { data: supplierPerformance = [], isLoading: performanceLoading } = useSupplierPerformance();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
@@ -335,6 +341,14 @@ export default function Suppliers() {
               <Package className="h-4 w-4 mr-2" />
               Purchase Orders
             </Button>
+            <Button
+              variant={activeTab === "performance" ? "default" : "ghost"}
+              onClick={() => setActiveTab("performance")}
+              data-testid="tab-performance"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Performance
+            </Button>
           </div>
 
           <div className="flex items-center gap-4 flex-wrap">
@@ -486,6 +500,94 @@ export default function Suppliers() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )
+          )}
+
+          {activeTab === "performance" && (
+            performanceLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              </div>
+            ) : supplierPerformance.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No supplier performance data available</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {supplierPerformance.map((perf) => {
+                  const getScoreColor = (score: number) => {
+                    if (score >= 80) return "text-green-600";
+                    if (score >= 60) return "text-yellow-600";
+                    return "text-red-600";
+                  };
+                  const getScoreBg = (score: number) => {
+                    if (score >= 80) return "bg-green-500/10";
+                    if (score >= 60) return "bg-yellow-500/10";
+                    return "bg-red-500/10";
+                  };
+                  return (
+                    <Card key={perf.id} data-testid={`card-performance-${perf.id}`}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-sm font-medium">{perf.supplier_name}</CardTitle>
+                          <Badge className={cn("text-lg font-bold", getScoreBg(perf.overall_score), getScoreColor(perf.overall_score))}>
+                            {perf.overall_score}%
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {perf.period_start} - {perf.period_end}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span>On-Time Rate</span>
+                          </div>
+                          <span className={cn("font-medium", getScoreColor(perf.on_time_rate))}>
+                            {perf.on_time_rate}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                            <span>Quality Rate</span>
+                          </div>
+                          <span className={cn("font-medium", getScoreColor(perf.quality_rate))}>
+                            {perf.quality_rate}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm">
+                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                            <span>Price Variance</span>
+                          </div>
+                          <span className={cn("font-medium", parseFloat(perf.price_variance) > 0 ? "text-red-600" : "text-green-600")}>
+                            {parseFloat(perf.price_variance) > 0 ? "+" : ""}{perf.price_variance}%
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t grid grid-cols-3 gap-2 text-center text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Orders</p>
+                            <p className="font-medium">{perf.total_orders}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">On Time</p>
+                            <p className="font-medium text-green-600">{perf.orders_on_time}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Rejected</p>
+                            <p className="font-medium text-red-600">{perf.items_rejected}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )
           )}
