@@ -477,11 +477,10 @@ class RoleBasedPermission(permissions.BasePermission):
     }
     
     def has_permission(self, request, view):
-        import logging
-        logger = logging.getLogger(__name__)
+        import sys
         
         if not request.user.is_authenticated:
-            logger.warning(f"RoleBasedPermission: User not authenticated - {request.user}")
+            print(f"[PERM] User not authenticated: {request.user}", file=sys.stderr)
             return False
         
         if request.user.is_superuser:
@@ -489,12 +488,12 @@ class RoleBasedPermission(permissions.BasePermission):
         
         profile = getattr(request.user, 'profile', None)
         if not profile:
-            logger.warning(f"RoleBasedPermission: No profile for user {request.user.username}")
+            print(f"[PERM] No profile for user {request.user.username}", file=sys.stderr)
             return True
         
         resource = getattr(view, 'basename', None)
         if not resource:
-            logger.warning(f"RoleBasedPermission: No basename for view {view}")
+            print(f"[PERM] No basename for view {view}", file=sys.stderr)
             return True
         
         action = view.action if hasattr(view, 'action') else None
@@ -511,7 +510,7 @@ class RoleBasedPermission(permissions.BasePermission):
         resource_perms = self.RESOURCE_PERMISSIONS.get(resource, {})
         action_perms = resource_perms.get(action, 'all_authenticated')
         
-        logger.info(f"RoleBasedPermission: user={request.user.username}, role={profile.role}, resource={resource}, action={action}, action_perms={action_perms}")
+        print(f"[PERM] user={request.user.username}, role={profile.role}, resource={resource}, action={action}, perms={action_perms}", file=sys.stderr)
         
         if action_perms == 'all_authenticated':
             return True
@@ -520,7 +519,7 @@ class RoleBasedPermission(permissions.BasePermission):
             allowed_roles = [r.value if hasattr(r, 'value') else r for r in action_perms]
             result = profile.role in allowed_roles
             if not result:
-                logger.warning(f"RoleBasedPermission: Access denied - role {profile.role} not in {allowed_roles}")
+                print(f"[PERM] DENIED: role {profile.role} not in {allowed_roles}", file=sys.stderr)
             return result
         
         return True
