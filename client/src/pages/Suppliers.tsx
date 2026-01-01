@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useSupplierPerformance } from "@/hooks/use-inventory";
@@ -119,19 +119,10 @@ export default function Suppliers() {
 
   const createSupplier = useMutation({
     mutationFn: async (data: typeof supplierForm) => {
-      const res = await fetch("/api/suppliers/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...data,
-          credit_limit: data.credit_limit || "0",
-        }),
+      const res = await apiRequest("POST", "/api/suppliers/", {
+        ...data,
+        credit_limit: data.credit_limit || "0",
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || "Failed to create supplier");
-      }
       return res.json();
     },
     onSuccess: () => {
@@ -159,20 +150,11 @@ export default function Suppliers() {
 
   const createPO = useMutation({
     mutationFn: async (data: typeof poForm) => {
-      const res = await fetch("/api/purchase-orders/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          supplier: parseInt(data.supplier),
-          expected_delivery: data.expected_delivery || null,
-          notes: data.notes,
-        }),
+      const res = await apiRequest("POST", "/api/purchase-orders/", {
+        supplier: parseInt(data.supplier),
+        expected_delivery: data.expected_delivery || null,
+        notes: data.notes,
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || "Failed to create purchase order");
-      }
       return res.json();
     },
     onSuccess: () => {
