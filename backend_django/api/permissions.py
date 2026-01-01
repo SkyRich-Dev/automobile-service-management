@@ -81,6 +81,7 @@ class RoleBasedPermission(permissions.BasePermission):
                            UserRole.SERVICE_MANAGER, UserRole.ACCOUNTS_MANAGER, UserRole.SUPERVISOR,
                            UserRole.SERVICE_ADVISOR, UserRole.SERVICE_ENGINEER, UserRole.TECHNICIAN,
                            UserRole.ACCOUNTANT],
+            'allowed_transitions': 'all_authenticated',
             'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
         },
         'tasks': {
@@ -538,7 +539,7 @@ class RoleBasedPermission(permissions.BasePermission):
         if hasattr(obj, 'branch') and obj.branch:
             if profile.branch and profile.branch != obj.branch:
                 if profile.role not in [UserRole.SUPER_ADMIN.value, UserRole.CEO_OWNER.value, 
-                                         UserRole.REGIONAL_MANAGER.value]:
+                                         UserRole.REGIONAL_MANAGER.value, UserRole.BRANCH_MANAGER.value]:
                     return False
         
         return True
