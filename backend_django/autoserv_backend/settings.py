@@ -106,3 +106,6 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 
 # CSRF settings for development
 CSRF_TRUSTED_ORIGINS = ['https://*.replit.dev', 'https://*.replit.app']
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_USE_SESSIONS = False  # Store CSRF token in cookie, not session

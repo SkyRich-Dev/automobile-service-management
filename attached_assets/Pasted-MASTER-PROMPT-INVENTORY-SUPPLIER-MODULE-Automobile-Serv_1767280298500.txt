@@ -1,0 +1,204 @@
+MASTER PROMPT — INVENTORY & SUPPLIER MODULE
+(Automobile Service ERP | Enterprise-Grade | Traceable)
+ROLE & OBJECTIVE
+You are a senior product engineering team (Solution Architect, Backend Lead, Frontend Lead, QA Lead) responsible for designing and implementing the complete Inventory & Supplier Module for an Automobile Car & Bike Service Management System.
+This module must support OEM and aftermarket spare parts, consumables, tools, and accessories, with full traceability from supplier → warehouse → job card → invoice.
+1. MODULE GOALS (NON-NEGOTIABLE)
+Ensure zero stock ambiguity
+Prevent service delays due to stock issues
+Provide job-level and contract-level part traceability
+Enable supplier performance visibility
+Support multi-branch inventory operations
+Eliminate revenue leakage and warranty disputes
+2. INVENTORY MODULE – DETAILED FEATURES
+2.1 Item Master (Single Source of Truth)
+Each inventory item must have:
+Item ID (system-generated)
+Item type:
+Spare part
+Consumable
+Accessory
+Tool
+OEM / Aftermarket flag
+Manufacturer / Brand
+Compatible vehicle models
+Part number(s)
+Unit of measure
+Reorder level
+Max stock level
+Shelf / bin location
+Tax category
+Warranty eligibility
+Returnable / non-returnable flag
+Active / discontinued status
+2.2 Stock Management (Branch-Wise)
+Real-time stock visibility per branch
+Available stock vs reserved stock vs issued stock
+Batch / serial number tracking (where applicable)
+Expiry tracking (consumables)
+Stock aging analysis
+Dead stock identification
+Stock valuation methods:
+FIFO
+Weighted average
+2.3 Job-Level Part Reservation (CRITICAL)
+At estimate / job card stage:
+Reserve required parts
+Lock stock against Job Card ID
+Prevent double allocation
+Show:
+Reserved
+Available
+Shortage
+Reservation must:
+Auto-release if job cancelled
+Convert to issue on task start
+2.4 Part Issue & Consumption Tracking
+Issue parts only against:
+Job Card ID
+Technician ID
+Capture:
+Issue date & time
+Issued by / issued to
+Track:
+Planned vs actual consumption
+Excess usage alerts
+Support:
+Partial issue
+Multi-issue per job
+2.5 Returns, Rejections & Scrap
+Part return from job
+Defective part tagging
+Scrap handling
+Supplier return (RMA)
+Return reason mandatory
+Stock auto-adjustment
+2.6 Contract & Warranty Integration
+Identify contract-covered parts
+Prevent billing of covered parts
+Track:
+Contract consumption
+Warranty part usage
+Warranty claim reference linkage
+2.7 Inter-Branch Stock Transfer
+Branch-to-branch transfer request
+Approval workflow
+In-transit tracking
+Receipt confirmation
+Transfer audit trail
+2.8 Inventory Alerts & Automation
+Low stock alerts
+Overstock alerts
+Expiry alerts
+Auto-reorder suggestion
+Emergency procurement flag
+3. SUPPLIER MODULE – DETAILED FEATURES
+3.1 Supplier Master
+Each supplier must have:
+Supplier ID
+Supplier type:
+OEM
+Distributor
+Local vendor
+Contact details
+GST / Tax info
+Payment terms
+Lead time (avg)
+Rating & reliability score
+Active / blacklisted status
+3.2 Supplier Onboarding & Compliance
+Document upload:
+GST certificate
+Bank details
+Agreements
+Approval workflow
+Compliance validity tracking
+Expiry alerts
+3.3 Purchase Requisition (PR)
+Auto-generated PR from:
+Low stock
+Job reservation shortage
+Manual PR creation
+Priority tagging
+Approval workflow
+3.4 Purchase Order (PO) Management
+PO creation from PR
+Multi-item PO
+Supplier quotation comparison
+PO approval
+PO version control
+PO status:
+Issued
+Acknowledged
+Partially received
+Closed
+3.5 Goods Receipt Note (GRN)
+GRN against PO
+Quantity & quality verification
+Batch / serial capture
+Rejection handling
+Stock auto-update
+3.6 Supplier Invoice & Accounts Integration
+Invoice matching (PO ↔ GRN ↔ Invoice)
+Price variance detection
+Tax validation
+Payment scheduling
+Credit note handling
+3.7 Supplier Performance Evaluation
+Track KPIs:
+On-time delivery %
+Quality rejection rate
+Price variance
+Fulfillment accuracy
+SLA compliance
+Supplier score must impact:
+Preferred supplier ranking
+Auto-selection during PO
+4. TRACEABILITY & AUDIT (MANDATORY)
+Every inventory movement must be traceable:
+Supplier
+→ PO
+→ GRN
+→ Stock
+→ Reservation
+→ Job Card
+→ Technician
+→ Invoice
+→ Warranty / Contract
+Audit logs must capture:
+Who
+What
+When
+Quantity
+Reason
+5. UI SCREENS REQUIRED
+Inventory UI
+Item master
+Stock dashboard
+Reservation view
+Issue & return screen
+Dead stock report
+Supplier UI
+Supplier list & profile
+PR & PO screens
+GRN screen
+Supplier scorecard
+Dashboards
+Inventory risk dashboard
+Supplier performance dashboard
+6. BUSINESS RULES (STRICT)
+No part issue without job card
+No job completion if reserved parts not issued or released
+No PO without approval
+No GRN without PO
+No supplier payment without invoice matching
+7. FINAL OUTPUT EXPECTATION
+Build this module so that:
+Inventory is always accurate
+Service is never blocked unexpectedly
+Suppliers are measurable & accountable
+Every part is fully traceable
+Finance reconciliation is error-free
+8. FINAL INSTRUCTION
+Treat this as a core enterprise module, not a supporting feature.
+Assume audits, warranty disputes, and high-volume operations.
