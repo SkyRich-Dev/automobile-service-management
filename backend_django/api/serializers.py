@@ -336,7 +336,7 @@ class ContractCoverageRuleSerializer(serializers.ModelSerializer):
 
 class ContractVehicleSerializer(serializers.ModelSerializer):
     vehicle_info = serializers.SerializerMethodField()
-    registration_number = serializers.CharField(source='vehicle.registration_number', read_only=True)
+    registration_number = serializers.CharField(source='vehicle.plate_number', read_only=True)
     
     class Meta:
         model = ContractVehicle
@@ -345,7 +345,7 @@ class ContractVehicleSerializer(serializers.ModelSerializer):
     
     def get_vehicle_info(self, obj):
         v = obj.vehicle
-        return f"{v.year or ''} {v.make} {v.model} - {v.registration_number}"
+        return f"{v.year or ''} {v.make} {v.model} - {v.plate_number}"
 
 
 class ContractConsumptionSerializer(serializers.ModelSerializer):
@@ -425,7 +425,7 @@ class ContractSerializer(serializers.ModelSerializer):
     
     def get_vehicle_info(self, obj):
         if obj.vehicle:
-            return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.registration_number}"
+            return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
         return None
     
     def get_created_by_name(self, obj):

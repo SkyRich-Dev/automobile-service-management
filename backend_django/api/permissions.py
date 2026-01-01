@@ -477,10 +477,7 @@ class RoleBasedPermission(permissions.BasePermission):
     }
     
     def has_permission(self, request, view):
-        import sys
-        
         if not request.user.is_authenticated:
-            print(f"[PERM] User not authenticated: {request.user}", file=sys.stderr)
             return False
         
         if request.user.is_superuser:
@@ -488,12 +485,10 @@ class RoleBasedPermission(permissions.BasePermission):
         
         profile = getattr(request.user, 'profile', None)
         if not profile:
-            print(f"[PERM] No profile for user {request.user.username}", file=sys.stderr)
             return True
         
         resource = getattr(view, 'basename', None)
         if not resource:
-            print(f"[PERM] No basename for view {view}", file=sys.stderr)
             return True
         
         action = view.action if hasattr(view, 'action') else None
@@ -510,17 +505,12 @@ class RoleBasedPermission(permissions.BasePermission):
         resource_perms = self.RESOURCE_PERMISSIONS.get(resource, {})
         action_perms = resource_perms.get(action, 'all_authenticated')
         
-        print(f"[PERM] user={request.user.username}, role={profile.role}, resource={resource}, action={action}, perms={action_perms}", file=sys.stderr)
-        
         if action_perms == 'all_authenticated':
             return True
         
         if isinstance(action_perms, list):
             allowed_roles = [r.value if hasattr(r, 'value') else r for r in action_perms]
-            result = profile.role in allowed_roles
-            if not result:
-                print(f"[PERM] DENIED: role {profile.role} not in {allowed_roles}", file=sys.stderr)
-            return result
+            return profile.role in allowed_roles
         
         return True
     
