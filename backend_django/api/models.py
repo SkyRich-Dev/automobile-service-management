@@ -3022,3 +3022,552 @@ class BudgetEntry(models.Model):
 
     def __str__(self):
         return f"{self.account.code} - {self.period.name}: Budget {self.budgeted_amount}"
+
+
+class SkillCategory(models.TextChoices):
+    MECHANICAL = 'MECHANICAL', 'Mechanical'
+    ELECTRICAL = 'ELECTRICAL', 'Electrical'
+    ELECTRONICS = 'ELECTRONICS', 'Electronics'
+    EV_HYBRID = 'EV_HYBRID', 'EV / Hybrid'
+    BODY_PAINT = 'BODY_PAINT', 'Body & Paint'
+    DIAGNOSTICS = 'DIAGNOSTICS', 'Diagnostics'
+    GENERAL = 'GENERAL', 'General Service'
+
+
+class SkillLevel(models.TextChoices):
+    BEGINNER = 'BEGINNER', 'Beginner'
+    INTERMEDIATE = 'INTERMEDIATE', 'Intermediate'
+    ADVANCED = 'ADVANCED', 'Advanced'
+    EXPERT = 'EXPERT', 'Expert'
+
+
+class RiskLevel(models.TextChoices):
+    LOW = 'LOW', 'Low'
+    MEDIUM = 'MEDIUM', 'Medium'
+    HIGH = 'HIGH', 'High'
+    CRITICAL = 'CRITICAL', 'Critical'
+
+
+class Skill(models.Model):
+    skill_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=20, choices=SkillCategory.choices)
+    min_level_required = models.CharField(max_length=20, choices=SkillLevel.choices, default=SkillLevel.BEGINNER)
+    certification_required = models.BooleanField(default=False)
+    risk_level = models.CharField(max_length=20, choices=RiskLevel.choices, default=RiskLevel.LOW)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'name']
+
+    def __str__(self):
+        return f"{self.skill_id} - {self.name}"
+
+
+class EmployeeSkill(models.Model):
+    class ApprovalStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Approval'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        EXPIRED = 'EXPIRED', 'Expired'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='employee_skills')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='skilled_employees')
+    skill_level = models.CharField(max_length=20, choices=SkillLevel.choices)
+    certification_number = models.CharField(max_length=100, blank=True)
+    certification_date = models.DateField(null=True, blank=True)
+    certification_expiry = models.DateField(null=True, blank=True)
+    issuing_authority = models.CharField(max_length=255, blank=True)
+    approval_status = models.CharField(max_length=20, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_skills')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    jobs_completed = models.IntegerField(default=0)
+    rework_count = models.IntegerField(default=0)
+    average_quality_score = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['employee', 'skill']
+        ordering = ['skill__category', 'skill__name']
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.skill.name} ({self.skill_level})"
+
+    @property
+    def is_valid(self):
+        if self.approval_status != self.ApprovalStatus.APPROVED:
+            return False
+        if self.skill.certification_required and self.certification_expiry:
+            return self.certification_expiry >= timezone.now().date()
+        return True
+
+    @property
+    def is_certification_expiring_soon(self):
+        if not self.certification_expiry:
+            return False
+        days_until_expiry = (self.certification_expiry - timezone.now().date()).days
+        return 0 < days_until_expiry <= 30
+
+
+class DepartmentType(models.TextChoices):
+    SERVICE = 'SERVICE', 'Service'
+    SALES = 'SALES', 'Sales'
+    ACCOUNTS = 'ACCOUNTS', 'Accounts'
+    INVENTORY = 'INVENTORY', 'Inventory'
+    HR = 'HR', 'Human Resources'
+    ADMIN = 'ADMIN', 'Administration'
+    MANAGEMENT = 'MANAGEMENT', 'Management'
+
+
+class EmploymentType(models.TextChoices):
+    PERMANENT = 'PERMANENT', 'Permanent'
+    CONTRACT = 'CONTRACT', 'Contract'
+    TEMPORARY = 'TEMPORARY', 'Temporary'
+    PROBATION = 'PROBATION', 'Probation'
+    INTERN = 'INTERN', 'Intern'
+
+
+class Employee(models.Model):
+    profile = models.OneToOneField(Profile, on_delete=models.CASCADE, related_name='employee_details')
+    department = models.CharField(max_length=20, choices=DepartmentType.choices)
+    designation = models.CharField(max_length=100)
+    reporting_manager = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='direct_reports')
+    employment_type = models.CharField(max_length=20, choices=EmploymentType.choices, default=EmploymentType.PERMANENT)
+    joining_date = models.DateField()
+    confirmation_date = models.DateField(null=True, blank=True)
+    resignation_date = models.DateField(null=True, blank=True)
+    last_working_date = models.DateField(null=True, blank=True)
+    primary_skill = models.ForeignKey(Skill, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_employees')
+    bank_name = models.CharField(max_length=100, blank=True)
+    bank_account_number = models.CharField(max_length=50, blank=True)
+    bank_ifsc = models.CharField(max_length=20, blank=True)
+    pan_number = models.CharField(max_length=20, blank=True)
+    aadhar_number = models.CharField(max_length=20, blank=True)
+    pf_number = models.CharField(max_length=50, blank=True)
+    esi_number = models.CharField(max_length=50, blank=True)
+    uan_number = models.CharField(max_length=50, blank=True)
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    hra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    conveyance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pf_contribution = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    esi_contribution = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    professional_tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tds = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    emergency_contact_name = models.CharField(max_length=100, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    emergency_contact_relation = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.profile.employee_id} - {self.profile.user.get_full_name() or self.profile.user.username}"
+
+    @property
+    def gross_salary(self):
+        return self.basic_salary + self.hra + self.conveyance + self.special_allowance
+
+    @property
+    def total_deductions(self):
+        return self.pf_contribution + self.esi_contribution + self.professional_tax + self.tds
+
+    @property
+    def net_salary(self):
+        return self.gross_salary - self.total_deductions
+
+
+class TrainingProgram(models.Model):
+    class TrainingType(models.TextChoices):
+        INTERNAL = 'INTERNAL', 'Internal Training'
+        EXTERNAL = 'EXTERNAL', 'External Training'
+        ONLINE = 'ONLINE', 'Online Course'
+        ON_JOB = 'ON_JOB', 'On-the-Job Training'
+        CERTIFICATION = 'CERTIFICATION', 'Certification Program'
+
+    class TrainingStatus(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        SCHEDULED = 'SCHEDULED', 'Scheduled'
+        IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+        COMPLETED = 'COMPLETED', 'Completed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    program_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    training_type = models.CharField(max_length=20, choices=TrainingType.choices)
+    skill = models.ForeignKey(Skill, on_delete=models.SET_NULL, null=True, blank=True, related_name='training_programs')
+    target_skill_level = models.CharField(max_length=20, choices=SkillLevel.choices, null=True, blank=True)
+    trainer_name = models.CharField(max_length=100, blank=True)
+    trainer_organization = models.CharField(max_length=200, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='training_programs')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    duration_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    max_participants = models.IntegerField(default=0)
+    cost_per_participant = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=TrainingStatus.choices, default=TrainingStatus.DRAFT)
+    passing_criteria = models.TextField(blank=True)
+    materials_link = models.URLField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_trainings')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    def __str__(self):
+        return f"{self.program_id} - {self.name}"
+
+
+class TrainingEnrollment(models.Model):
+    class EnrollmentStatus(models.TextChoices):
+        ENROLLED = 'ENROLLED', 'Enrolled'
+        IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+        COMPLETED = 'COMPLETED', 'Completed'
+        FAILED = 'FAILED', 'Failed'
+        WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
+        NO_SHOW = 'NO_SHOW', 'No Show'
+
+    training = models.ForeignKey(TrainingProgram, on_delete=models.CASCADE, related_name='enrollments')
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='training_enrollments')
+    status = models.CharField(max_length=20, choices=EnrollmentStatus.choices, default=EnrollmentStatus.ENROLLED)
+    enrolled_at = models.DateTimeField(auto_now_add=True, null=True)
+    enrolled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='enrolled_trainings')
+    completion_date = models.DateField(null=True, blank=True)
+    assessment_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    attendance_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    certificate_number = models.CharField(max_length=100, blank=True)
+    certificate_issued = models.BooleanField(default=False)
+    feedback = models.TextField(blank=True)
+    skill_upgrade_applied = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ['training', 'employee']
+        ordering = ['-enrolled_at']
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.training.name}"
+
+
+class SkillRequirement(models.Model):
+    task = models.ForeignKey('Task', on_delete=models.CASCADE, related_name='skill_requirements')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='task_requirements')
+    min_level = models.CharField(max_length=20, choices=SkillLevel.choices)
+    is_mandatory = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['task', 'skill']
+
+    def __str__(self):
+        return f"{self.task.name} requires {self.skill.name} ({self.min_level})"
+
+
+class IncentiveType(models.TextChoices):
+    PER_JOB = 'PER_JOB', 'Per Job Completion'
+    SKILL_BONUS = 'SKILL_BONUS', 'Skill-Based Bonus'
+    QUALITY_BONUS = 'QUALITY_BONUS', 'Quality Bonus'
+    EFFICIENCY_BONUS = 'EFFICIENCY_BONUS', 'Efficiency Bonus'
+    CERTIFICATION_BONUS = 'CERTIFICATION_BONUS', 'Certification Bonus'
+    REWORK_PENALTY = 'REWORK_PENALTY', 'Rework Penalty'
+    ATTENDANCE_BONUS = 'ATTENDANCE_BONUS', 'Attendance Bonus'
+
+
+class IncentiveRule(models.Model):
+    rule_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    incentive_type = models.CharField(max_length=30, choices=IncentiveType.choices)
+    skill = models.ForeignKey(Skill, on_delete=models.SET_NULL, null=True, blank=True, related_name='incentive_rules')
+    skill_level = models.CharField(max_length=20, choices=SkillLevel.choices, null=True, blank=True)
+    base_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    min_quality_score = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    max_rework_allowed = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    effective_from = models.DateField()
+    effective_to = models.DateField(null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='incentive_rules')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['incentive_type', 'name']
+
+    def __str__(self):
+        return f"{self.rule_id} - {self.name}"
+
+
+class EmployeeIncentive(models.Model):
+    class IncentiveStatus(models.TextChoices):
+        CALCULATED = 'CALCULATED', 'Calculated'
+        APPROVED = 'APPROVED', 'Approved'
+        PAID = 'PAID', 'Paid'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='incentives')
+    rule = models.ForeignKey(IncentiveRule, on_delete=models.SET_NULL, null=True, related_name='applications')
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_incentives')
+    task = models.ForeignKey('Task', on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_incentives')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    base_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bonus_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    penalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    quality_score = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    jobs_count = models.IntegerField(default=0)
+    rework_count = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, choices=IncentiveStatus.choices, default=IncentiveStatus.CALCULATED)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_incentives')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-period_end', '-created_at']
+
+    def save(self, *args, **kwargs):
+        self.net_amount = self.base_amount + self.bonus_amount - self.penalty_amount
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.net_amount} ({self.period_start} to {self.period_end})"
+
+
+class HRAttendance(models.Model):
+    class AttendanceStatus(models.TextChoices):
+        PRESENT = 'PRESENT', 'Present'
+        ABSENT = 'ABSENT', 'Absent'
+        HALF_DAY = 'HALF_DAY', 'Half Day'
+        LATE = 'LATE', 'Late'
+        ON_LEAVE = 'ON_LEAVE', 'On Leave'
+        HOLIDAY = 'HOLIDAY', 'Holiday'
+        WEEK_OFF = 'WEEK_OFF', 'Week Off'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='hr_attendance_records')
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=AttendanceStatus.choices, default=AttendanceStatus.PRESENT)
+    check_in_time = models.TimeField(null=True, blank=True)
+    check_out_time = models.TimeField(null=True, blank=True)
+    break_duration_minutes = models.IntegerField(default=0)
+    overtime_minutes = models.IntegerField(default=0)
+    total_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    productive_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    is_remote = models.BooleanField(default=False)
+    remarks = models.TextField(blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_attendance')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['employee', 'date']
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.date} - {self.status}"
+
+
+class LeaveType(models.Model):
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    annual_quota = models.IntegerField(default=0)
+    is_paid = models.BooleanField(default=True)
+    can_carry_forward = models.BooleanField(default=False)
+    max_carry_forward = models.IntegerField(default=0)
+    requires_approval = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class LeaveBalance(models.Model):
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='leave_balances')
+    leave_type = models.ForeignKey(LeaveType, on_delete=models.CASCADE, related_name='balances')
+    year = models.IntegerField()
+    opening_balance = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    accrued = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    used = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    lapsed = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    carried_forward = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = ['employee', 'leave_type', 'year']
+
+    @property
+    def available_balance(self):
+        return self.opening_balance + self.accrued + self.carried_forward - self.used - self.lapsed
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.leave_type.code} ({self.year}): {self.available_balance}"
+
+
+class LeaveRequest(models.Model):
+    class LeaveStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Approval'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='leave_requests')
+    leave_type = models.ForeignKey(LeaveType, on_delete=models.CASCADE, related_name='requests')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    days_count = models.DecimalField(max_digits=4, decimal_places=1, default=1)
+    is_half_day = models.BooleanField(default=False)
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=LeaveStatus.choices, default=LeaveStatus.PENDING)
+    applied_at = models.DateTimeField(auto_now_add=True, null=True)
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_leaves')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-applied_at']
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.leave_type.code} ({self.start_date} to {self.end_date})"
+
+
+class Holiday(models.Model):
+    name = models.CharField(max_length=100)
+    date = models.DateField()
+    is_optional = models.BooleanField(default=False)
+    branches = models.ManyToManyField(Branch, related_name='holidays', blank=True)
+    year = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['date']
+        unique_together = ['name', 'date']
+
+    def __str__(self):
+        return f"{self.name} - {self.date}"
+
+
+class HRShift(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20, unique=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    break_duration_minutes = models.IntegerField(default=60)
+    grace_period_minutes = models.IntegerField(default=15)
+    is_night_shift = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='hr_shifts')
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class EmployeeShift(models.Model):
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='hr_shift_assignments')
+    shift = models.ForeignKey(HRShift, on_delete=models.CASCADE, related_name='employees')
+    effective_from = models.DateField()
+    effective_to = models.DateField(null=True, blank=True)
+    is_current = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-effective_from']
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.shift.name}"
+
+
+class SkillAuditLog(models.Model):
+    class AuditAction(models.TextChoices):
+        SKILL_ADDED = 'SKILL_ADDED', 'Skill Added'
+        SKILL_UPDATED = 'SKILL_UPDATED', 'Skill Updated'
+        SKILL_REMOVED = 'SKILL_REMOVED', 'Skill Removed'
+        LEVEL_UPGRADE = 'LEVEL_UPGRADE', 'Level Upgraded'
+        LEVEL_DOWNGRADE = 'LEVEL_DOWNGRADE', 'Level Downgraded'
+        CERTIFICATION_ADDED = 'CERTIFICATION_ADDED', 'Certification Added'
+        CERTIFICATION_EXPIRED = 'CERTIFICATION_EXPIRED', 'Certification Expired'
+        APPROVAL_GRANTED = 'APPROVAL_GRANTED', 'Approval Granted'
+        APPROVAL_REVOKED = 'APPROVAL_REVOKED', 'Approval Revoked'
+        TRAINING_COMPLETED = 'TRAINING_COMPLETED', 'Training Completed'
+        ASSIGNMENT_OVERRIDE = 'ASSIGNMENT_OVERRIDE', 'Assignment Override'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='skill_audit_logs')
+    skill = models.ForeignKey(Skill, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    action = models.CharField(max_length=30, choices=AuditAction.choices)
+    old_value = models.JSONField(null=True, blank=True)
+    new_value = models.JSONField(null=True, blank=True)
+    reason = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='skill_audit_actions')
+    timestamp = models.DateTimeField(auto_now_add=True, null=True)
+    job_card = models.ForeignKey('JobCard', on_delete=models.SET_NULL, null=True, blank=True, related_name='skill_audit_logs')
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.action} - {self.employee.user.username} - {self.timestamp}"
+
+
+class Payroll(models.Model):
+    class PayrollStatus(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        CALCULATED = 'CALCULATED', 'Calculated'
+        APPROVED = 'APPROVED', 'Approved'
+        PAID = 'PAID', 'Paid'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='payroll_records')
+    month = models.IntegerField()
+    year = models.IntegerField()
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    hra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    conveyance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    incentive_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bonus_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    pf_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    esi_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    professional_tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tds_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    loan_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    other_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    days_worked = models.IntegerField(default=0)
+    days_absent = models.IntegerField(default=0)
+    lop_days = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, choices=PayrollStatus.choices, default=PayrollStatus.DRAFT)
+    calculated_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_payrolls')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        unique_together = ['employee', 'month', 'year']
+        ordering = ['-year', '-month']
+
+    def save(self, *args, **kwargs):
+        self.gross_salary = (self.basic_salary + self.hra + self.conveyance + 
+                            self.special_allowance + self.overtime_amount + 
+                            self.incentive_amount + self.bonus_amount)
+        self.total_deductions = (self.pf_deduction + self.esi_deduction + 
+                                 self.professional_tax + self.tds_deduction + 
+                                 self.loan_deduction + self.other_deductions)
+        self.net_salary = self.gross_salary - self.total_deductions
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.month}/{self.year} - {self.net_salary}"

@@ -1,0 +1,159 @@
+MASTER PROMPT — ENTERPRISE HRMS MODULE
+(Attendance | Payroll | Incentives | Skill Management | Productivity | Compliance)
+ROLE & OBJECTIVE
+You are a senior HR + Operations product engineering team (HR SME, Service SME, Solution Architect, Backend Lead, Frontend Lead, QA Lead) responsible for designing and implementing a complete enterprise-level HRMS module for an Automobile Car & Bike Service Management System.
+This HRMS must not function in isolation.
+It must actively control who can work on what, based on skills, certifications, and competency, ensuring service quality, safety, and accountability.
+1. CORE HR & SKILL PRINCIPLES (NON-NEGOTIABLE)
+No skill → no assignment
+No certification → no critical job
+Skills must match job card requirements
+Skill gaps must be visible to management
+Skill data must directly impact productivity & incentives
+2. HRMS MODULE SCOPE (WITH SKILL MANAGEMENT)
+The HRMS must cover:
+Employee master & lifecycle
+Attendance & shift management
+Leave & holiday management
+Payroll processing
+Incentives & commissions
+Skill & competency management (NEW – CORE)
+Technician productivity & utilization
+Training & certification tracking
+Compliance & audit
+Performance & appraisal
+3. EMPLOYEE MASTER (ENHANCED WITH SKILLS)
+Each employee record must include:
+Employee ID
+Role & designation
+Department (Service, Sales, Accounts, Inventory, HR)
+Branch assignment
+Reporting manager
+Employment type
+Joining date
+Primary skill category (mandatory)
+Secondary skills (optional)
+Bank & payroll details
+Statutory IDs
+Active / inactive status
+4. SKILL MANAGEMENT MODULE (CORE ADDITION)
+4.1 Skill Master (Central Repository)
+Create a Skill Master with:
+Skill ID
+Skill name (e.g., Engine Repair, EV Diagnostics, Brake System, AC Service)
+Skill category:
+Mechanical
+Electrical
+Electronics
+EV / Hybrid
+Body & Paint
+Skill level:
+Beginner
+Intermediate
+Advanced
+Expert
+Certification required (Yes / No)
+Risk level (Low / Medium / High)
+4.2 Employee Skill Mapping
+For each employee / technician:
+Skill mapped from Skill Master
+Skill level achieved
+Certification reference (if applicable)
+Certification validity start & expiry date
+Skill approval status (HR / Manager approved)
+⚠️ Skills without approval must not be considered valid
+4.3 Skill-Based Job Assignment (MANDATORY INTEGRATION)
+Integrate skill management with Service Operations & Job Cards:
+Each job card task must define:
+Required skill(s)
+Minimum skill level
+System must:
+Auto-suggest eligible technicians
+Block assignment if skill not matched
+Warn if certification expired
+Manual override allowed only with manager approval & reason
+5. SKILL IMPACT ON SERVICE & QUALITY
+Track:
+Jobs completed per skill
+Rework count per skill
+Failure rate per skill
+Identify:
+Skill-related quality issues
+Overloaded high-skill technicians
+Underutilized skilled resources
+6. TRAINING & UPSKILLING MANAGEMENT
+Training Records
+Training program name
+Skill covered
+Trainer / institute
+Training duration
+Completion status
+Skill Upgrade Flow
+Skill gap identified
+Training assigned
+Skill level updated after assessment
+Approval & audit log
+7. CERTIFICATION & COMPLIANCE TRACKING
+Certification expiry alerts
+Compliance blocking:
+Expired certification → cannot assign job
+Certification history
+Audit-ready documentation
+8. SKILL-BASED INCENTIVES (INTEGRATION)
+Incentive calculation must consider:
+Skill level
+Complexity of job
+Certification requirement
+Rework penalty
+Quality score
+Example:
+Advanced / certified skill → higher incentive
+Rework on certified job → penalty
+9. SKILL & PRODUCTIVITY DASHBOARDS
+HR / Service Manager Dashboard
+Skill availability matrix
+Skill gap analysis
+Certification expiry alerts
+Training requirement summary
+Management Dashboard
+Skill vs revenue contribution
+Skill-based productivity
+Risk exposure due to skill shortage
+10. ACCESS CONTROL & GOVERNANCE
+Technician:
+View own skills & certifications
+Supervisor:
+Recommend skill updates
+HR:
+Approve skills & certifications
+Manager:
+Override skill-based assignment (with audit)
+All changes must be:
+Time-stamped
+User-tracked
+Non-editable without audit trail
+11. BACKEND DESIGN (HIGH-LEVEL)
+Key entities:
+Employee
+Skill
+EmployeeSkill
+Certification
+Training
+SkillRequirement (Job Card)
+SkillAuditLog
+Business rules enforced at service layer, not UI.
+12. FINAL VALIDATION RULES
+After implementation:
+✅ Technicians only do skilled work
+✅ Skill gaps are visible
+✅ Training is data-driven
+✅ Quality issues traceable to skills
+✅ Incentives reward competence
+✅ Compliance risks minimized
+13. FINAL INSTRUCTION
+Build this HRMS + Skill Management module as if it will be:
+Audited for safety & compliance
+Used to assign critical vehicle work
+Scaled across multiple branches
+Integrated deeply with service quality & profitability
+This is a competency control system, not just HR software.
