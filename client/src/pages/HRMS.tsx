@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -305,30 +306,34 @@ export default function HRMS() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 px-6 py-4 border-b bg-background">
-        <div>
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">HRMS</h1>
-          <p className="text-sm text-muted-foreground">
-            Human Resource Management & Skill Tracking
-          </p>
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar />
+      <main className="ml-64 flex-1 p-6">
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">HRMS</h1>
+              <p className="text-muted-foreground">
+                Human Resource Management & Skill Tracking
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => {
+                  refetchSkills();
+                  queryClient.invalidateQueries({ queryKey: ["/api/hrms/"] });
+                }}
+                data-testid="button-refresh"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => {
-              refetchSkills();
-              queryClient.invalidateQueries({ queryKey: ["/api/hrms/"] });
-            }}
-            data-testid="button-refresh"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
 
-      <div className="flex-1 overflow-auto p-6">
+        <div className="space-y-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="grid grid-cols-6 w-full max-w-4xl">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
@@ -916,7 +921,8 @@ export default function HRMS() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
