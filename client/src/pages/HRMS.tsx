@@ -201,12 +201,17 @@ function getConfigOptions(config: ConfigData | undefined, category: string, fall
   return config?.[category]?.options || fallback;
 }
 
+const DEFAULT_STATUS_COLOR = "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+
 function getStatusConfig(config: ConfigData | undefined, category: string, fallback: Record<string, { label: string; color: string }>): Record<string, { label: string; color: string }> {
   const options = config?.[category]?.options;
   if (!options) return fallback;
   
   return options.reduce((acc, opt) => {
-    acc[opt.value] = { label: opt.label, color: opt.color || "" };
+    acc[opt.value] = { 
+      label: opt.label, 
+      color: opt.color || fallback[opt.value]?.color || DEFAULT_STATUS_COLOR 
+    };
     return acc;
   }, {} as Record<string, { label: string; color: string }>);
 }
