@@ -143,7 +143,24 @@ interface SkillMatrix {
   }>;
 }
 
-const SKILL_CATEGORIES = [
+interface ConfigOption {
+  value: string;
+  label: string;
+  color?: string;
+  icon?: string;
+  metadata?: Record<string, unknown>;
+  is_default?: boolean;
+}
+
+interface ConfigData {
+  [categoryCode: string]: {
+    name: string;
+    module: string;
+    options: ConfigOption[];
+  };
+}
+
+const FALLBACK_SKILL_CATEGORIES = [
   { value: "MECHANICAL", label: "Mechanical" },
   { value: "ELECTRICAL", label: "Electrical" },
   { value: "ELECTRONICS", label: "Electronics & Diagnostics" },
@@ -152,7 +169,7 @@ const SKILL_CATEGORIES = [
   { value: "SOFT_SKILLS", label: "Soft Skills" },
 ];
 
-const SKILL_LEVELS = [
+const FALLBACK_SKILL_LEVELS = [
   { value: "BEGINNER", label: "Beginner", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" },
   { value: "INTERMEDIATE", label: "Intermediate", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   { value: "ADVANCED", label: "Advanced", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
@@ -160,25 +177,39 @@ const SKILL_LEVELS = [
   { value: "MASTER", label: "Master", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
 ];
 
-const APPROVAL_STATUS = {
+const FALLBACK_APPROVAL_STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   APPROVED: { label: "Approved", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
 };
 
-const TRAINING_STATUS = {
+const FALLBACK_TRAINING_STATUS: Record<string, { label: string; color: string }> = {
   PLANNED: { label: "Planned", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" },
   ONGOING: { label: "Ongoing", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   COMPLETED: { label: "Completed", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   CANCELLED: { label: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
 };
 
-const LEAVE_STATUS = {
+const FALLBACK_LEAVE_STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   APPROVED: { label: "Approved", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
   CANCELLED: { label: "Cancelled", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" },
 };
+
+function getConfigOptions(config: ConfigData | undefined, category: string, fallback: ConfigOption[]): ConfigOption[] {
+  return config?.[category]?.options || fallback;
+}
+
+function getStatusConfig(config: ConfigData | undefined, category: string, fallback: Record<string, { label: string; color: string }>): Record<string, { label: string; color: string }> {
+  const options = config?.[category]?.options;
+  if (!options) return fallback;
+  
+  return options.reduce((acc, opt) => {
+    acc[opt.value] = { label: opt.label, color: opt.color || "" };
+    return acc;
+  }, {} as Record<string, { label: string; color: string }>);
+}
 
 export default function HRMS() {
   const { toast } = useToast();
@@ -238,6 +269,17 @@ export default function HRMS() {
   const { data: skillMatrix, isLoading: matrixLoading } = useQuery<SkillMatrix>({
     queryKey: ["/api/hrms/skill-matrix/"],
   });
+
+  const { data: configData } = useQuery<ConfigData>({
+    queryKey: ["/api/config/categories/all_options/"],
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const SKILL_CATEGORIES = getConfigOptions(configData, "SKILL_CATEGORIES", FALLBACK_SKILL_CATEGORIES);
+  const SKILL_LEVELS = getConfigOptions(configData, "SKILL_LEVELS", FALLBACK_SKILL_LEVELS);
+  const APPROVAL_STATUS = getStatusConfig(configData, "APPROVAL_STATUS", FALLBACK_APPROVAL_STATUS);
+  const TRAINING_STATUS = getStatusConfig(configData, "TRAINING_STATUS", FALLBACK_TRAINING_STATUS);
+  const LEAVE_STATUS = getStatusConfig(configData, "LEAVE_STATUS", FALLBACK_LEAVE_STATUS);
 
   const createSkillMutation = useMutation({
     mutationFn: (data: typeof newSkill) => 
