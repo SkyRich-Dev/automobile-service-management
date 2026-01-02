@@ -254,7 +254,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         ).select_related(
             'customer', 'service_advisor', 'lead_technician', 'branch'
         ).prefetch_related(
-            'events', 'tasks', 'estimates', 'invoices'
+            'timeline_events', 'tasks', 'estimates'
         ).order_by('-created_at')
         
         year_filter = request.query_params.get('year')
@@ -270,7 +270,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         
         timeline_events = []
         for jc in job_cards:
-            events = jc.events.all().order_by('-created_at')
+            events = jc.timeline_events.all().order_by('-created_at')
             event_list = []
             for event in events:
                 event_list.append({
@@ -289,8 +289,12 @@ class VehicleViewSet(viewsets.ModelViewSet):
             estimates = jc.estimates.all()
             estimate_list = [{'id': e.id, 'estimate_number': e.estimate_number, 'grand_total': float(e.grand_total), 'approval_status': e.approval_status} for e in estimates]
             
-            invoices = jc.invoices.all()
-            invoice_list = [{'id': i.id, 'invoice_number': i.invoice_number, 'grand_total': float(i.grand_total), 'payment_status': i.payment_status} for i in invoices]
+            invoice_list = []
+            try:
+                inv = jc.invoice
+                invoice_list = [{'id': inv.id, 'invoice_number': inv.invoice_number, 'grand_total': float(inv.grand_total), 'payment_status': inv.payment_status}]
+            except JobCard.invoice.RelatedObjectDoesNotExist:
+                pass
             
             timeline_events.append({
                 'id': jc.id,
