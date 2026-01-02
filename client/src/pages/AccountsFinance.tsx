@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -271,9 +272,32 @@ function LoadingSkeleton() {
 
 export default function AccountsFinance() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
+  const searchString = useSearch();
+
+  const getTabFromSearch = useCallback((search: string) => {
+    const params = new URLSearchParams(search);
+    return params.get("tab") || "dashboard";
+  }, []);
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const initialSearch = typeof window !== 'undefined' ? window.location.search : '';
+    return getTabFromSearch(initialSearch);
+  });
+
+  const [, setLocation] = useLocation();
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    setLocation(`/accounts-finance?tab=${tab}`, { replace: true });
+  };
+
+  useEffect(() => {
+    if (searchString) {
+      setActiveTabState(getTabFromSearch(searchString));
+    }
+  }, [searchString, getTabFromSearch]);
 
   const { data: dashboard, isLoading: dashboardLoading } = useQuery<FinanceDashboard>({
     queryKey: ["/api/finance/dashboard/"],
