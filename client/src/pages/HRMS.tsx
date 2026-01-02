@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -180,9 +181,29 @@ const LEAVE_STATUS = {
 
 export default function HRMS() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
+  const search = useSearch();
+  const [, setLocation] = useLocation();
+  
+  const getTabFromSearch = () => {
+    const params = new URLSearchParams(search);
+    return params.get("tab") || "overview";
+  };
+  
+  const [activeTab, setActiveTab] = useState(getTabFromSearch);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
+  
+  useEffect(() => {
+    const tab = getTabFromSearch();
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [search]);
+  
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setLocation(`/hrms?tab=${tab}`, { replace: true });
+  };
   const [newSkill, setNewSkill] = useState({
     name: "",
     code: "",
@@ -219,7 +240,7 @@ export default function HRMS() {
 
   const createSkillMutation = useMutation({
     mutationFn: (data: typeof newSkill) => 
-      apiRequest("/api/hrms/skills/", { method: "POST", body: JSON.stringify(data) }),
+      apiRequest("POST", "/api/hrms/skills/", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/skills/"] });
       toast({ title: "Skill created successfully" });
@@ -241,7 +262,7 @@ export default function HRMS() {
 
   const approveLeaveRequest = useMutation({
     mutationFn: (id: number) => 
-      apiRequest(`/api/hrms/leave-requests/${id}/approve/`, { method: "POST" }),
+      apiRequest("POST", `/api/hrms/leave-requests/${id}/approve/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/leave-requests/"] });
       toast({ title: "Leave request approved" });
@@ -250,10 +271,7 @@ export default function HRMS() {
 
   const rejectLeaveRequest = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) => 
-      apiRequest(`/api/hrms/leave-requests/${id}/reject/`, { 
-        method: "POST", 
-        body: JSON.stringify({ reason }) 
-      }),
+      apiRequest("POST", `/api/hrms/leave-requests/${id}/reject/`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/leave-requests/"] });
       toast({ title: "Leave request rejected" });
@@ -311,7 +329,7 @@ export default function HRMS() {
       </header>
 
       <div className="flex-1 overflow-auto p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="grid grid-cols-6 w-full max-w-4xl">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="skills" data-testid="tab-skills">Skills</TabsTrigger>

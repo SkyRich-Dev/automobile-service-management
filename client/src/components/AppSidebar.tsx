@@ -286,13 +286,21 @@ export function AppSidebar() {
                       <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border pl-3">
                         {item.subItems!.map((subItem) => {
                           const SubIcon = subItem.icon;
+                          const isSubActive = location === subItem.path || 
+                            (location.includes(subItem.path.split('?')[0]) && 
+                             location.includes(subItem.path.split('?')[1]?.replace('tab=', '') || ''));
                           return (
                             <Link 
                               key={subItem.text} 
                               href={subItem.path}
                             >
                               <div
-                                className="sidebar-sub-item group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                                className={cn(
+                                  "sidebar-sub-item group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                                  isSubActive 
+                                    ? "bg-sidebar-accent text-sidebar-foreground font-medium" 
+                                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                                )}
                                 data-testid={`nav-sub-${subItem.text.toLowerCase().replace(/\s+/g, '-')}`}
                               >
                                 <SubIcon className="h-3.5 w-3.5" />
