@@ -26,6 +26,11 @@ import {
   FileText,
   BookOpen,
   PieChart,
+  UserCheck,
+  GraduationCap,
+  Award,
+  CalendarDays,
+  Target,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -136,6 +141,20 @@ const menuItems: MenuItem[] = [
       { text: "Expenses", icon: FileText, path: "/accounts-finance?tab=expenses" },
       { text: "Receivables", icon: Wallet, path: "/accounts-finance?tab=receivables" },
       { text: "Chart of Accounts", icon: BookOpen, path: "/accounts-finance?tab=accounts" },
+    ]
+  },
+  { 
+    text: "HRMS", 
+    icon: UserCheck, 
+    path: "/hrms",
+    allowedRoles: [...ADMIN_ROLES, 'HR_MANAGER'],
+    subItems: [
+      { text: "Overview", icon: PieChart, path: "/hrms?tab=overview" },
+      { text: "Skills", icon: Award, path: "/hrms?tab=skills" },
+      { text: "Employees", icon: Users, path: "/hrms?tab=employees" },
+      { text: "Training", icon: GraduationCap, path: "/hrms?tab=training" },
+      { text: "Leave Management", icon: CalendarDays, path: "/hrms?tab=leave" },
+      { text: "Skill Matrix", icon: Target, path: "/hrms?tab=matrix" },
     ]
   },
   { 

@@ -18,6 +18,7 @@ import PODetail from "@/pages/PODetail";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
 import AccountsFinance from "@/pages/AccountsFinance";
+import HRMS from "@/pages/HRMS";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
@@ -112,7 +113,7 @@ function Router() {
       <Route path="/accounts-finance" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
-      <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/hrms" component={() => <ProtectedRoute component={HRMS} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route component={NotFound} />
     </Switch>
