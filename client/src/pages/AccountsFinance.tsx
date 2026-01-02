@@ -280,11 +280,11 @@ export default function AccountsFinance() {
   });
 
   const { data: invoices, isLoading: invoicesLoading } = useQuery<EnhancedInvoice[]>({
-    queryKey: ["/api/finance/enhanced-invoices/", invoiceStatusFilter],
+    queryKey: ["/api/finance/enhanced-invoices/"],
   });
 
   const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
-    queryKey: ["/api/finance/expenses/", expenseStatusFilter],
+    queryKey: ["/api/finance/expenses/"],
   });
 
   const { data: receivables } = useQuery<CustomerReceivable[]>({
