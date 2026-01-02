@@ -1,9 +1,15 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useJobCards, useTransitionJobCard, useCreateJobCard, useServiceEvents } from "@/hooks/use-job-cards";
 import { useCustomers, useVehicles } from "@/hooks/use-crm";
 import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +54,7 @@ import {
   ArrowRight,
   Clock,
   Car,
+  Bike,
   User,
   DollarSign,
   Loader2,
@@ -57,10 +64,29 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
+  History,
+  Search,
+  Filter,
+  ArrowLeft,
+  FileText,
+  Receipt,
+  Gauge,
+  Shield,
+  TrendingUp,
+  IndianRupee,
+  Wrench,
+  CheckCircle2,
+  AlertCircle,
+  Star,
+  MapPin,
+  Calendar,
+  ChevronRight,
 } from "lucide-react";
 import {
   WORKFLOW_STAGES,
   WORKFLOW_STAGE_DEFINITIONS,
+  STAGE_BADGE_COLORS,
+  BUSINESS_RULES,
   getStageConfig,
   getStageLabel,
   getEventTypeConfig,
@@ -71,7 +97,7 @@ import {
   UI_CONFIG,
 } from "@/config";
 
-type ViewMode = "kanban" | "list" | "activity";
+type ViewMode = "kanban" | "list" | "activity" | "history";
 type SortField = "job_card_number" | "customer_name" | "workflow_stage" | "priority" | "created_at" | "estimated_amount";
 type SortDirection = "asc" | "desc";
 
@@ -755,6 +781,515 @@ function KanbanView({ jobCards, onTransition, isPending }: KanbanViewProps) {
   );
 }
 
+interface HistoryVehicle {
+  id: number;
+  vehicle_id: string;
+  plate_number: string;
+  make: string;
+  model: string;
+  variant: string | null;
+  year: number | null;
+  color: string | null;
+  current_odometer: number;
+  vehicle_type: string;
+  customer: { id: number; name: string; phone: string };
+}
+
+interface HistoryServiceEvent {
+  id: number;
+  event_type: string;
+  actor: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  comment: string | null;
+  created_at: string | null;
+}
+
+interface HistoryTask {
+  id: number;
+  name: string;
+  status: string;
+  labor_cost: number;
+}
+
+interface HistoryEstimate {
+  id: number;
+  estimate_number: string;
+  grand_total: number;
+  approval_status: string;
+}
+
+interface HistoryInvoice {
+  id: number;
+  invoice_number: string;
+  grand_total: number;
+  payment_status: string;
+}
+
+interface HistoryTimelineItem {
+  id: number;
+  job_card_number: string;
+  service_tracking_id: string;
+  workflow_stage: string;
+  job_type: string;
+  priority: string;
+  complaint: string | null;
+  diagnosis: string | null;
+  odometer_in: number;
+  odometer_out: number | null;
+  estimated_amount: number;
+  actual_amount: number;
+  is_warranty: boolean;
+  is_amc: boolean;
+  customer_rating: number | null;
+  customer_feedback: string | null;
+  created_at: string | null;
+  promised_delivery: string | null;
+  actual_delivery: string | null;
+  branch: { id: number; name: string } | null;
+  service_advisor: string | null;
+  lead_technician: string | null;
+  events: HistoryServiceEvent[];
+  tasks: HistoryTask[];
+  estimates: HistoryEstimate[];
+  invoices: HistoryInvoice[];
+}
+
+interface ServiceHistoryData {
+  vehicle: HistoryVehicle;
+  summary: {
+    total_services: number;
+    completed_services: number;
+    total_spent: number;
+    average_rating: number;
+    warranty_services: number;
+    amc_services: number;
+  };
+  available_years: number[];
+  timeline: HistoryTimelineItem[];
+}
+
+function HistoryVehicleSelector({
+  onSelect,
+  selectedId,
+}: {
+  onSelect: (id: number) => void;
+  selectedId: number | null;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const vehicleUrl = searchTerm ? `/api/vehicles/?search=${encodeURIComponent(searchTerm)}` : "/api/vehicles/";
+  const { data: vehicles, isLoading } = useQuery<HistoryVehicle[]>({
+    queryKey: [vehicleUrl],
+  });
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-4">
+        <div className="flex items-center gap-2">
+          <Search className="h-5 w-5 text-muted-foreground" />
+          <span className="font-semibold">Search Vehicle for Service History</span>
+        </div>
+        <Input
+          placeholder="Search by plate number, make, or model..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          data-testid="input-history-vehicle-search"
+        />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <div className="max-h-96 space-y-2 overflow-y-auto">
+            {vehicles?.map((vehicle) => (
+              <div
+                key={vehicle.id}
+                onClick={() => onSelect(vehicle.id)}
+                className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors hover-elevate ${
+                  selectedId === vehicle.id ? "border-primary bg-primary/5" : "border-border"
+                }`}
+                data-testid={`history-vehicle-card-${vehicle.id}`}
+              >
+                {vehicle.vehicle_type === "BIKE" ? (
+                  <Bike className="h-8 w-8 text-muted-foreground" />
+                ) : (
+                  <Car className="h-8 w-8 text-muted-foreground" />
+                )}
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {vehicle.year} {vehicle.make} {vehicle.model}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{vehicle.plate_number}</span>
+                    <span className="text-xs">|</span>
+                    <span>{vehicle.customer?.name}</span>
+                  </div>
+                </div>
+                <Badge variant="outline">{vehicle.vehicle_type}</Badge>
+              </div>
+            ))}
+            {vehicles?.length === 0 && (
+              <div className="py-8 text-center text-muted-foreground">No vehicles found</div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HistorySummaryCards({ summary }: { summary: ServiceHistoryData["summary"] }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <Wrench className="mb-2 h-6 w-6 text-blue-500" />
+          <div className="text-2xl font-bold">{summary.total_services}</div>
+          <div className="text-xs text-muted-foreground">Total Services</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <CheckCircle2 className="mb-2 h-6 w-6 text-green-500" />
+          <div className="text-2xl font-bold">{summary.completed_services}</div>
+          <div className="text-xs text-muted-foreground">Completed</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <IndianRupee className="mb-2 h-6 w-6 text-amber-500" />
+          <div className="text-2xl font-bold">
+            {BUSINESS_RULES.CURRENCY_SYMBOL}
+            {summary.total_spent.toLocaleString()}
+          </div>
+          <div className="text-xs text-muted-foreground">Total Spent</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <Star className="mb-2 h-6 w-6 text-yellow-500" />
+          <div className="text-2xl font-bold">{summary.average_rating || "-"}</div>
+          <div className="text-xs text-muted-foreground">Avg Rating</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <Shield className="mb-2 h-6 w-6 text-purple-500" />
+          <div className="text-2xl font-bold">{summary.warranty_services}</div>
+          <div className="text-xs text-muted-foreground">Warranty</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col items-center p-4">
+          <TrendingUp className="mb-2 h-6 w-6 text-cyan-500" />
+          <div className="text-2xl font-bold">{summary.amc_services}</div>
+          <div className="text-xs text-muted-foreground">AMC</div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const stageConfig = WORKFLOW_STAGE_DEFINITIONS[item.workflow_stage];
+  const stageBadgeColor =
+    STAGE_BADGE_COLORS[item.workflow_stage] ||
+    "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200";
+
+  return (
+    <div className="relative pl-8">
+      <div className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Wrench className="h-3 w-3" />
+      </div>
+      <div className="absolute bottom-0 left-[11px] top-6 w-0.5 bg-border" />
+
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <Card className="mb-4">
+          <CollapsibleTrigger asChild>
+            <div className="cursor-pointer p-4 pb-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={`/job-cards/${item.id}`}>
+                        <span className="font-semibold text-primary hover:underline" data-testid={`link-history-job-card-${item.id}`}>
+                          {item.job_card_number}
+                        </span>
+                      </Link>
+                      <Badge className={stageBadgeColor}>{stageConfig?.label || item.workflow_stage}</Badge>
+                      {item.is_warranty && (
+                        <Badge variant="outline" className="border-purple-500 text-purple-600">Warranty</Badge>
+                      )}
+                      {item.is_amc && (
+                        <Badge variant="outline" className="border-cyan-500 text-cyan-600">AMC</Badge>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {item.created_at ? format(new Date(item.created_at), "dd MMM yyyy") : "-"}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Gauge className="h-3 w-3" />
+                        {item.odometer_in.toLocaleString()} km
+                      </span>
+                      {item.branch && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {item.branch.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold">
+                    {BUSINESS_RULES.CURRENCY_SYMBOL}
+                    {item.actual_amount.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">{item.job_type}</div>
+                </div>
+              </div>
+            </div>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent>
+            <CardContent className="space-y-4 border-t pt-4">
+              {item.complaint && (
+                <div>
+                  <div className="mb-1 text-sm font-medium">Complaint</div>
+                  <p className="text-sm text-muted-foreground">{item.complaint}</p>
+                </div>
+              )}
+              {item.diagnosis && (
+                <div>
+                  <div className="mb-1 text-sm font-medium">Diagnosis</div>
+                  <p className="text-sm text-muted-foreground">{item.diagnosis}</p>
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-sm font-medium">Service Details</div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Service Advisor</span>
+                      <span>{item.service_advisor || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Lead Technician</span>
+                      <span>{item.lead_technician || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Priority</span>
+                      <span>{item.priority}</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 text-sm font-medium">Financial</div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Estimated</span>
+                      <span>{BUSINESS_RULES.CURRENCY_SYMBOL}{item.estimated_amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Actual</span>
+                      <span>{BUSINESS_RULES.CURRENCY_SYMBOL}{item.actual_amount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {item.tasks.length > 0 && (
+                <div>
+                  <div className="mb-2 text-sm font-medium">Tasks ({item.tasks.length})</div>
+                  <div className="space-y-1">
+                    {item.tasks.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between rounded bg-muted/50 px-2 py-1 text-sm">
+                        <span>{task.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">{task.status}</Badge>
+                          <span className="text-muted-foreground">{BUSINESS_RULES.CURRENCY_SYMBOL}{task.labor_cost}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {item.customer_rating && (
+                <div className="flex items-center gap-2 rounded bg-amber-50 p-2 dark:bg-amber-950/20">
+                  <Star className="h-5 w-5 text-amber-500" />
+                  <span className="font-medium">{item.customer_rating}/5</span>
+                  {item.customer_feedback && (
+                    <span className="text-sm text-muted-foreground">- {item.customer_feedback}</span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Link href={`/job-cards/${item.id}`}>
+                  <Button size="sm" variant="outline" data-testid={`button-history-view-details-${item.id}`}>
+                    <FileText className="mr-1 h-3 w-3" />
+                    View Details
+                  </Button>
+                </Link>
+                {item.invoices.length > 0 && (
+                  <Button size="sm" variant="outline">
+                    <Receipt className="mr-1 h-3 w-3" />
+                    {item.invoices.length} Invoice(s)
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+    </div>
+  );
+}
+
+function ServiceHistoryView() {
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
+
+  const buildHistoryUrl = () => {
+    if (!selectedVehicleId) return "";
+    let url = `/api/vehicles/${selectedVehicleId}/service_history/`;
+    const params = new URLSearchParams();
+    if (yearFilter !== "all") params.append("year", yearFilter);
+    if (stageFilter !== "all") params.append("stage", stageFilter);
+    if (params.toString()) url += `?${params.toString()}`;
+    return url;
+  };
+
+  const { data, isLoading, error } = useQuery<ServiceHistoryData>({
+    queryKey: [buildHistoryUrl()],
+    enabled: !!selectedVehicleId,
+  });
+
+  if (!selectedVehicleId) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <HistoryVehicleSelector onSelect={setSelectedVehicleId} selectedId={selectedVehicleId} />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <AlertCircle className="mb-2 h-12 w-12 text-destructive" />
+        <p className="text-muted-foreground">Failed to load service history</p>
+        <Button variant="outline" className="mt-4" onClick={() => setSelectedVehicleId(null)}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Select Different Vehicle
+        </Button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="flex items-center gap-4">
+            {data.vehicle.vehicle_type === "BIKE" ? (
+              <Bike className="h-10 w-10 text-primary" />
+            ) : (
+              <Car className="h-10 w-10 text-primary" />
+            )}
+            <div>
+              <div className="text-lg font-semibold">
+                {data.vehicle.year} {data.vehicle.make} {data.vehicle.model}
+                {data.vehicle.variant && ` ${data.vehicle.variant}`}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span>{data.vehicle.plate_number}</span>
+                <span className="text-xs">|</span>
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {data.vehicle.customer.name}
+                </span>
+                <span className="text-xs">|</span>
+                <span className="flex items-center gap-1">
+                  <Gauge className="h-3 w-3" />
+                  {data.vehicle.current_odometer.toLocaleString()} km
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-sm">{data.vehicle.color}</Badge>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedVehicleId(null)} data-testid="button-change-history-vehicle">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Change Vehicle
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <HistorySummaryCards summary={data.summary} />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <Select value={yearFilter} onValueChange={setYearFilter}>
+          <SelectTrigger className="w-32" data-testid="select-history-year-filter">
+            <SelectValue placeholder="Year" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Years</SelectItem>
+            {data.available_years.map((year) => (
+              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={stageFilter} onValueChange={setStageFilter}>
+          <SelectTrigger className="w-40" data-testid="select-history-stage-filter">
+            <SelectValue placeholder="Stage" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Stages</SelectItem>
+            {Object.entries(WORKFLOW_STAGE_DEFINITIONS).map(([key, def]) => (
+              <SelectItem key={key} value={key}>{def.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="relative">
+        {data.timeline.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <History className="mb-2 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">No service history found for this vehicle</p>
+          </div>
+        ) : (
+          <div className="space-y-0">
+            {data.timeline.map((item) => (
+              <HistoryTimelineCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ServiceOperations() {
   const { data: jobCards, isLoading, refetch } = useJobCards();
   const transitionMutation = useTransitionJobCard();
@@ -798,6 +1333,7 @@ export default function ServiceOperations() {
               {viewMode === "kanban" && "11-Stage Workflow: Drag jobs through the pipeline or use quick actions"}
               {viewMode === "list" && "View all job cards in a sortable table format"}
               {viewMode === "activity" && "Recent activity timeline across all job cards"}
+              {viewMode === "history" && "Search vehicles and view their complete service history"}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -832,6 +1368,16 @@ export default function ServiceOperations() {
                 <Activity className="h-4 w-4" />
                 Activity
               </Button>
+              <Button
+                variant={viewMode === "history" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setViewMode("history")}
+                data-testid="button-view-history"
+              >
+                <History className="h-4 w-4" />
+                History
+              </Button>
             </div>
             <Button
               className="gap-2"
@@ -861,6 +1407,8 @@ export default function ServiceOperations() {
         )}
 
         {viewMode === "activity" && <ActivityView />}
+
+        {viewMode === "history" && <ServiceHistoryView />}
       </main>
 
       <CreateJobDialog

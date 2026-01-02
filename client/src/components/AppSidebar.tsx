@@ -89,12 +89,6 @@ const menuItems: MenuItem[] = [
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 
-    text: "Service History", 
-    icon: History, 
-    path: "/service-history",
-    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN', 'CRM_EXECUTIVE']
-  },
-  { 
     text: "Appointments", 
     icon: Calendar, 
     path: "/appointments",
