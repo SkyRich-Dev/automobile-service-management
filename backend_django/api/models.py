@@ -3571,3 +3571,49 @@ class Payroll(models.Model):
 
     def __str__(self):
         return f"{self.employee.user.username} - {self.month}/{self.year} - {self.net_salary}"
+
+
+class ConfigCategory(models.Model):
+    """Categories for system configuration options"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    module = models.CharField(max_length=50, default='SYSTEM')
+    display_order = models.IntegerField(default=0)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Config Categories"
+        ordering = ['module', 'display_order', 'name']
+
+    def __str__(self):
+        return f"{self.module} - {self.name}"
+
+
+class ConfigOption(models.Model):
+    """Individual configuration options within categories"""
+    category = models.ForeignKey(ConfigCategory, on_delete=models.CASCADE, related_name='options')
+    code = models.CharField(max_length=50)
+    label = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=100, blank=True)
+    icon = models.CharField(max_length=50, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    display_order = models.IntegerField(default=0)
+    is_default = models.BooleanField(default=False)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['category', 'code']
+        ordering = ['display_order', 'label']
+
+    def __str__(self):
+        return f"{self.category.code} - {self.label}"
+
+
