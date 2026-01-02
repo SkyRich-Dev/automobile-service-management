@@ -2327,3 +2327,698 @@ class TallyConfiguration(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.company_name})"
+
+
+# =====================================================
+# ENTERPRISE ACCOUNTS & FINANCE MODULE
+# =====================================================
+
+class AccountCategory(models.TextChoices):
+    ASSETS = 'ASSETS', 'Assets'
+    LIABILITIES = 'LIABILITIES', 'Liabilities'
+    INCOME = 'INCOME', 'Income'
+    EXPENSES = 'EXPENSES', 'Expenses'
+    EQUITY = 'EQUITY', 'Equity'
+
+
+class AccountType(models.TextChoices):
+    CASH = 'CASH', 'Cash'
+    BANK = 'BANK', 'Bank'
+    RECEIVABLE = 'RECEIVABLE', 'Accounts Receivable'
+    PAYABLE = 'PAYABLE', 'Accounts Payable'
+    INVENTORY = 'INVENTORY', 'Inventory'
+    FIXED_ASSET = 'FIXED_ASSET', 'Fixed Asset'
+    REVENUE = 'REVENUE', 'Revenue'
+    COGS = 'COGS', 'Cost of Goods Sold'
+    EXPENSE = 'EXPENSE', 'Operating Expense'
+    TAX_LIABILITY = 'TAX_LIABILITY', 'Tax Liability'
+    TAX_ASSET = 'TAX_ASSET', 'Tax Asset (Input Credit)'
+    CAPITAL = 'CAPITAL', 'Capital'
+    RETAINED_EARNINGS = 'RETAINED_EARNINGS', 'Retained Earnings'
+    DEFERRED_REVENUE = 'DEFERRED_REVENUE', 'Deferred Revenue'
+
+
+class Account(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=20, choices=AccountCategory.choices)
+    account_type = models.CharField(max_length=30, choices=AccountType.choices)
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='accounts')
+    description = models.TextField(blank=True)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    current_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+        indexes = [
+            models.Index(fields=['category', 'account_type']),
+            models.Index(fields=['branch', 'category']),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class TaxType(models.TextChoices):
+    GST = 'GST', 'GST'
+    CGST = 'CGST', 'Central GST'
+    SGST = 'SGST', 'State GST'
+    IGST = 'IGST', 'Integrated GST'
+    VAT = 'VAT', 'VAT'
+    SERVICE_TAX = 'SERVICE_TAX', 'Service Tax'
+    TDS = 'TDS', 'TDS'
+    TCS = 'TCS', 'TCS'
+    CESS = 'CESS', 'Cess'
+
+
+class TaxRate(models.Model):
+    name = models.CharField(max_length=100)
+    tax_type = models.CharField(max_length=20, choices=TaxType.choices)
+    rate = models.DecimalField(max_digits=5, decimal_places=2)
+    hsn_sac_code = models.CharField(max_length=20, blank=True)
+    description = models.TextField(blank=True)
+    is_compound = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    effective_from = models.DateField(null=True, blank=True)
+    effective_to = models.DateField(null=True, blank=True)
+    liability_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='tax_liabilities')
+    input_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='tax_inputs')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.rate}%)"
+
+
+class InvoiceStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    ISSUED = 'ISSUED', 'Issued'
+    PARTIALLY_PAID = 'PARTIALLY_PAID', 'Partially Paid'
+    PAID = 'PAID', 'Paid'
+    OVERDUE = 'OVERDUE', 'Overdue'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    CLOSED = 'CLOSED', 'Closed'
+
+
+class InvoiceType(models.TextChoices):
+    SERVICE = 'SERVICE', 'Service Invoice'
+    SALES = 'SALES', 'Sales Invoice'
+    CONTRACT = 'CONTRACT', 'Contract Invoice'
+    AMC = 'AMC', 'AMC Invoice'
+    PROFORMA = 'PROFORMA', 'Proforma Invoice'
+    CREDIT_NOTE = 'CREDIT_NOTE', 'Credit Note'
+    DEBIT_NOTE = 'DEBIT_NOTE', 'Debit Note'
+
+
+class EnhancedInvoice(models.Model):
+    invoice_number = models.CharField(max_length=50, unique=True, blank=True)
+    invoice_type = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.SERVICE)
+    status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.DRAFT)
+    job_card = models.ForeignKey(JobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='enhanced_invoices')
+    contract = models.ForeignKey('Contract', on_delete=models.SET_NULL, null=True, blank=True, related_name='enhanced_invoices')
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='enhanced_invoices')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='enhanced_invoices')
+    billing_address = models.TextField(blank=True)
+    shipping_address = models.TextField(blank=True)
+    gstin = models.CharField(max_length=20, blank=True)
+    place_of_supply = models.CharField(max_length=100, blank=True)
+    is_igst = models.BooleanField(default=False)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cess_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    amount_in_words = models.CharField(max_length=500, blank=True)
+    amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    invoice_date = models.DateField()
+    due_date = models.DateField(null=True, blank=True)
+    payment_terms = models.CharField(max_length=100, blank=True)
+    terms_and_conditions = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    internal_notes = models.TextField(blank=True)
+    is_reverse_charge = models.BooleanField(default=False)
+    is_export = models.BooleanField(default=False)
+    is_sez = models.BooleanField(default=False)
+    e_invoice_irn = models.CharField(max_length=100, blank=True)
+    e_invoice_ack_no = models.CharField(max_length=100, blank=True)
+    e_invoice_ack_date = models.DateTimeField(null=True, blank=True)
+    e_way_bill_no = models.CharField(max_length=50, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_enhanced_invoices')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='issued_invoices')
+    issued_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cancelled_invoices')
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.TextField(blank=True)
+    receivable_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='receivable_invoices')
+    revenue_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='revenue_invoices')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_enhanced_invoices')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-invoice_date', '-created_at']
+        indexes = [
+            models.Index(fields=['status', 'branch']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['invoice_date']),
+            models.Index(fields=['due_date', 'status']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.invoice_number:
+            prefix = 'INV' if self.invoice_type == InvoiceType.SERVICE else self.invoice_type[:3].upper()
+            self.invoice_number = f"{prefix}-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        self.balance_due = self.grand_total - self.amount_paid
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.customer.name}"
+
+
+class InvoiceLine(models.Model):
+    class LineType(models.TextChoices):
+        LABOR = 'LABOR', 'Labor'
+        PARTS = 'PARTS', 'Parts'
+        CONSUMABLES = 'CONSUMABLES', 'Consumables'
+        SERVICE = 'SERVICE', 'Service'
+        ACCESSORY = 'ACCESSORY', 'Accessory'
+        OTHER = 'OTHER', 'Other'
+
+    invoice = models.ForeignKey(EnhancedInvoice, on_delete=models.CASCADE, related_name='lines')
+    line_number = models.IntegerField(default=1)
+    line_type = models.CharField(max_length=20, choices=LineType.choices, default=LineType.SERVICE)
+    description = models.CharField(max_length=500)
+    hsn_sac_code = models.CharField(max_length=20, blank=True)
+    part = models.ForeignKey('Part', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_lines')
+    task = models.ForeignKey('Task', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_lines')
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    unit = models.CharField(max_length=20, default='Nos')
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax_rate = models.ForeignKey(TaxRate, on_delete=models.SET_NULL, null=True, blank=True)
+    cgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    igst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cess_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    cess_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    is_warranty_covered = models.BooleanField(default=False)
+    is_contract_covered = models.BooleanField(default=False)
+    coverage_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['line_number']
+
+    def save(self, *args, **kwargs):
+        gross = self.quantity * self.unit_price
+        self.discount_amount = gross * (self.discount_percent / 100)
+        self.taxable_amount = gross - self.discount_amount
+        self.cgst_amount = self.taxable_amount * (self.cgst_rate / 100)
+        self.sgst_amount = self.taxable_amount * (self.sgst_rate / 100)
+        self.igst_amount = self.taxable_amount * (self.igst_rate / 100)
+        self.cess_amount = self.taxable_amount * (self.cess_rate / 100)
+        self.total_amount = self.taxable_amount + self.cgst_amount + self.sgst_amount + self.igst_amount + self.cess_amount
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.invoice.invoice_number} - Line {self.line_number}"
+
+
+class CreditNote(models.Model):
+    class Reason(models.TextChoices):
+        SALES_RETURN = 'SALES_RETURN', 'Sales Return'
+        DISCOUNT = 'DISCOUNT', 'Post-Sale Discount'
+        DEFECTIVE = 'DEFECTIVE', 'Defective Product'
+        SERVICE_ISSUE = 'SERVICE_ISSUE', 'Service Issue'
+        BILLING_ERROR = 'BILLING_ERROR', 'Billing Error'
+        GOODWILL = 'GOODWILL', 'Goodwill'
+        OTHER = 'OTHER', 'Other'
+
+    credit_note_number = models.CharField(max_length=50, unique=True, blank=True)
+    original_invoice = models.ForeignKey(EnhancedInvoice, on_delete=models.PROTECT, related_name='credit_notes')
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='credit_notes')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='credit_notes')
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    reason_detail = models.TextField(blank=True)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.DRAFT)
+    is_adjusted = models.BooleanField(default=False)
+    adjusted_invoice = models.ForeignKey(EnhancedInvoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='adjusted_credit_notes')
+    is_refunded = models.BooleanField(default=False)
+    refund_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    refund_date = models.DateField(null=True, blank=True)
+    credit_note_date = models.DateField()
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_credit_notes')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_credit_notes')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.credit_note_number:
+            self.credit_note_number = f"CN-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.credit_note_number} - {self.customer.name}"
+
+
+class CreditNoteLine(models.Model):
+    credit_note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name='lines')
+    original_line = models.ForeignKey(InvoiceLine, on_delete=models.SET_NULL, null=True, blank=True)
+    description = models.CharField(max_length=500)
+    hsn_sac_code = models.CharField(max_length=20, blank=True)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    taxable_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"{self.credit_note.credit_note_number} - {self.description[:50]}"
+
+
+class EnhancedPayment(models.Model):
+    class PaymentMode(models.TextChoices):
+        CASH = 'CASH', 'Cash'
+        BANK_TRANSFER = 'BANK_TRANSFER', 'Bank Transfer'
+        UPI = 'UPI', 'UPI'
+        CARD = 'CARD', 'Card'
+        CHEQUE = 'CHEQUE', 'Cheque'
+        WALLET = 'WALLET', 'Wallet'
+        CREDIT = 'CREDIT', 'Credit'
+        ADVANCE = 'ADVANCE', 'Advance'
+
+    class PaymentStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        PROCESSING = 'PROCESSING', 'Processing'
+        COMPLETED = 'COMPLETED', 'Completed'
+        FAILED = 'FAILED', 'Failed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+        REFUNDED = 'REFUNDED', 'Refunded'
+
+    payment_number = models.CharField(max_length=50, unique=True, blank=True)
+    invoice = models.ForeignKey(EnhancedInvoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='enhanced_payments')
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='enhanced_payments')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='enhanced_payments')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    payment_mode = models.CharField(max_length=20, choices=PaymentMode.choices)
+    status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    payment_date = models.DateField()
+    payment_time = models.TimeField(null=True, blank=True)
+    reference_number = models.CharField(max_length=100, blank=True)
+    bank_name = models.CharField(max_length=100, blank=True)
+    cheque_number = models.CharField(max_length=50, blank=True)
+    cheque_date = models.DateField(null=True, blank=True)
+    card_last_four = models.CharField(max_length=4, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True)
+    gateway_response = models.JSONField(default=dict, blank=True)
+    is_advance = models.BooleanField(default=False)
+    advance_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    is_refund = models.BooleanField(default=False)
+    refund_reason = models.TextField(blank=True)
+    original_payment = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='refunds')
+    bank_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_payments')
+    cash_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='cash_payments')
+    notes = models.TextField(blank=True)
+    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='received_enhanced_payments')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_payments')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-payment_date', '-created_at']
+        indexes = [
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['payment_date', 'branch']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.payment_number:
+            self.payment_number = f"PAY-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.payment_number} - {self.amount}"
+
+
+class PaymentAllocation(models.Model):
+    payment = models.ForeignKey(EnhancedPayment, on_delete=models.CASCADE, related_name='allocations')
+    invoice = models.ForeignKey(EnhancedInvoice, on_delete=models.CASCADE, related_name='payment_allocations')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    allocated_at = models.DateTimeField(auto_now_add=True, null=True)
+    allocated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        unique_together = ['payment', 'invoice']
+
+    def __str__(self):
+        return f"{self.payment.payment_number} -> {self.invoice.invoice_number}: {self.amount}"
+
+
+class ExpenseCategory(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20, unique=True)
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
+    expense_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='expense_categories')
+    description = models.TextField(blank=True)
+    budget_limit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    requires_approval = models.BooleanField(default=False)
+    approval_threshold = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        verbose_name_plural = 'Expense Categories'
+        ordering = ['code']
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class ExpenseStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    SUBMITTED = 'SUBMITTED', 'Submitted'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+    PAID = 'PAID', 'Paid'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class Expense(models.Model):
+    expense_number = models.CharField(max_length=50, unique=True, blank=True)
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT, related_name='expenses')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='expenses')
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses')
+    description = models.TextField()
+    expense_date = models.DateField()
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    status = models.CharField(max_length=20, choices=ExpenseStatus.choices, default=ExpenseStatus.DRAFT)
+    payment_mode = models.CharField(max_length=20, choices=EnhancedPayment.PaymentMode.choices, null=True, blank=True)
+    reference_number = models.CharField(max_length=100, blank=True)
+    invoice_number = models.CharField(max_length=100, blank=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    cost_center = models.CharField(max_length=100, blank=True)
+    job_card = models.ForeignKey(JobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses')
+    is_reimbursable = models.BooleanField(default=False)
+    reimbursed_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reimbursable_expenses')
+    is_recurring = models.BooleanField(default=False)
+    recurring_frequency = models.CharField(max_length=20, blank=True)
+    attachments = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True)
+    submitted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='submitted_expenses')
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_expenses')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    paid_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='paid_expenses')
+    paid_at = models.DateTimeField(null=True, blank=True)
+    expense_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses')
+    payment_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='expense_payments')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_expenses')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-expense_date', '-created_at']
+        indexes = [
+            models.Index(fields=['status', 'branch']),
+            models.Index(fields=['expense_date', 'category']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.expense_number:
+            self.expense_number = f"EXP-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.expense_number} - {self.description[:50]}"
+
+
+class JournalEntry(models.Model):
+    class EntryType(models.TextChoices):
+        GENERAL = 'GENERAL', 'General'
+        SALES = 'SALES', 'Sales'
+        PURCHASE = 'PURCHASE', 'Purchase'
+        RECEIPT = 'RECEIPT', 'Receipt'
+        PAYMENT = 'PAYMENT', 'Payment'
+        CONTRA = 'CONTRA', 'Contra'
+        ADJUSTMENT = 'ADJUSTMENT', 'Adjustment'
+
+    journal_number = models.CharField(max_length=50, unique=True, blank=True)
+    entry_type = models.CharField(max_length=20, choices=EntryType.choices, default=EntryType.GENERAL)
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='journal_entries')
+    entry_date = models.DateField()
+    description = models.TextField()
+    reference_type = models.CharField(max_length=50, blank=True)
+    reference_id = models.IntegerField(null=True, blank=True)
+    reference_number = models.CharField(max_length=100, blank=True)
+    total_debit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_credit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    is_balanced = models.BooleanField(default=False)
+    is_posted = models.BooleanField(default=False)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    posted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='posted_journals')
+    is_reversed = models.BooleanField(default=False)
+    reversal_of = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='reversals')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_journals')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'Journal Entries'
+        ordering = ['-entry_date', '-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.journal_number:
+            self.journal_number = f"JV-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        self.is_balanced = self.total_debit == self.total_credit
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.journal_number} - {self.description[:50]}"
+
+
+class LedgerEntry(models.Model):
+    journal = models.ForeignKey(JournalEntry, on_delete=models.CASCADE, related_name='ledger_entries')
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='ledger_entries')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='ledger_entries')
+    debit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    credit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    narration = models.CharField(max_length=500, blank=True)
+    cost_center = models.CharField(max_length=100, blank=True)
+    entry_date = models.DateField()
+    running_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        verbose_name_plural = 'Ledger Entries'
+        ordering = ['entry_date', 'created_at']
+        indexes = [
+            models.Index(fields=['account', 'entry_date']),
+            models.Index(fields=['branch', 'entry_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.account.code} - Dr:{self.debit} Cr:{self.credit}"
+
+
+class CustomerReceivable(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='receivables')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='customer_receivables')
+    invoice = models.OneToOneField(EnhancedInvoice, on_delete=models.CASCADE, related_name='receivable')
+    original_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    outstanding_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    due_date = models.DateField()
+    days_overdue = models.IntegerField(default=0)
+    aging_bucket = models.CharField(max_length=20, default='Current')
+    last_reminder_date = models.DateField(null=True, blank=True)
+    reminder_count = models.IntegerField(default=0)
+    is_disputed = models.BooleanField(default=False)
+    dispute_reason = models.TextField(blank=True)
+    is_written_off = models.BooleanField(default=False)
+    written_off_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    written_off_date = models.DateField(null=True, blank=True)
+    written_off_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='written_off_receivables')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-due_date']
+
+    def update_aging(self):
+        from datetime import date
+        today = date.today()
+        if self.due_date >= today:
+            self.days_overdue = 0
+            self.aging_bucket = 'Current'
+        else:
+            self.days_overdue = (today - self.due_date).days
+            if self.days_overdue <= 30:
+                self.aging_bucket = '1-30 Days'
+            elif self.days_overdue <= 60:
+                self.aging_bucket = '31-60 Days'
+            elif self.days_overdue <= 90:
+                self.aging_bucket = '61-90 Days'
+            else:
+                self.aging_bucket = '90+ Days'
+        self.save()
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.invoice.invoice_number}: {self.outstanding_amount}"
+
+
+class VendorPayable(models.Model):
+    supplier = models.ForeignKey('Supplier', on_delete=models.PROTECT, related_name='payables')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='vendor_payables')
+    purchase_order = models.ForeignKey('PurchaseOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='payables')
+    grn = models.ForeignKey('GoodsReceiptNote', on_delete=models.SET_NULL, null=True, blank=True, related_name='payables')
+    invoice_number = models.CharField(max_length=100)
+    invoice_date = models.DateField()
+    original_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    outstanding_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    tds_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tds_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    net_payable = models.DecimalField(max_digits=14, decimal_places=2)
+    due_date = models.DateField()
+    days_overdue = models.IntegerField(default=0)
+    aging_bucket = models.CharField(max_length=20, default='Current')
+    is_approved = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_payables')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    is_paid = models.BooleanField(default=False)
+    paid_date = models.DateField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=100, blank=True)
+    payable_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='payables')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-due_date']
+
+    def __str__(self):
+        return f"{self.supplier.name} - {self.invoice_number}: {self.outstanding_amount}"
+
+
+class FinancialAuditLog(models.Model):
+    class AuditAction(models.TextChoices):
+        CREATE = 'CREATE', 'Create'
+        UPDATE = 'UPDATE', 'Update'
+        DELETE = 'DELETE', 'Delete'
+        APPROVE = 'APPROVE', 'Approve'
+        REJECT = 'REJECT', 'Reject'
+        POST = 'POST', 'Post to Ledger'
+        REVERSE = 'REVERSE', 'Reverse Entry'
+        TAX_OVERRIDE = 'TAX_OVERRIDE', 'Tax Override'
+        DISCOUNT_OVERRIDE = 'DISCOUNT_OVERRIDE', 'Discount Override'
+        WRITE_OFF = 'WRITE_OFF', 'Write Off'
+        PAYMENT_REVERSE = 'PAYMENT_REVERSE', 'Payment Reversal'
+        CREDIT_NOTE = 'CREDIT_NOTE', 'Credit Note Issue'
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user_role = models.CharField(max_length=30)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=30, choices=AuditAction.choices)
+    model_name = models.CharField(max_length=100)
+    object_id = models.CharField(max_length=100)
+    object_repr = models.CharField(max_length=500)
+    document_number = models.CharField(max_length=100, blank=True)
+    old_data = models.JSONField(null=True, blank=True)
+    new_data = models.JSONField(null=True, blank=True)
+    amount_before = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    amount_after = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    reason = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True, null=True)
+    is_critical = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['model_name', 'object_id']),
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['is_critical', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} - {self.model_name} - {self.timestamp}"
+
+
+class FinancialPeriod(models.Model):
+    class PeriodStatus(models.TextChoices):
+        OPEN = 'OPEN', 'Open'
+        SOFT_CLOSE = 'SOFT_CLOSE', 'Soft Close'
+        CLOSED = 'CLOSED', 'Closed'
+        LOCKED = 'LOCKED', 'Locked'
+
+    name = models.CharField(max_length=100)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='financial_periods')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=20, choices=PeriodStatus.choices, default=PeriodStatus.OPEN)
+    is_year_end = models.BooleanField(default=False)
+    closed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='closed_periods')
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closing_balance = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-start_date']
+        unique_together = ['branch', 'start_date', 'end_date']
+
+    def __str__(self):
+        return f"{self.name} ({self.start_date} - {self.end_date})"
+
+
+class BudgetEntry(models.Model):
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='budget_entries')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='budget_entries')
+    period = models.ForeignKey(FinancialPeriod, on_delete=models.CASCADE, related_name='budget_entries')
+    budgeted_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    actual_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    variance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    variance_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['account', 'branch', 'period']
+
+    def save(self, *args, **kwargs):
+        self.variance = self.actual_amount - self.budgeted_amount
+        if self.budgeted_amount != 0:
+            self.variance_percent = (self.variance / self.budgeted_amount) * 100
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.account.code} - {self.period.name}: Budget {self.budgeted_amount}"

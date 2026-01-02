@@ -18,6 +18,7 @@ import {
   BarChart3,
   ShieldCheck,
   History,
+  DollarSign,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,12 @@ const menuItems: MenuItem[] = [
     icon: BarChart3, 
     path: "/analytics",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER']
+  },
+  { 
+    text: "Accounts & Finance", 
+    icon: DollarSign, 
+    path: "/accounts-finance",
+    allowedRoles: ACCOUNTS_ROLES
   },
   { 
     text: "Admin Panel", 

@@ -1,0 +1,197 @@
+MASTER PROMPT — ENTERPRISE ACCOUNTS & FINANCE MODULE
+(Automobile Service ERP | Audit-Ready | Compliance-Driven)
+ROLE & OBJECTIVE
+You are a senior finance-focused product engineering team (Solution Architect, Finance SME, Backend Lead, Frontend Lead, QA Lead) responsible for designing and implementing a complete enterprise-level Accounts & Finance Module for an Automobile Car & Bike Service Management System.
+This module must ensure:
+Financial accuracy
+Regulatory compliance
+Service-to-revenue traceability
+Audit readiness
+Branch-wise and consolidated financial visibility
+1. CORE FINANCIAL PRINCIPLES (NON-NEGOTIABLE)
+Every rupee must be traceable
+No invoice without a job card
+No revenue without service or sale
+No payment without authorization
+No edits without audit trail
+2. FINANCIAL SCOPE COVERED
+The Accounts Module must cover:
+Service billing
+Sales billing (vehicles, accessories)
+Contract & AMC billing
+Receivables & payables
+Cash, bank & digital payments
+Taxes & statutory compliance
+Costing & profitability
+Branch-wise and consolidated accounting
+Audit & governance
+3. CHART OF ACCOUNTS (CONFIGURABLE)
+Implement a configurable Chart of Accounts:
+Account Categories
+Assets
+Liabilities
+Income
+Expenses
+Equity
+Automotive-Specific Accounts
+Service Revenue
+Spare Parts Revenue
+Contract / AMC Revenue
+Warranty Claims Receivable
+Inventory Asset
+Cost of Goods Sold (COGS)
+Technician Labor Cost
+Goodwill / Free Service Expense
+4. SERVICE-BASED BILLING (CORE)
+Invoice Generation Rules
+Invoice must be linked to:
+Job Card ID
+Service Tracking ID
+Customer ID
+Auto-populate:
+Labor charges
+Parts consumed
+Taxes
+Discounts
+Support:
+Partial billing
+Zero-value invoices (contract covered)
+Split billing (covered vs non-covered)
+Invoice Lifecycle
+Draft → Approved → Issued → Paid / Partially Paid → Closed
+5. SALES & CONTRACT BILLING
+Sales Billing
+Vehicle sales invoices
+Accessory sales
+Sales return & credit notes
+Contract / AMC Billing
+One-time billing
+Periodic billing
+Advance payments
+Deferred revenue handling
+Contract consumption mapping
+6. TAX & STATUTORY COMPLIANCE
+GST / VAT / local tax support
+Tax breakup per invoice line
+HSN / SAC codes
+Input tax credit tracking
+Tax reports:
+GSTR-1
+GSTR-3B
+Tax override with approval & audit
+7. PAYMENT MANAGEMENT
+Payment Modes
+Cash
+Bank transfer
+UPI
+Card
+Wallet
+Payment Tracking
+Payment reference
+Date & time
+Collected by
+Settlement status
+Controls
+Partial payments
+Advance payments
+Refunds
+Write-offs (with approval)
+8. RECEIVABLES & CREDIT CONTROL
+Customer credit limits
+Aging analysis
+Overdue alerts
+Credit hold enforcement
+Collection follow-up tracking
+9. PAYABLES & EXPENSE MANAGEMENT
+Vendor Payables
+Supplier invoice matching
+Due date tracking
+Payment scheduling
+TDS / withholding tax
+Expense Management
+Branch expenses
+Petty cash
+Approval workflow
+Cost center tagging
+10. COSTING & PROFITABILITY ANALYSIS
+Job-wise profitability
+Vehicle-wise profitability
+Contract-wise margin
+Branch-wise P&L
+Technician productivity vs cost
+11. GOODWILL, DISCOUNTS & OVERRIDES
+Goodwill service tagging
+Discount approval workflow
+Reason mandatory
+Impact on profitability tracked
+12. MULTI-BRANCH & CONSOLIDATION
+Branch-level books
+Centralized consolidation
+Inter-branch accounting
+Transfer pricing (optional)
+13. AUDIT, GOVERNANCE & CONTROLS
+Audit Trail (MANDATORY)
+Log:
+Invoice edits
+Tax changes
+Discount overrides
+Write-offs
+Payment reversals
+Maker–Checker
+Invoice approval
+Credit note approval
+Write-off approval
+14. FINANCIAL DASHBOARDS & REPORTS
+CFO / Owner Dashboard
+Revenue vs target
+Profit margin
+Outstanding receivables
+Cash flow
+Operational Reports
+Daily sales & service revenue
+Tax summary
+Payment collection report
+Outstanding aging
+Job-wise margin report
+15. UI SCREENS REQUIRED
+Invoice list & detail
+Payment collection screen
+Credit note & refund screen
+Receivables dashboard
+Payables dashboard
+Expense entry & approval
+Financial reports
+Chart of accounts management
+16. BACKEND DESIGN (HIGH-LEVEL)
+Key entities:
+Account
+LedgerEntry
+Invoice
+InvoiceLine
+Payment
+CreditNote
+Expense
+Tax
+FinancialAuditLog
+Business rules enforced in service layer, not UI.
+17. SYSTEM INTEGRATION
+Inventory (COGS)
+Service operations (job card)
+Contracts (deferred revenue)
+CRM (customer credit)
+Supplier module (payables)
+18. FINAL VALIDATION RULES
+After implementation:
+✅ No invoice without service or sale
+✅ Every payment traceable
+✅ Tax reports accurate
+✅ Profitability visible
+✅ Audit trail complete
+✅ Multi-branch ready
+19. FINAL INSTRUCTION
+Build this Accounts Module as if it will be:
+Audited by statutory authorities
+Used by finance professionals
+Integrated with enterprise ERP systems
+Scaled across regions
+This is a financial backbone, not a reporting add-on.

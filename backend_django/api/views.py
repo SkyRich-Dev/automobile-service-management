@@ -25,7 +25,13 @@ from .models import (
     Lead, LeadStatus, CustomerInteraction, Ticket, TicketStatus, FollowUpTask, FollowUpStatus,
     Campaign, CampaignStatus, CampaignRecipient, CustomerScore, CRMEvent,
     Department, EmployeeAssignment, WorkShift, AttendanceRecord,
-    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration
+    RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration,
+    Account, AccountCategory, AccountType, TaxRate, TaxType,
+    EnhancedInvoice, InvoiceLine, InvoiceStatus, InvoiceType,
+    CreditNote, CreditNoteLine, EnhancedPayment, PaymentAllocation,
+    ExpenseCategory, Expense, ExpenseStatus,
+    JournalEntry, LedgerEntry, CustomerReceivable, VendorPayable,
+    FinancialAuditLog, FinancialPeriod, BudgetEntry
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -57,7 +63,12 @@ from .serializers import (
     Customer360Serializer,
     DepartmentSerializer, EmployeeAssignmentSerializer, WorkShiftSerializer, AttendanceRecordSerializer,
     RolePermissionSerializer, EmailConfigurationSerializer, WhatsAppConfigurationSerializer,
-    PaymentGatewayConfigurationSerializer, TallyConfigurationSerializer
+    PaymentGatewayConfigurationSerializer, TallyConfigurationSerializer,
+    AccountSerializer, TaxRateSerializer, EnhancedInvoiceSerializer, InvoiceLineSerializer,
+    CreditNoteSerializer, CreditNoteLineSerializer, EnhancedPaymentSerializer, PaymentAllocationSerializer,
+    ExpenseCategorySerializer, ExpenseSerializer, JournalEntrySerializer, LedgerEntrySerializer,
+    CustomerReceivableSerializer, VendorPayableSerializer, FinancialAuditLogSerializer,
+    FinancialPeriodSerializer, BudgetEntrySerializer, FinanceDashboardSerializer
 )
 
 
@@ -3248,3 +3259,819 @@ class TallyConfigurationViewSet(viewsets.ModelViewSet):
         config.sync_status = 'SUCCESS'
         config.save()
         return Response({'status': 'Sync completed successfully'})
+
+
+# =====================================================
+# ENTERPRISE ACCOUNTS & FINANCE VIEWSETS
+# =====================================================
+
+class AccountViewSet(viewsets.ModelViewSet):
+    queryset = Account.objects.all()
+    serializer_class = AccountSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = Account.objects.all()
+        category = self.request.query_params.get('category')
+        account_type = self.request.query_params.get('account_type')
+        branch = self.request.query_params.get('branch')
+        is_active = self.request.query_params.get('is_active')
+        parent_only = self.request.query_params.get('parent_only')
+        
+        if category:
+            queryset = queryset.filter(category=category)
+        if account_type:
+            queryset = queryset.filter(account_type=account_type)
+        if branch:
+            queryset = queryset.filter(Q(branch_id=branch) | Q(branch__isnull=True))
+        if is_active:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        if parent_only and parent_only.lower() == 'true':
+            queryset = queryset.filter(parent__isnull=True)
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def chart_of_accounts(self, request):
+        accounts = Account.objects.filter(parent__isnull=True, is_active=True).prefetch_related('children')
+        result = []
+        for account in accounts:
+            account_data = AccountSerializer(account).data
+            account_data['children'] = AccountSerializer(account.children.filter(is_active=True), many=True).data
+            result.append(account_data)
+        return Response(result)
+    
+    @action(detail=False, methods=['post'])
+    def seed_default(self, request):
+        default_accounts = [
+            {'code': '1000', 'name': 'Cash', 'category': 'ASSETS', 'account_type': 'CASH', 'is_system': True},
+            {'code': '1100', 'name': 'Bank Account', 'category': 'ASSETS', 'account_type': 'BANK', 'is_system': True},
+            {'code': '1200', 'name': 'Accounts Receivable', 'category': 'ASSETS', 'account_type': 'RECEIVABLE', 'is_system': True},
+            {'code': '1300', 'name': 'Inventory', 'category': 'ASSETS', 'account_type': 'INVENTORY', 'is_system': True},
+            {'code': '1400', 'name': 'Input GST', 'category': 'ASSETS', 'account_type': 'TAX_ASSET', 'is_system': True},
+            {'code': '2000', 'name': 'Accounts Payable', 'category': 'LIABILITIES', 'account_type': 'PAYABLE', 'is_system': True},
+            {'code': '2100', 'name': 'GST Payable', 'category': 'LIABILITIES', 'account_type': 'TAX_LIABILITY', 'is_system': True},
+            {'code': '2200', 'name': 'Deferred Revenue', 'category': 'LIABILITIES', 'account_type': 'DEFERRED_REVENUE', 'is_system': True},
+            {'code': '3000', 'name': 'Capital', 'category': 'EQUITY', 'account_type': 'CAPITAL', 'is_system': True},
+            {'code': '3100', 'name': 'Retained Earnings', 'category': 'EQUITY', 'account_type': 'RETAINED_EARNINGS', 'is_system': True},
+            {'code': '4000', 'name': 'Service Revenue', 'category': 'INCOME', 'account_type': 'REVENUE', 'is_system': True},
+            {'code': '4100', 'name': 'Spare Parts Revenue', 'category': 'INCOME', 'account_type': 'REVENUE', 'is_system': True},
+            {'code': '4200', 'name': 'Contract/AMC Revenue', 'category': 'INCOME', 'account_type': 'REVENUE', 'is_system': True},
+            {'code': '5000', 'name': 'Cost of Goods Sold', 'category': 'EXPENSES', 'account_type': 'COGS', 'is_system': True},
+            {'code': '5100', 'name': 'Labor Cost', 'category': 'EXPENSES', 'account_type': 'EXPENSE', 'is_system': True},
+            {'code': '5200', 'name': 'Operating Expenses', 'category': 'EXPENSES', 'account_type': 'EXPENSE', 'is_system': True},
+            {'code': '5300', 'name': 'Goodwill/Free Service', 'category': 'EXPENSES', 'account_type': 'EXPENSE', 'is_system': True},
+        ]
+        created = 0
+        for acc in default_accounts:
+            _, was_created = Account.objects.get_or_create(code=acc['code'], defaults=acc)
+            if was_created:
+                created += 1
+        return Response({'message': f'Seeded {created} default accounts'})
+
+
+class TaxRateViewSet(viewsets.ModelViewSet):
+    queryset = TaxRate.objects.all()
+    serializer_class = TaxRateSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = TaxRate.objects.all()
+        tax_type = self.request.query_params.get('tax_type')
+        is_active = self.request.query_params.get('is_active')
+        if tax_type:
+            queryset = queryset.filter(tax_type=tax_type)
+        if is_active:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+    
+    @action(detail=False, methods=['post'])
+    def seed_default(self, request):
+        default_taxes = [
+            {'name': 'GST 0%', 'tax_type': 'GST', 'rate': 0, 'is_active': True},
+            {'name': 'GST 5%', 'tax_type': 'GST', 'rate': 5, 'is_active': True},
+            {'name': 'GST 12%', 'tax_type': 'GST', 'rate': 12, 'is_active': True},
+            {'name': 'GST 18%', 'tax_type': 'GST', 'rate': 18, 'is_active': True},
+            {'name': 'GST 28%', 'tax_type': 'GST', 'rate': 28, 'is_active': True},
+        ]
+        created = 0
+        for tax in default_taxes:
+            _, was_created = TaxRate.objects.get_or_create(name=tax['name'], defaults=tax)
+            if was_created:
+                created += 1
+        return Response({'message': f'Seeded {created} default tax rates'})
+
+
+class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
+    queryset = EnhancedInvoice.objects.all()
+    serializer_class = EnhancedInvoiceSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = EnhancedInvoice.objects.all().select_related('customer', 'branch', 'job_card', 'contract')
+        status_filter = self.request.query_params.get('status')
+        invoice_type = self.request.query_params.get('invoice_type')
+        customer = self.request.query_params.get('customer')
+        branch = self.request.query_params.get('branch')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if invoice_type:
+            queryset = queryset.filter(invoice_type=invoice_type)
+        if customer:
+            queryset = queryset.filter(customer_id=customer)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if from_date:
+            queryset = queryset.filter(invoice_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(invoice_date__lte=to_date)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        invoice = self.get_object()
+        if invoice.status != InvoiceStatus.PENDING_APPROVAL:
+            return Response({'error': 'Invoice is not pending approval'}, status=status.HTTP_400_BAD_REQUEST)
+        invoice.status = InvoiceStatus.APPROVED
+        invoice.approved_by = request.user
+        invoice.approved_at = timezone.now()
+        invoice.save()
+        self._log_finance_audit('APPROVE', invoice, request.user, 'Invoice approved')
+        return Response(EnhancedInvoiceSerializer(invoice).data)
+    
+    @action(detail=True, methods=['post'])
+    def issue(self, request, pk=None):
+        invoice = self.get_object()
+        if invoice.status not in [InvoiceStatus.APPROVED, InvoiceStatus.DRAFT]:
+            return Response({'error': 'Invoice cannot be issued from current status'}, status=status.HTTP_400_BAD_REQUEST)
+        invoice.status = InvoiceStatus.ISSUED
+        invoice.issued_by = request.user
+        invoice.issued_at = timezone.now()
+        invoice.save()
+        self._create_receivable(invoice)
+        self._log_finance_audit('POST', invoice, request.user, 'Invoice issued and posted to receivables')
+        return Response(EnhancedInvoiceSerializer(invoice).data)
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        invoice = self.get_object()
+        reason = request.data.get('reason', '')
+        if invoice.status in [InvoiceStatus.PAID, InvoiceStatus.CLOSED]:
+            return Response({'error': 'Cannot cancel paid/closed invoice'}, status=status.HTTP_400_BAD_REQUEST)
+        invoice.status = InvoiceStatus.CANCELLED
+        invoice.cancelled_by = request.user
+        invoice.cancelled_at = timezone.now()
+        invoice.cancellation_reason = reason
+        invoice.save()
+        self._log_finance_audit('DELETE', invoice, request.user, f'Invoice cancelled: {reason}')
+        return Response(EnhancedInvoiceSerializer(invoice).data)
+    
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        branch = request.query_params.get('branch')
+        queryset = EnhancedInvoice.objects.all()
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        
+        stats = {
+            'total_invoices': queryset.count(),
+            'draft': queryset.filter(status=InvoiceStatus.DRAFT).count(),
+            'pending_approval': queryset.filter(status=InvoiceStatus.PENDING_APPROVAL).count(),
+            'issued': queryset.filter(status=InvoiceStatus.ISSUED).count(),
+            'partially_paid': queryset.filter(status=InvoiceStatus.PARTIALLY_PAID).count(),
+            'paid': queryset.filter(status=InvoiceStatus.PAID).count(),
+            'overdue': queryset.filter(status=InvoiceStatus.OVERDUE).count(),
+            'total_revenue': queryset.filter(status__in=[InvoiceStatus.PAID, InvoiceStatus.CLOSED]).aggregate(total=Sum('grand_total'))['total'] or 0,
+            'total_outstanding': queryset.filter(status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE]).aggregate(total=Sum('balance_due'))['total'] or 0,
+        }
+        return Response(stats)
+    
+    def _create_receivable(self, invoice):
+        CustomerReceivable.objects.create(
+            customer=invoice.customer,
+            branch=invoice.branch,
+            invoice=invoice,
+            original_amount=invoice.grand_total,
+            outstanding_amount=invoice.balance_due,
+            due_date=invoice.due_date or invoice.invoice_date
+        )
+    
+    def _log_finance_audit(self, action, invoice, user, reason=''):
+        try:
+            profile = user.profile
+            role = profile.role
+            branch = profile.branch
+        except:
+            role = ''
+            branch = None
+        FinancialAuditLog.objects.create(
+            user=user,
+            user_role=role,
+            branch=branch,
+            action=action,
+            model_name='EnhancedInvoice',
+            object_id=str(invoice.id),
+            object_repr=str(invoice),
+            document_number=invoice.invoice_number,
+            reason=reason
+        )
+
+
+class InvoiceLineViewSet(viewsets.ModelViewSet):
+    queryset = InvoiceLine.objects.all()
+    serializer_class = InvoiceLineSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        invoice = self.request.query_params.get('invoice')
+        if invoice:
+            return InvoiceLine.objects.filter(invoice_id=invoice)
+        return InvoiceLine.objects.all()
+
+
+class CreditNoteViewSet(viewsets.ModelViewSet):
+    queryset = CreditNote.objects.all()
+    serializer_class = CreditNoteSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        credit_note = self.get_object()
+        if credit_note.status != InvoiceStatus.PENDING_APPROVAL:
+            return Response({'error': 'Credit note is not pending approval'}, status=status.HTTP_400_BAD_REQUEST)
+        credit_note.status = InvoiceStatus.APPROVED
+        credit_note.approved_by = request.user
+        credit_note.approved_at = timezone.now()
+        credit_note.save()
+        return Response(CreditNoteSerializer(credit_note).data)
+
+
+class EnhancedPaymentViewSet(viewsets.ModelViewSet):
+    queryset = EnhancedPayment.objects.all()
+    serializer_class = EnhancedPaymentSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = EnhancedPayment.objects.all().select_related('customer', 'branch', 'invoice')
+        customer = self.request.query_params.get('customer')
+        branch = self.request.query_params.get('branch')
+        status_filter = self.request.query_params.get('status')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if customer:
+            queryset = queryset.filter(customer_id=customer)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if from_date:
+            queryset = queryset.filter(payment_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(payment_date__lte=to_date)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(received_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        payment = self.get_object()
+        payment.status = EnhancedPayment.PaymentStatus.COMPLETED
+        payment.save()
+        if payment.invoice:
+            payment.invoice.amount_paid += payment.amount
+            if payment.invoice.amount_paid >= payment.invoice.grand_total:
+                payment.invoice.status = InvoiceStatus.PAID
+            else:
+                payment.invoice.status = InvoiceStatus.PARTIALLY_PAID
+            payment.invoice.save()
+            try:
+                receivable = payment.invoice.receivable
+                receivable.outstanding_amount = payment.invoice.balance_due
+                receivable.save()
+            except:
+                pass
+        return Response(EnhancedPaymentSerializer(payment).data)
+    
+    @action(detail=False, methods=['get'])
+    def collection_summary(self, request):
+        branch = request.query_params.get('branch')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        queryset = EnhancedPayment.objects.filter(status=EnhancedPayment.PaymentStatus.COMPLETED)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if from_date:
+            queryset = queryset.filter(payment_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(payment_date__lte=to_date)
+        
+        by_mode = queryset.values('payment_mode').annotate(total=Sum('amount'), count=Count('id'))
+        total = queryset.aggregate(total=Sum('amount'))['total'] or 0
+        
+        return Response({
+            'total_collected': total,
+            'by_mode': list(by_mode),
+            'count': queryset.count()
+        })
+
+
+class ExpenseCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ExpenseCategory.objects.all()
+    serializer_class = ExpenseCategorySerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=False, methods=['post'])
+    def seed_default(self, request):
+        default_categories = [
+            {'code': 'RENT', 'name': 'Rent & Lease'},
+            {'code': 'UTIL', 'name': 'Utilities'},
+            {'code': 'SAL', 'name': 'Salaries & Wages'},
+            {'code': 'MAINT', 'name': 'Maintenance'},
+            {'code': 'PETTY', 'name': 'Petty Cash'},
+            {'code': 'TRAVEL', 'name': 'Travel & Conveyance'},
+            {'code': 'OFFICE', 'name': 'Office Supplies'},
+            {'code': 'MISC', 'name': 'Miscellaneous'},
+        ]
+        created = 0
+        for cat in default_categories:
+            _, was_created = ExpenseCategory.objects.get_or_create(code=cat['code'], defaults=cat)
+            if was_created:
+                created += 1
+        return Response({'message': f'Seeded {created} default expense categories'})
+
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    queryset = Expense.objects.all()
+    serializer_class = ExpenseSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = Expense.objects.all().select_related('category', 'branch', 'supplier')
+        status_filter = self.request.query_params.get('status')
+        category = self.request.query_params.get('category')
+        branch = self.request.query_params.get('branch')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if category:
+            queryset = queryset.filter(category_id=category)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if from_date:
+            queryset = queryset.filter(expense_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(expense_date__lte=to_date)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        expense = self.get_object()
+        if expense.status != ExpenseStatus.DRAFT:
+            return Response({'error': 'Expense is not in draft status'}, status=status.HTTP_400_BAD_REQUEST)
+        expense.status = ExpenseStatus.SUBMITTED
+        expense.submitted_by = request.user
+        expense.submitted_at = timezone.now()
+        expense.save()
+        return Response(ExpenseSerializer(expense).data)
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        expense = self.get_object()
+        if expense.status not in [ExpenseStatus.SUBMITTED, ExpenseStatus.PENDING_APPROVAL]:
+            return Response({'error': 'Expense cannot be approved from current status'}, status=status.HTTP_400_BAD_REQUEST)
+        expense.status = ExpenseStatus.APPROVED
+        expense.approved_by = request.user
+        expense.approved_at = timezone.now()
+        expense.save()
+        return Response(ExpenseSerializer(expense).data)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        expense = self.get_object()
+        reason = request.data.get('reason', '')
+        expense.status = ExpenseStatus.REJECTED
+        expense.rejection_reason = reason
+        expense.save()
+        return Response(ExpenseSerializer(expense).data)
+    
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        expense = self.get_object()
+        if expense.status != ExpenseStatus.APPROVED:
+            return Response({'error': 'Expense must be approved before payment'}, status=status.HTTP_400_BAD_REQUEST)
+        expense.status = ExpenseStatus.PAID
+        expense.paid_by = request.user
+        expense.paid_at = timezone.now()
+        expense.payment_mode = request.data.get('payment_mode')
+        expense.reference_number = request.data.get('reference_number', '')
+        expense.save()
+        return Response(ExpenseSerializer(expense).data)
+    
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        branch = request.query_params.get('branch')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        queryset = Expense.objects.filter(status=ExpenseStatus.PAID)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if from_date:
+            queryset = queryset.filter(expense_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(expense_date__lte=to_date)
+        
+        by_category = queryset.values('category__name').annotate(total=Sum('total_amount'), count=Count('id'))
+        total = queryset.aggregate(total=Sum('total_amount'))['total'] or 0
+        
+        return Response({
+            'total_expenses': total,
+            'by_category': list(by_category),
+            'count': queryset.count()
+        })
+
+
+class JournalEntryViewSet(viewsets.ModelViewSet):
+    queryset = JournalEntry.objects.all()
+    serializer_class = JournalEntrySerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = JournalEntry.objects.all().prefetch_related('ledger_entries')
+        branch = self.request.query_params.get('branch')
+        entry_type = self.request.query_params.get('entry_type')
+        is_posted = self.request.query_params.get('is_posted')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if entry_type:
+            queryset = queryset.filter(entry_type=entry_type)
+        if is_posted:
+            queryset = queryset.filter(is_posted=is_posted.lower() == 'true')
+        if from_date:
+            queryset = queryset.filter(entry_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(entry_date__lte=to_date)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def post(self, request, pk=None):
+        journal = self.get_object()
+        if journal.is_posted:
+            return Response({'error': 'Journal already posted'}, status=status.HTTP_400_BAD_REQUEST)
+        if not journal.is_balanced:
+            return Response({'error': 'Journal is not balanced'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        journal.is_posted = True
+        journal.posted_at = timezone.now()
+        journal.posted_by = request.user
+        journal.save()
+        
+        for entry in journal.ledger_entries.all():
+            account = entry.account
+            if entry.debit > 0:
+                if account.category in ['ASSETS', 'EXPENSES']:
+                    account.current_balance += entry.debit
+                else:
+                    account.current_balance -= entry.debit
+            if entry.credit > 0:
+                if account.category in ['LIABILITIES', 'INCOME', 'EQUITY']:
+                    account.current_balance += entry.credit
+                else:
+                    account.current_balance -= entry.credit
+            account.save()
+        
+        return Response(JournalEntrySerializer(journal).data)
+    
+    @action(detail=True, methods=['post'])
+    def reverse(self, request, pk=None):
+        journal = self.get_object()
+        if not journal.is_posted:
+            return Response({'error': 'Cannot reverse unposted journal'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        reversal = JournalEntry.objects.create(
+            entry_type=journal.entry_type,
+            branch=journal.branch,
+            entry_date=timezone.now().date(),
+            description=f"Reversal of {journal.journal_number}",
+            reversal_of=journal,
+            created_by=request.user
+        )
+        
+        for entry in journal.ledger_entries.all():
+            LedgerEntry.objects.create(
+                journal=reversal,
+                account=entry.account,
+                branch=entry.branch,
+                debit=entry.credit,
+                credit=entry.debit,
+                narration=f"Reversal: {entry.narration}",
+                entry_date=reversal.entry_date
+            )
+        
+        reversal.total_debit = journal.total_credit
+        reversal.total_credit = journal.total_debit
+        reversal.save()
+        
+        journal.is_reversed = True
+        journal.save()
+        
+        return Response(JournalEntrySerializer(reversal).data)
+
+
+class LedgerEntryViewSet(viewsets.ModelViewSet):
+    queryset = LedgerEntry.objects.all()
+    serializer_class = LedgerEntrySerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = LedgerEntry.objects.all().select_related('account', 'branch', 'journal')
+        account = self.request.query_params.get('account')
+        branch = self.request.query_params.get('branch')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if account:
+            queryset = queryset.filter(account_id=account)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if from_date:
+            queryset = queryset.filter(entry_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(entry_date__lte=to_date)
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def account_statement(self, request):
+        account_id = request.query_params.get('account')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        if not account_id:
+            return Response({'error': 'account parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        entries = LedgerEntry.objects.filter(account_id=account_id, journal__is_posted=True)
+        if from_date:
+            entries = entries.filter(entry_date__gte=from_date)
+        if to_date:
+            entries = entries.filter(entry_date__lte=to_date)
+        
+        opening = Account.objects.get(id=account_id).opening_balance
+        running = opening
+        result = []
+        for entry in entries.order_by('entry_date', 'created_at'):
+            running += entry.debit - entry.credit
+            result.append({
+                'date': entry.entry_date,
+                'description': entry.narration or entry.journal.description,
+                'debit': entry.debit,
+                'credit': entry.credit,
+                'balance': running
+            })
+        
+        return Response({
+            'opening_balance': opening,
+            'entries': result,
+            'closing_balance': running
+        })
+
+
+class CustomerReceivableViewSet(viewsets.ModelViewSet):
+    queryset = CustomerReceivable.objects.all()
+    serializer_class = CustomerReceivableSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = CustomerReceivable.objects.all().select_related('customer', 'branch', 'invoice')
+        customer = self.request.query_params.get('customer')
+        branch = self.request.query_params.get('branch')
+        aging_bucket = self.request.query_params.get('aging_bucket')
+        
+        if customer:
+            queryset = queryset.filter(customer_id=customer)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if aging_bucket:
+            queryset = queryset.filter(aging_bucket=aging_bucket)
+        return queryset.filter(outstanding_amount__gt=0)
+    
+    @action(detail=False, methods=['get'])
+    def aging_summary(self, request):
+        branch = request.query_params.get('branch')
+        queryset = CustomerReceivable.objects.filter(outstanding_amount__gt=0)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        
+        for rec in queryset:
+            rec.update_aging()
+        
+        aging = queryset.values('aging_bucket').annotate(
+            total=Sum('outstanding_amount'),
+            count=Count('id')
+        )
+        
+        total = queryset.aggregate(total=Sum('outstanding_amount'))['total'] or 0
+        
+        return Response({
+            'total_outstanding': total,
+            'aging': list(aging)
+        })
+    
+    @action(detail=True, methods=['post'])
+    def write_off(self, request, pk=None):
+        receivable = self.get_object()
+        amount = request.data.get('amount', receivable.outstanding_amount)
+        receivable.is_written_off = True
+        receivable.written_off_amount = amount
+        receivable.written_off_date = timezone.now().date()
+        receivable.written_off_by = request.user
+        receivable.outstanding_amount -= amount
+        receivable.save()
+        return Response(CustomerReceivableSerializer(receivable).data)
+
+
+class VendorPayableViewSet(viewsets.ModelViewSet):
+    queryset = VendorPayable.objects.all()
+    serializer_class = VendorPayableSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = VendorPayable.objects.all().select_related('supplier', 'branch')
+        supplier = self.request.query_params.get('supplier')
+        branch = self.request.query_params.get('branch')
+        is_paid = self.request.query_params.get('is_paid')
+        
+        if supplier:
+            queryset = queryset.filter(supplier_id=supplier)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if is_paid:
+            queryset = queryset.filter(is_paid=is_paid.lower() == 'true')
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def aging_summary(self, request):
+        branch = request.query_params.get('branch')
+        queryset = VendorPayable.objects.filter(is_paid=False)
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        
+        aging = queryset.values('aging_bucket').annotate(
+            total=Sum('outstanding_amount'),
+            count=Count('id')
+        )
+        
+        total = queryset.aggregate(total=Sum('outstanding_amount'))['total'] or 0
+        
+        return Response({
+            'total_outstanding': total,
+            'aging': list(aging)
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        payable = self.get_object()
+        payable.is_paid = True
+        payable.paid_date = timezone.now().date()
+        payable.payment_reference = request.data.get('payment_reference', '')
+        payable.outstanding_amount = 0
+        payable.save()
+        return Response(VendorPayableSerializer(payable).data)
+
+
+class FinancialAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = FinancialAuditLog.objects.all()
+    serializer_class = FinancialAuditLogSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = FinancialAuditLog.objects.all()
+        model_name = self.request.query_params.get('model_name')
+        action_filter = self.request.query_params.get('action')
+        user = self.request.query_params.get('user')
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if model_name:
+            queryset = queryset.filter(model_name=model_name)
+        if action_filter:
+            queryset = queryset.filter(action=action_filter)
+        if user:
+            queryset = queryset.filter(user_id=user)
+        if from_date:
+            queryset = queryset.filter(timestamp__date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(timestamp__date__lte=to_date)
+        return queryset
+
+
+class FinancialPeriodViewSet(viewsets.ModelViewSet):
+    queryset = FinancialPeriod.objects.all()
+    serializer_class = FinancialPeriodSerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        period = self.get_object()
+        period.status = FinancialPeriod.PeriodStatus.CLOSED
+        period.closed_by = request.user
+        period.closed_at = timezone.now()
+        period.save()
+        return Response(FinancialPeriodSerializer(period).data)
+
+
+class BudgetEntryViewSet(viewsets.ModelViewSet):
+    queryset = BudgetEntry.objects.all()
+    serializer_class = BudgetEntrySerializer
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    
+    def get_queryset(self):
+        queryset = BudgetEntry.objects.all().select_related('account', 'branch', 'period')
+        branch = self.request.query_params.get('branch')
+        period = self.request.query_params.get('period')
+        account = self.request.query_params.get('account')
+        
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+        if period:
+            queryset = queryset.filter(period_id=period)
+        if account:
+            queryset = queryset.filter(account_id=account)
+        return queryset
+
+
+@api_view(['GET'])
+def finance_dashboard(request):
+    branch = request.query_params.get('branch')
+    
+    invoices = EnhancedInvoice.objects.all()
+    payments = EnhancedPayment.objects.filter(status=EnhancedPayment.PaymentStatus.COMPLETED)
+    expenses = Expense.objects.filter(status=ExpenseStatus.PAID)
+    receivables = CustomerReceivable.objects.filter(outstanding_amount__gt=0)
+    payables = VendorPayable.objects.filter(is_paid=False)
+    
+    if branch:
+        invoices = invoices.filter(branch_id=branch)
+        payments = payments.filter(branch_id=branch)
+        expenses = expenses.filter(branch_id=branch)
+        receivables = receivables.filter(branch_id=branch)
+        payables = payables.filter(branch_id=branch)
+    
+    total_revenue = invoices.filter(status__in=[InvoiceStatus.PAID, InvoiceStatus.CLOSED]).aggregate(total=Sum('grand_total'))['total'] or 0
+    total_receivables = receivables.aggregate(total=Sum('outstanding_amount'))['total'] or 0
+    total_payables = payables.aggregate(total=Sum('outstanding_amount'))['total'] or 0
+    total_expenses = expenses.aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    cash_account = Account.objects.filter(account_type='CASH').first()
+    bank_account = Account.objects.filter(account_type='BANK').first()
+    cash_balance = cash_account.current_balance if cash_account else 0
+    bank_balance = bank_account.current_balance if bank_account else 0
+    
+    for rec in receivables:
+        rec.update_aging()
+    
+    receivables_aging = {}
+    for rec in receivables.values('aging_bucket').annotate(total=Sum('outstanding_amount')):
+        receivables_aging[rec['aging_bucket']] = float(rec['total'])
+    
+    payables_aging = {}
+    for pay in payables.values('aging_bucket').annotate(total=Sum('outstanding_amount')):
+        payables_aging[pay['aging_bucket']] = float(pay['total'])
+    
+    return Response({
+        'total_revenue': total_revenue,
+        'total_receivables': total_receivables,
+        'total_payables': total_payables,
+        'total_expenses': total_expenses,
+        'cash_balance': cash_balance,
+        'bank_balance': bank_balance,
+        'outstanding_invoices': invoices.filter(status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID]).count(),
+        'overdue_invoices': invoices.filter(status=InvoiceStatus.OVERDUE).count(),
+        'pending_payments': payments.filter(status=EnhancedPayment.PaymentStatus.PENDING).count(),
+        'pending_expenses': expenses.filter(status=ExpenseStatus.PENDING_APPROVAL).count(),
+        'receivables_aging': receivables_aging,
+        'payables_aging': payables_aging,
+        'revenue_trend': [],
+        'expense_trend': []
+    })

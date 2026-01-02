@@ -18,6 +18,7 @@ import PODetail from "@/pages/PODetail";
 import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
 import ServiceHistoryTimeline from "@/pages/ServiceHistoryTimeline";
+import AccountsFinance from "@/pages/AccountsFinance";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
@@ -51,6 +52,7 @@ const routePermissions: Record<string, UserRole[]> = {
   '/crm': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'SERVICE_ADVISOR', 'CRM_EXECUTIVE'],
   '/contracts': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT'],
   '/analytics': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'],
+  '/accounts-finance': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'ACCOUNTS_MANAGER', 'ACCOUNTANT'],
   '/admin': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
 };
 
@@ -110,8 +112,9 @@ function Router() {
       <Route path="/suppliers" component={() => <ProtectedRoute component={Suppliers} allowedRoles={routePermissions['/suppliers']} />} />
       <Route path="/purchase-orders/:id" component={() => <ProtectedRoute component={PODetail} allowedRoles={routePermissions['/suppliers']} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} allowedRoles={routePermissions['/analytics']} />} />
+      <Route path="/accounts-finance" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
-      <Route path="/accounts" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/analytics']} />} />
+      <Route path="/accounts" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route component={NotFound} />

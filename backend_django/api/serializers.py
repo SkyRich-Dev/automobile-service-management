@@ -18,7 +18,13 @@ from .models import (
     FollowUpType, FollowUpStatus, CampaignType, CampaignStatus, CustomerCategory, CommunicationChannel,
     Department, EmployeeAssignment, WorkShift, AttendanceRecord, AttendanceStatus,
     RolePermission, EmailConfiguration, WhatsAppConfiguration, PaymentGatewayConfiguration, TallyConfiguration,
-    ItemType, TaxCategory, ValuationMethod, ReservationStatus, GRNStatus, StockTransferStatus, PRStatus, AlertType
+    ItemType, TaxCategory, ValuationMethod, ReservationStatus, GRNStatus, StockTransferStatus, PRStatus, AlertType,
+    Account, AccountCategory, AccountType, TaxRate, TaxType,
+    EnhancedInvoice, InvoiceLine, InvoiceStatus, InvoiceType,
+    CreditNote, CreditNoteLine, EnhancedPayment, PaymentAllocation,
+    ExpenseCategory, Expense, ExpenseStatus,
+    JournalEntry, LedgerEntry, CustomerReceivable, VendorPayable,
+    FinancialAuditLog, FinancialPeriod, BudgetEntry
 )
 
 
@@ -1221,3 +1227,331 @@ class InventoryAlertSerializer(serializers.ModelSerializer):
         if obj.resolved_by:
             return f"{obj.resolved_by.first_name} {obj.resolved_by.last_name}".strip() or obj.resolved_by.username
         return None
+
+
+# =====================================================
+# ENTERPRISE ACCOUNTS & FINANCE SERIALIZERS
+# =====================================================
+
+class AccountSerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(source='parent.name', read_only=True, allow_null=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    children_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Account
+        fields = ['id', 'code', 'name', 'category', 'account_type', 'parent', 'parent_name',
+                  'branch', 'branch_name', 'description', 'is_system', 'is_active',
+                  'opening_balance', 'current_balance', 'children_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_children_count(self, obj):
+        return obj.children.count()
+
+
+class TaxRateSerializer(serializers.ModelSerializer):
+    liability_account_name = serializers.CharField(source='liability_account.name', read_only=True, allow_null=True)
+    input_account_name = serializers.CharField(source='input_account.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = TaxRate
+        fields = ['id', 'name', 'tax_type', 'rate', 'hsn_sac_code', 'description',
+                  'is_compound', 'is_active', 'effective_from', 'effective_to',
+                  'liability_account', 'liability_account_name', 'input_account', 'input_account_name',
+                  'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class InvoiceLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True, allow_null=True)
+    task_name = serializers.CharField(source='task.name', read_only=True, allow_null=True)
+    tax_rate_name = serializers.CharField(source='tax_rate.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = InvoiceLine
+        fields = ['id', 'invoice', 'line_number', 'line_type', 'description', 'hsn_sac_code',
+                  'part', 'part_name', 'task', 'task_name', 'quantity', 'unit', 'unit_price',
+                  'discount_percent', 'discount_amount', 'taxable_amount', 'tax_rate', 'tax_rate_name',
+                  'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount', 'igst_rate', 'igst_amount',
+                  'cess_rate', 'cess_amount', 'total_amount', 'is_warranty_covered', 'is_contract_covered',
+                  'coverage_percent']
+        read_only_fields = ['id', 'discount_amount', 'taxable_amount', 'cgst_amount', 'sgst_amount',
+                           'igst_amount', 'cess_amount', 'total_amount']
+
+
+class EnhancedInvoiceSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    contract_number = serializers.CharField(source='contract.contract_number', read_only=True, allow_null=True)
+    lines = InvoiceLineSerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EnhancedInvoice
+        fields = ['id', 'invoice_number', 'invoice_type', 'status', 'job_card', 'job_card_number',
+                  'contract', 'contract_number', 'customer', 'customer_name', 'branch', 'branch_name',
+                  'billing_address', 'shipping_address', 'gstin', 'place_of_supply', 'is_igst',
+                  'subtotal', 'discount_amount', 'discount_percent', 'taxable_amount',
+                  'cgst_amount', 'sgst_amount', 'igst_amount', 'cess_amount', 'total_tax',
+                  'grand_total', 'amount_in_words', 'amount_paid', 'balance_due',
+                  'invoice_date', 'due_date', 'payment_terms', 'terms_and_conditions', 'notes',
+                  'is_reverse_charge', 'is_export', 'is_sez', 'e_invoice_irn', 'e_way_bill_no',
+                  'approved_by', 'approved_by_name', 'approved_at', 'created_by', 'created_by_name',
+                  'lines', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'invoice_number', 'balance_due', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class CreditNoteLineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditNoteLine
+        fields = ['id', 'credit_note', 'original_line', 'description', 'hsn_sac_code',
+                  'quantity', 'unit_price', 'taxable_amount', 'tax_amount', 'total_amount']
+        read_only_fields = ['id']
+
+
+class CreditNoteSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    original_invoice_number = serializers.CharField(source='original_invoice.invoice_number', read_only=True)
+    lines = CreditNoteLineSerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CreditNote
+        fields = ['id', 'credit_note_number', 'original_invoice', 'original_invoice_number',
+                  'customer', 'customer_name', 'branch', 'branch_name', 'reason', 'reason_detail',
+                  'subtotal', 'tax_amount', 'total_amount', 'status', 'is_adjusted', 'adjusted_invoice',
+                  'is_refunded', 'refund_amount', 'refund_date', 'credit_note_date',
+                  'approved_by', 'approved_by_name', 'approved_at', 'created_by', 'created_by_name',
+                  'lines', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'credit_note_number', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class PaymentAllocationSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
+    
+    class Meta:
+        model = PaymentAllocation
+        fields = ['id', 'payment', 'invoice', 'invoice_number', 'amount', 'allocated_at']
+        read_only_fields = ['id', 'allocated_at']
+
+
+class EnhancedPaymentSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True, allow_null=True)
+    allocations = PaymentAllocationSerializer(many=True, read_only=True)
+    received_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EnhancedPayment
+        fields = ['id', 'payment_number', 'invoice', 'invoice_number', 'customer', 'customer_name',
+                  'branch', 'branch_name', 'amount', 'payment_mode', 'status', 'payment_date',
+                  'payment_time', 'reference_number', 'bank_name', 'cheque_number', 'cheque_date',
+                  'card_last_four', 'transaction_id', 'is_advance', 'advance_balance',
+                  'is_refund', 'refund_reason', 'original_payment', 'notes',
+                  'received_by', 'received_by_name', 'allocations', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'payment_number', 'created_at', 'updated_at']
+    
+    def get_received_by_name(self, obj):
+        if obj.received_by:
+            return f"{obj.received_by.first_name} {obj.received_by.last_name}".strip() or obj.received_by.username
+        return None
+
+
+class ExpenseCategorySerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(source='parent.name', read_only=True, allow_null=True)
+    expense_account_name = serializers.CharField(source='expense_account.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = ExpenseCategory
+        fields = ['id', 'name', 'code', 'parent', 'parent_name', 'expense_account', 'expense_account_name',
+                  'description', 'budget_limit', 'requires_approval', 'approval_threshold', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True, allow_null=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    submitted_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Expense
+        fields = ['id', 'expense_number', 'category', 'category_name', 'branch', 'branch_name',
+                  'supplier', 'supplier_name', 'description', 'expense_date', 'amount', 'tax_amount',
+                  'total_amount', 'status', 'payment_mode', 'reference_number', 'invoice_number',
+                  'invoice_date', 'cost_center', 'job_card', 'job_card_number', 'is_reimbursable',
+                  'is_recurring', 'recurring_frequency', 'attachments', 'notes',
+                  'submitted_by', 'submitted_by_name', 'submitted_at', 'approved_by', 'approved_by_name',
+                  'approved_at', 'rejection_reason', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'expense_number', 'created_at', 'updated_at']
+    
+    def get_submitted_by_name(self, obj):
+        if obj.submitted_by:
+            return f"{obj.submitted_by.first_name} {obj.submitted_by.last_name}".strip() or obj.submitted_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class LedgerEntrySerializer(serializers.ModelSerializer):
+    account_code = serializers.CharField(source='account.code', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    journal_number = serializers.CharField(source='journal.journal_number', read_only=True)
+    
+    class Meta:
+        model = LedgerEntry
+        fields = ['id', 'journal', 'journal_number', 'account', 'account_code', 'account_name',
+                  'branch', 'branch_name', 'debit', 'credit', 'narration', 'cost_center',
+                  'entry_date', 'running_balance', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class JournalEntrySerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    ledger_entries = LedgerEntrySerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    posted_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = JournalEntry
+        fields = ['id', 'journal_number', 'entry_type', 'branch', 'branch_name', 'entry_date',
+                  'description', 'reference_type', 'reference_id', 'reference_number',
+                  'total_debit', 'total_credit', 'is_balanced', 'is_posted', 'posted_at',
+                  'posted_by', 'posted_by_name', 'is_reversed', 'reversal_of',
+                  'created_by', 'created_by_name', 'ledger_entries', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'journal_number', 'is_balanced', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_posted_by_name(self, obj):
+        if obj.posted_by:
+            return f"{obj.posted_by.first_name} {obj.posted_by.last_name}".strip() or obj.posted_by.username
+        return None
+
+
+class CustomerReceivableSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
+    
+    class Meta:
+        model = CustomerReceivable
+        fields = ['id', 'customer', 'customer_name', 'branch', 'branch_name', 'invoice', 'invoice_number',
+                  'original_amount', 'outstanding_amount', 'due_date', 'days_overdue', 'aging_bucket',
+                  'last_reminder_date', 'reminder_count', 'is_disputed', 'dispute_reason',
+                  'is_written_off', 'written_off_amount', 'written_off_date', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'days_overdue', 'aging_bucket', 'created_at', 'updated_at']
+
+
+class VendorPayableSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    po_number = serializers.CharField(source='purchase_order.po_number', read_only=True, allow_null=True)
+    grn_number = serializers.CharField(source='grn.grn_number', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = VendorPayable
+        fields = ['id', 'supplier', 'supplier_name', 'branch', 'branch_name', 'purchase_order', 'po_number',
+                  'grn', 'grn_number', 'invoice_number', 'invoice_date', 'original_amount', 'outstanding_amount',
+                  'tds_amount', 'tds_rate', 'net_payable', 'due_date', 'days_overdue', 'aging_bucket',
+                  'is_approved', 'approved_by', 'approved_at', 'is_paid', 'paid_date', 'payment_reference',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'days_overdue', 'aging_bucket', 'created_at', 'updated_at']
+
+
+class FinancialAuditLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = FinancialAuditLog
+        fields = ['id', 'user', 'user_name', 'user_role', 'branch', 'branch_name', 'action',
+                  'model_name', 'object_id', 'object_repr', 'document_number', 'old_data', 'new_data',
+                  'amount_before', 'amount_after', 'reason', 'is_critical', 'timestamp']
+        read_only_fields = ['id', 'timestamp']
+    
+    def get_user_name(self, obj):
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.username
+        return None
+
+
+class FinancialPeriodSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    closed_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FinancialPeriod
+        fields = ['id', 'name', 'branch', 'branch_name', 'start_date', 'end_date', 'status',
+                  'is_year_end', 'closed_by', 'closed_by_name', 'closed_at', 'closing_balance', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def get_closed_by_name(self, obj):
+        if obj.closed_by:
+            return f"{obj.closed_by.first_name} {obj.closed_by.last_name}".strip() or obj.closed_by.username
+        return None
+
+
+class BudgetEntrySerializer(serializers.ModelSerializer):
+    account_code = serializers.CharField(source='account.code', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    period_name = serializers.CharField(source='period.name', read_only=True)
+    
+    class Meta:
+        model = BudgetEntry
+        fields = ['id', 'account', 'account_code', 'account_name', 'branch', 'branch_name',
+                  'period', 'period_name', 'budgeted_amount', 'actual_amount', 'variance',
+                  'variance_percent', 'notes', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'variance', 'variance_percent', 'created_at', 'updated_at']
+
+
+class FinanceDashboardSerializer(serializers.Serializer):
+    total_revenue = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_receivables = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_payables = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_expenses = serializers.DecimalField(max_digits=14, decimal_places=2)
+    cash_balance = serializers.DecimalField(max_digits=14, decimal_places=2)
+    bank_balance = serializers.DecimalField(max_digits=14, decimal_places=2)
+    outstanding_invoices = serializers.IntegerField()
+    overdue_invoices = serializers.IntegerField()
+    pending_payments = serializers.IntegerField()
+    pending_expenses = serializers.IntegerField()
+    receivables_aging = serializers.DictField()
+    payables_aging = serializers.DictField()
+    revenue_trend = serializers.ListField()
+    expense_trend = serializers.ListField()

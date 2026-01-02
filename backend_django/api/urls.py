@@ -61,6 +61,23 @@ router.register(r'whatsapp-configurations', views.WhatsAppConfigurationViewSet, 
 router.register(r'payment-gateway-configurations', views.PaymentGatewayConfigurationViewSet, basename='payment-gateway-configurations')
 router.register(r'tally-configurations', views.TallyConfigurationViewSet, basename='tally-configurations')
 
+# Finance Module Routes
+router.register(r'finance/accounts', views.AccountViewSet, basename='accounts')
+router.register(r'finance/tax-rates', views.TaxRateViewSet, basename='tax-rates')
+router.register(r'finance/enhanced-invoices', views.EnhancedInvoiceViewSet, basename='enhanced-invoices')
+router.register(r'finance/invoice-lines', views.InvoiceLineViewSet, basename='invoice-lines')
+router.register(r'finance/credit-notes', views.CreditNoteViewSet, basename='credit-notes')
+router.register(r'finance/enhanced-payments', views.EnhancedPaymentViewSet, basename='enhanced-payments')
+router.register(r'finance/expense-categories', views.ExpenseCategoryViewSet, basename='expense-categories')
+router.register(r'finance/expenses', views.ExpenseViewSet, basename='expenses')
+router.register(r'finance/journal-entries', views.JournalEntryViewSet, basename='journal-entries')
+router.register(r'finance/ledger-entries', views.LedgerEntryViewSet, basename='ledger-entries')
+router.register(r'finance/receivables', views.CustomerReceivableViewSet, basename='receivables')
+router.register(r'finance/payables', views.VendorPayableViewSet, basename='payables')
+router.register(r'finance/audit-logs', views.FinancialAuditLogViewSet, basename='finance-audit-logs')
+router.register(r'finance/periods', views.FinancialPeriodViewSet, basename='financial-periods')
+router.register(r'finance/budgets', views.BudgetEntryViewSet, basename='budget-entries')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),
@@ -75,6 +92,9 @@ urlpatterns = [
     # CRM Module Views
     path('crm/dashboard/', views.crm_dashboard, name='crm_dashboard'),
     path('crm/customer-360/<int:customer_id>/', views.customer_360_view, name='customer_360'),
+    
+    # Finance Module Views
+    path('finance/dashboard/', views.finance_dashboard, name='finance_dashboard'),
     
     path('', include(router.urls)),
 ]
