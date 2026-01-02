@@ -31,7 +31,10 @@ from .models import (
     CreditNote, CreditNoteLine, EnhancedPayment, PaymentAllocation,
     ExpenseCategory, Expense, ExpenseStatus,
     JournalEntry, LedgerEntry, CustomerReceivable, VendorPayable,
-    FinancialAuditLog, FinancialPeriod, BudgetEntry
+    FinancialAuditLog, FinancialPeriod, BudgetEntry,
+    Skill, EmployeeSkill, Employee, TrainingProgram, TrainingEnrollment,
+    IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
+    Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -68,7 +71,12 @@ from .serializers import (
     CreditNoteSerializer, CreditNoteLineSerializer, EnhancedPaymentSerializer, PaymentAllocationSerializer,
     ExpenseCategorySerializer, ExpenseSerializer, JournalEntrySerializer, LedgerEntrySerializer,
     CustomerReceivableSerializer, VendorPayableSerializer, FinancialAuditLogSerializer,
-    FinancialPeriodSerializer, BudgetEntrySerializer, FinanceDashboardSerializer
+    FinancialPeriodSerializer, BudgetEntrySerializer, FinanceDashboardSerializer,
+    SkillSerializer, EmployeeSkillSerializer, EmployeeSerializer, TrainingProgramSerializer,
+    TrainingEnrollmentSerializer, IncentiveRuleSerializer, EmployeeIncentiveSerializer,
+    LeaveTypeSerializer, LeaveBalanceSerializer, LeaveRequestSerializer, HolidaySerializer,
+    HRShiftSerializer, EmployeeShiftSerializer, HRAttendanceSerializer, PayrollSerializer,
+    SkillAuditLogSerializer
 )
 
 
@@ -4079,3 +4087,486 @@ def finance_dashboard(request):
         'revenue_trend': [],
         'expense_trend': []
     })
+
+
+# HRMS ViewSets
+class SkillViewSet(viewsets.ModelViewSet):
+    queryset = Skill.objects.all()
+    serializer_class = SkillSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        category = self.request.query_params.get('category')
+        is_active = self.request.query_params.get('is_active')
+        if category:
+            queryset = queryset.filter(category=category)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset.order_by('category', 'name')
+
+
+class EmployeeSkillViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeSkill.objects.select_related('employee__user', 'skill', 'approved_by').all()
+    serializer_class = EmployeeSkillSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        skill_id = self.request.query_params.get('skill_id')
+        category = self.request.query_params.get('category')
+        status = self.request.query_params.get('approval_status')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if skill_id:
+            queryset = queryset.filter(skill_id=skill_id)
+        if category:
+            queryset = queryset.filter(skill__category=category)
+        if status:
+            queryset = queryset.filter(approval_status=status)
+        return queryset.order_by('-created_at')
+    
+    @action(detail=False, methods=['get'])
+    def expiring_certifications(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        days = int(request.query_params.get('days', 30))
+        expiry_date = timezone.now().date() + timedelta(days=days)
+        
+        queryset = self.get_queryset().filter(
+            certification_expiry__isnull=False,
+            certification_expiry__lte=expiry_date
+        ).order_by('certification_expiry')
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class EmployeeHRViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.select_related('profile__user', 'reporting_manager__profile__user').all()
+    serializer_class = EmployeeSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        department = self.request.query_params.get('department')
+        employment_type = self.request.query_params.get('employment_type')
+        is_active = self.request.query_params.get('is_active')
+        
+        if department:
+            queryset = queryset.filter(department=department)
+        if employment_type:
+            queryset = queryset.filter(employment_type=employment_type)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset.order_by('profile__user__first_name')
+
+
+class TrainingProgramViewSet(viewsets.ModelViewSet):
+    queryset = TrainingProgram.objects.select_related('skill', 'created_by').prefetch_related('enrollments').all()
+    serializer_class = TrainingProgramSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status = self.request.query_params.get('status')
+        training_type = self.request.query_params.get('training_type')
+        skill_id = self.request.query_params.get('skill_id')
+        
+        if status:
+            queryset = queryset.filter(status=status)
+        if training_type:
+            queryset = queryset.filter(training_type=training_type)
+        if skill_id:
+            queryset = queryset.filter(skill_id=skill_id)
+        return queryset.order_by('-start_date')
+
+
+class TrainingEnrollmentViewSet(viewsets.ModelViewSet):
+    queryset = TrainingEnrollment.objects.select_related('program', 'employee__user', 'approved_by').all()
+    serializer_class = TrainingEnrollmentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        program_id = self.request.query_params.get('program_id')
+        employee_id = self.request.query_params.get('employee_id')
+        status = self.request.query_params.get('status')
+        
+        if program_id:
+            queryset = queryset.filter(program_id=program_id)
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if status:
+            queryset = queryset.filter(status=status)
+        return queryset.order_by('-enrollment_date')
+
+
+class IncentiveRuleViewSet(viewsets.ModelViewSet):
+    queryset = IncentiveRule.objects.all()
+    serializer_class = IncentiveRuleSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        rule_type = self.request.query_params.get('rule_type')
+        
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        if rule_type:
+            queryset = queryset.filter(rule_type=rule_type)
+        return queryset.order_by('name')
+
+
+class EmployeeIncentiveViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeIncentive.objects.select_related('employee__user', 'rule', 'approved_by').all()
+    serializer_class = EmployeeIncentiveSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        status = self.request.query_params.get('status')
+        period_start = self.request.query_params.get('period_start')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if status:
+            queryset = queryset.filter(status=status)
+        if period_start:
+            queryset = queryset.filter(period_start=period_start)
+        return queryset.order_by('-period_start')
+
+
+class LeaveTypeViewSet(viewsets.ModelViewSet):
+    queryset = LeaveType.objects.all()
+    serializer_class = LeaveTypeSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset.order_by('name')
+
+
+class LeaveBalanceViewSet(viewsets.ModelViewSet):
+    queryset = LeaveBalance.objects.select_related('employee__user', 'leave_type').all()
+    serializer_class = LeaveBalanceSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        year = self.request.query_params.get('year')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if year:
+            queryset = queryset.filter(year=int(year))
+        return queryset.order_by('-year', 'leave_type__name')
+
+
+class LeaveRequestViewSet(viewsets.ModelViewSet):
+    queryset = LeaveRequest.objects.select_related('employee__user', 'leave_type', 'approved_by').all()
+    serializer_class = LeaveRequestSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        status = self.request.query_params.get('status')
+        leave_type_id = self.request.query_params.get('leave_type_id')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if status:
+            queryset = queryset.filter(status=status)
+        if leave_type_id:
+            queryset = queryset.filter(leave_type_id=leave_type_id)
+        return queryset.order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        leave_request = self.get_object()
+        leave_request.status = 'APPROVED'
+        leave_request.approved_by = request.user
+        leave_request.approved_date = timezone.now()
+        leave_request.save()
+        return Response({'status': 'approved'})
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        leave_request = self.get_object()
+        leave_request.status = 'REJECTED'
+        leave_request.approved_by = request.user
+        leave_request.approved_date = timezone.now()
+        leave_request.rejection_reason = request.data.get('reason', '')
+        leave_request.save()
+        return Response({'status': 'rejected'})
+
+
+class HolidayViewSet(viewsets.ModelViewSet):
+    queryset = Holiday.objects.select_related('branch').all()
+    serializer_class = HolidaySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        year = self.request.query_params.get('year')
+        branch_id = self.request.query_params.get('branch_id')
+        
+        if year:
+            queryset = queryset.filter(date__year=int(year))
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset.order_by('date')
+
+
+class HRShiftViewSet(viewsets.ModelViewSet):
+    queryset = HRShift.objects.select_related('branch').all()
+    serializer_class = HRShiftSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        branch_id = self.request.query_params.get('branch_id')
+        
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset.order_by('name')
+
+
+class EmployeeShiftViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeShift.objects.select_related('employee__user', 'shift').all()
+    serializer_class = EmployeeShiftSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        is_current = self.request.query_params.get('is_current')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if is_current is not None:
+            queryset = queryset.filter(is_current=is_current.lower() == 'true')
+        return queryset.order_by('-effective_from')
+
+
+class HRAttendanceViewSet(viewsets.ModelViewSet):
+    queryset = HRAttendance.objects.select_related('employee__user', 'shift', 'approved_by').all()
+    serializer_class = HRAttendanceSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        date = self.request.query_params.get('date')
+        status = self.request.query_params.get('status')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if date:
+            queryset = queryset.filter(date=date)
+        if status:
+            queryset = queryset.filter(status=status)
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
+        return queryset.order_by('-date')
+
+
+class PayrollViewSet(viewsets.ModelViewSet):
+    queryset = Payroll.objects.select_related('employee__user', 'generated_by', 'approved_by').all()
+    serializer_class = PayrollSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_id = self.request.query_params.get('employee_id')
+        status = self.request.query_params.get('status')
+        period_start = self.request.query_params.get('period_start')
+        
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if status:
+            queryset = queryset.filter(status=status)
+        if period_start:
+            queryset = queryset.filter(period_start=period_start)
+        return queryset.order_by('-period_start')
+
+
+class SkillAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = SkillAuditLog.objects.select_related('employee_skill__employee__user', 'employee_skill__skill', 'changed_by').all()
+    serializer_class = SkillAuditLogSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        employee_skill_id = self.request.query_params.get('employee_skill_id')
+        if employee_skill_id:
+            queryset = queryset.filter(employee_skill_id=employee_skill_id)
+        return queryset.order_by('-created_at')
+
+
+class SkillMatrixViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        from django.db.models import Count, Avg
+        from collections import defaultdict
+        
+        # Get all active skills grouped by category
+        skills = Skill.objects.filter(is_active=True)
+        skills_by_category = defaultdict(list)
+        for skill in skills:
+            skills_by_category[skill.category].append({
+                'id': skill.id,
+                'name': skill.name,
+                'code': skill.code
+            })
+        
+        # Get skill coverage (employees per skill/level)
+        skill_coverage = []
+        for skill in skills:
+            coverage = EmployeeSkill.objects.filter(
+                skill=skill,
+                approval_status='APPROVED'
+            ).values('level').annotate(count=Count('id'))
+            
+            skill_coverage.append({
+                'skill_id': skill.id,
+                'skill_name': skill.name,
+                'category': skill.category,
+                'coverage': list(coverage)
+            })
+        
+        # Get certification expiry alerts
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        expiry_date = timezone.now().date() + timedelta(days=30)
+        expiring_certs = EmployeeSkill.objects.filter(
+            certification_expiry__isnull=False,
+            certification_expiry__lte=expiry_date
+        ).select_related('employee__user', 'skill')
+        
+        cert_alerts = [{
+            'employee_name': f"{es.employee.user.first_name} {es.employee.user.last_name}",
+            'skill_name': es.skill.name,
+            'expiry_date': es.certification_expiry,
+            'days_until_expiry': (es.certification_expiry - timezone.now().date()).days
+        } for es in expiring_certs]
+        
+        return Response({
+            'skills_by_category': dict(skills_by_category),
+            'skill_coverage': skill_coverage,
+            'certification_expiry_alerts': cert_alerts,
+            'skill_gap_analysis': []
+        })
+
+
+class TechnicianSkillMatchViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['post'])
+    def find_match(self, request):
+        """Find technicians matching skill requirements"""
+        required_skills = request.data.get('required_skills', [])
+        
+        if not required_skills:
+            return Response({'error': 'No skills specified'}, status=400)
+        
+        # Get all technicians
+        technicians = Profile.objects.filter(
+            role__in=['TECHNICIAN', 'SR_TECHNICIAN', 'SPECIALIST']
+        ).select_related('user')
+        
+        matches = []
+        for tech in technicians:
+            tech_skills = EmployeeSkill.objects.filter(
+                employee=tech,
+                approval_status='APPROVED'
+            ).select_related('skill')
+            
+            tech_skill_map = {es.skill_id: es for es in tech_skills}
+            
+            matching_skills = []
+            missing_skills = []
+            total_score = 0
+            max_score = 0
+            
+            for req in required_skills:
+                skill_id = req.get('skill_id')
+                required_level = req.get('level', 1)
+                weight = req.get('weight', 1)
+                is_mandatory = req.get('is_mandatory', False)
+                
+                max_score += weight * 5  # Max level is 5
+                
+                if skill_id in tech_skill_map:
+                    es = tech_skill_map[skill_id]
+                    level_value = {'BEGINNER': 1, 'INTERMEDIATE': 2, 'ADVANCED': 3, 'EXPERT': 4, 'MASTER': 5}.get(es.level, 1)
+                    
+                    if level_value >= required_level:
+                        matching_skills.append({
+                            'skill_name': es.skill.name,
+                            'required_level': required_level,
+                            'actual_level': es.level
+                        })
+                        total_score += weight * level_value
+                    else:
+                        missing_skills.append({
+                            'skill_name': es.skill.name,
+                            'required_level': required_level,
+                            'actual_level': es.level,
+                            'is_mandatory': is_mandatory
+                        })
+                        total_score += weight * level_value * 0.5
+                else:
+                    missing_skills.append({
+                        'skill_name': Skill.objects.get(id=skill_id).name if Skill.objects.filter(id=skill_id).exists() else 'Unknown',
+                        'required_level': required_level,
+                        'actual_level': None,
+                        'is_mandatory': is_mandatory
+                    })
+            
+            # Skip if missing mandatory skills
+            has_mandatory_missing = any(s.get('is_mandatory') and s.get('actual_level') is None for s in missing_skills)
+            if has_mandatory_missing:
+                continue
+            
+            match_score = (total_score / max_score * 100) if max_score > 0 else 0
+            
+            # Get current workload
+            current_jobs = Task.objects.filter(
+                assigned_to=tech,
+                status__in=['PENDING', 'IN_PROGRESS']
+            ).count()
+            
+            matches.append({
+                'profile_id': tech.id,
+                'employee_name': f"{tech.user.first_name} {tech.user.last_name}".strip() or tech.user.username,
+                'match_score': round(match_score, 1),
+                'matching_skills': matching_skills,
+                'missing_skills': missing_skills,
+                'is_available': tech.is_available,
+                'current_workload': current_jobs
+            })
+        
+        # Sort by match score descending
+        matches.sort(key=lambda x: x['match_score'], reverse=True)
+        
+        return Response(matches)

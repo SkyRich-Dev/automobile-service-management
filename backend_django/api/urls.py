@@ -61,6 +61,26 @@ router.register(r'whatsapp-configurations', views.WhatsAppConfigurationViewSet, 
 router.register(r'payment-gateway-configurations', views.PaymentGatewayConfigurationViewSet, basename='payment-gateway-configurations')
 router.register(r'tally-configurations', views.TallyConfigurationViewSet, basename='tally-configurations')
 
+# HRMS Module Routes
+router.register(r'hrms/skills', views.SkillViewSet, basename='skills')
+router.register(r'hrms/employee-skills', views.EmployeeSkillViewSet, basename='employee-skills')
+router.register(r'hrms/employees', views.EmployeeHRViewSet, basename='hr-employees')
+router.register(r'hrms/training-programs', views.TrainingProgramViewSet, basename='training-programs')
+router.register(r'hrms/training-enrollments', views.TrainingEnrollmentViewSet, basename='training-enrollments')
+router.register(r'hrms/incentive-rules', views.IncentiveRuleViewSet, basename='incentive-rules')
+router.register(r'hrms/employee-incentives', views.EmployeeIncentiveViewSet, basename='employee-incentives')
+router.register(r'hrms/leave-types', views.LeaveTypeViewSet, basename='leave-types')
+router.register(r'hrms/leave-balances', views.LeaveBalanceViewSet, basename='leave-balances')
+router.register(r'hrms/leave-requests', views.LeaveRequestViewSet, basename='leave-requests')
+router.register(r'hrms/holidays', views.HolidayViewSet, basename='holidays')
+router.register(r'hrms/shifts', views.HRShiftViewSet, basename='hr-shifts')
+router.register(r'hrms/employee-shifts', views.EmployeeShiftViewSet, basename='employee-shifts')
+router.register(r'hrms/attendance', views.HRAttendanceViewSet, basename='hr-attendance')
+router.register(r'hrms/payroll', views.PayrollViewSet, basename='payroll')
+router.register(r'hrms/skill-audit-logs', views.SkillAuditLogViewSet, basename='skill-audit-logs')
+router.register(r'hrms/skill-matrix', views.SkillMatrixViewSet, basename='skill-matrix')
+router.register(r'hrms/technician-match', views.TechnicianSkillMatchViewSet, basename='technician-match')
+
 # Finance Module Routes
 router.register(r'finance/accounts', views.AccountViewSet, basename='accounts')
 router.register(r'finance/tax-rates', views.TaxRateViewSet, basename='tax-rates')
