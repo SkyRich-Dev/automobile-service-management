@@ -98,6 +98,10 @@ router.register(r'finance/audit-logs', views.FinancialAuditLogViewSet, basename=
 router.register(r'finance/periods', views.FinancialPeriodViewSet, basename='financial-periods')
 router.register(r'finance/budgets', views.BudgetEntryViewSet, basename='budget-entries')
 
+# Configuration Management Routes
+router.register(r'config/categories', views.ConfigCategoryViewSet, basename='config-categories')
+router.register(r'config/options', views.ConfigOptionViewSet, basename='config-options')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),

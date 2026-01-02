@@ -27,7 +27,8 @@ from .models import (
     FinancialAuditLog, FinancialPeriod, BudgetEntry,
     Skill, EmployeeSkill, Employee, TrainingProgram, TrainingEnrollment,
     IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
-    Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance
+    Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance,
+    ConfigCategory, ConfigOption
 )
 
 
@@ -1867,3 +1868,36 @@ class TechnicianSkillMatchSerializer(serializers.Serializer):
     missing_skills = serializers.ListField()
     is_available = serializers.BooleanField()
     current_workload = serializers.IntegerField()
+
+
+class ConfigOptionSerializer(serializers.ModelSerializer):
+    category_code = serializers.CharField(source='category.code', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = ConfigOption
+        fields = ['id', 'category', 'category_code', 'category_name', 'code', 'label', 
+                  'description', 'color', 'icon', 'metadata', 'display_order', 
+                  'is_default', 'is_system', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ConfigCategorySerializer(serializers.ModelSerializer):
+    options = ConfigOptionSerializer(many=True, read_only=True)
+    options_count = serializers.IntegerField(source='options.count', read_only=True)
+    
+    class Meta:
+        model = ConfigCategory
+        fields = ['id', 'code', 'name', 'description', 'module', 'display_order',
+                  'is_system', 'is_active', 'created_at', 'updated_at', 'options', 'options_count']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ConfigCategoryListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing categories without options"""
+    options_count = serializers.IntegerField(source='options.count', read_only=True)
+    
+    class Meta:
+        model = ConfigCategory
+        fields = ['id', 'code', 'name', 'description', 'module', 'display_order',
+                  'is_system', 'is_active', 'options_count']

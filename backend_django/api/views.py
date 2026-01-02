@@ -34,7 +34,8 @@ from .models import (
     FinancialAuditLog, FinancialPeriod, BudgetEntry,
     Skill, EmployeeSkill, Employee, TrainingProgram, TrainingEnrollment,
     IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
-    Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance
+    Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance,
+    ConfigCategory, ConfigOption
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
@@ -76,7 +77,8 @@ from .serializers import (
     TrainingEnrollmentSerializer, IncentiveRuleSerializer, EmployeeIncentiveSerializer,
     LeaveTypeSerializer, LeaveBalanceSerializer, LeaveRequestSerializer, HolidaySerializer,
     HRShiftSerializer, EmployeeShiftSerializer, HRAttendanceSerializer, PayrollSerializer,
-    SkillAuditLogSerializer
+    SkillAuditLogSerializer,
+    ConfigCategorySerializer, ConfigCategoryListSerializer, ConfigOptionSerializer
 )
 
 
@@ -4570,3 +4572,277 @@ class TechnicianSkillMatchViewSet(viewsets.ViewSet):
         matches.sort(key=lambda x: x['match_score'], reverse=True)
         
         return Response(matches)
+
+
+class ConfigCategoryViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing configuration categories"""
+    queryset = ConfigCategory.objects.all()
+    serializer_class = ConfigCategorySerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = ConfigCategory.objects.prefetch_related('options').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ConfigCategoryListSerializer
+        return ConfigCategorySerializer
+    
+    @action(detail=False, methods=['get'])
+    def by_code(self, request):
+        """Get a category by its code with all options"""
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'Code parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            category = ConfigCategory.objects.prefetch_related('options').get(code=code)
+            return Response(ConfigCategorySerializer(category).data)
+        except ConfigCategory.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def all_options(self, request):
+        """Get all configuration options grouped by category"""
+        categories = ConfigCategory.objects.prefetch_related('options').filter(is_active=True)
+        result = {}
+        for category in categories:
+            result[category.code] = {
+                'name': category.name,
+                'module': category.module,
+                'options': [
+                    {
+                        'value': opt.code,
+                        'label': opt.label,
+                        'color': opt.color,
+                        'icon': opt.icon,
+                        'metadata': opt.metadata,
+                        'is_default': opt.is_default
+                    }
+                    for opt in category.options.filter(is_active=True)
+                ]
+            }
+        return Response(result)
+    
+    @action(detail=False, methods=['post'])
+    def seed_defaults(self, request):
+        """Seed default configuration options"""
+        created = []
+        
+        # HRMS Skill Categories
+        skill_cat, _ = ConfigCategory.objects.get_or_create(
+            code='SKILL_CATEGORIES',
+            defaults={'name': 'Skill Categories', 'module': 'HRMS', 'is_system': True}
+        )
+        skill_options = [
+            ('MECHANICAL', 'Mechanical', 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'),
+            ('ELECTRICAL', 'Electrical', 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'),
+            ('ELECTRONICS', 'Electronics & Diagnostics', 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'),
+            ('EV_HYBRID', 'EV & Hybrid', 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'),
+            ('BODY_PAINT', 'Body & Paint', 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'),
+            ('SOFT_SKILLS', 'Soft Skills', 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200'),
+        ]
+        for i, (code, label, color) in enumerate(skill_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=skill_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'SKILL_CATEGORIES.{code}')
+        
+        # HRMS Skill Levels
+        level_cat, _ = ConfigCategory.objects.get_or_create(
+            code='SKILL_LEVELS',
+            defaults={'name': 'Skill Levels', 'module': 'HRMS', 'is_system': True}
+        )
+        level_options = [
+            ('BEGINNER', 'Beginner', 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'),
+            ('INTERMEDIATE', 'Intermediate', 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'),
+            ('ADVANCED', 'Advanced', 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'),
+            ('EXPERT', 'Expert', 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'),
+            ('MASTER', 'Master', 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'),
+        ]
+        for i, (code, label, color) in enumerate(level_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=level_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'SKILL_LEVELS.{code}')
+        
+        # HRMS Approval Status
+        approval_cat, _ = ConfigCategory.objects.get_or_create(
+            code='APPROVAL_STATUS',
+            defaults={'name': 'Approval Status', 'module': 'HRMS', 'is_system': True}
+        )
+        approval_options = [
+            ('PENDING', 'Pending', 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'),
+            ('APPROVED', 'Approved', 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'),
+            ('REJECTED', 'Rejected', 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'),
+        ]
+        for i, (code, label, color) in enumerate(approval_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=approval_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'APPROVAL_STATUS.{code}')
+        
+        # HRMS Training Status
+        training_cat, _ = ConfigCategory.objects.get_or_create(
+            code='TRAINING_STATUS',
+            defaults={'name': 'Training Status', 'module': 'HRMS', 'is_system': True}
+        )
+        training_options = [
+            ('PLANNED', 'Planned', 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'),
+            ('ONGOING', 'Ongoing', 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'),
+            ('COMPLETED', 'Completed', 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'),
+            ('CANCELLED', 'Cancelled', 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'),
+        ]
+        for i, (code, label, color) in enumerate(training_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=training_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'TRAINING_STATUS.{code}')
+        
+        # HRMS Leave Status
+        leave_cat, _ = ConfigCategory.objects.get_or_create(
+            code='LEAVE_STATUS',
+            defaults={'name': 'Leave Status', 'module': 'HRMS', 'is_system': True}
+        )
+        leave_options = [
+            ('PENDING', 'Pending', 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'),
+            ('APPROVED', 'Approved', 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'),
+            ('REJECTED', 'Rejected', 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'),
+            ('CANCELLED', 'Cancelled', 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'),
+        ]
+        for i, (code, label, color) in enumerate(leave_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=leave_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'LEAVE_STATUS.{code}')
+        
+        # Service Workflow Stages
+        workflow_cat, _ = ConfigCategory.objects.get_or_create(
+            code='WORKFLOW_STAGES',
+            defaults={'name': 'Service Workflow Stages', 'module': 'SERVICE', 'is_system': True}
+        )
+        workflow_options = [
+            ('APPOINTMENT', 'Appointment', 'bg-blue-100 text-blue-800'),
+            ('CHECK_IN', 'Check-in', 'bg-cyan-100 text-cyan-800'),
+            ('INSPECTION', 'Digital Inspection', 'bg-indigo-100 text-indigo-800'),
+            ('JOB_CARD', 'Job Card Created', 'bg-purple-100 text-purple-800'),
+            ('ESTIMATE', 'Estimate Prepared', 'bg-pink-100 text-pink-800'),
+            ('APPROVAL', 'Customer Approval', 'bg-yellow-100 text-yellow-800'),
+            ('EXECUTION', 'Task Execution', 'bg-orange-100 text-orange-800'),
+            ('QC', 'Quality Check', 'bg-teal-100 text-teal-800'),
+            ('BILLING', 'Billing', 'bg-emerald-100 text-emerald-800'),
+            ('DELIVERY', 'Delivery', 'bg-green-100 text-green-800'),
+            ('COMPLETED', 'Service Completed', 'bg-lime-100 text-lime-800'),
+        ]
+        for i, (code, label, color) in enumerate(workflow_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=workflow_cat, code=code,
+                defaults={'label': label, 'color': color, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'WORKFLOW_STAGES.{code}')
+        
+        # User Roles
+        roles_cat, _ = ConfigCategory.objects.get_or_create(
+            code='USER_ROLES',
+            defaults={'name': 'User Roles', 'module': 'SYSTEM', 'is_system': True}
+        )
+        role_options = [
+            ('SUPER_ADMIN', 'Admin'),
+            ('CEO_OWNER', 'CEO / Owner'),
+            ('REGIONAL_MANAGER', 'Regional Manager'),
+            ('BRANCH_MANAGER', 'Branch Manager'),
+            ('SERVICE_MANAGER', 'Service Manager'),
+            ('SALES_MANAGER', 'Sales Manager'),
+            ('ACCOUNTS_MANAGER', 'Accounts Manager'),
+            ('SUPERVISOR', 'Supervisor'),
+            ('SERVICE_ADVISOR', 'Service Advisor'),
+            ('SERVICE_ENGINEER', 'Service Engineer'),
+            ('SALES_EXECUTIVE', 'Sales Executive'),
+            ('ACCOUNTANT', 'Accountant'),
+            ('INVENTORY_MANAGER', 'Inventory Manager'),
+            ('HR_MANAGER', 'HR Manager'),
+            ('TECHNICIAN', 'Technician / Mechanic'),
+            ('CRM_EXECUTIVE', 'CRM Executive'),
+            ('CUSTOMER', 'Customer'),
+        ]
+        for i, (code, label) in enumerate(role_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=roles_cat, code=code,
+                defaults={'label': label, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'USER_ROLES.{code}')
+        
+        # Employment Types
+        emp_cat, _ = ConfigCategory.objects.get_or_create(
+            code='EMPLOYMENT_TYPES',
+            defaults={'name': 'Employment Types', 'module': 'HRMS', 'is_system': True}
+        )
+        emp_options = [
+            ('FULL_TIME', 'Full Time'),
+            ('PART_TIME', 'Part Time'),
+            ('CONTRACT', 'Contract'),
+            ('TRAINEE', 'Trainee'),
+            ('INTERN', 'Intern'),
+        ]
+        for i, (code, label) in enumerate(emp_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=emp_cat, code=code,
+                defaults={'label': label, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'EMPLOYMENT_TYPES.{code}')
+        
+        # Training Types
+        train_type_cat, _ = ConfigCategory.objects.get_or_create(
+            code='TRAINING_TYPES',
+            defaults={'name': 'Training Types', 'module': 'HRMS', 'is_system': True}
+        )
+        train_options = [
+            ('CLASSROOM', 'Classroom Training'),
+            ('ONLINE', 'Online Training'),
+            ('ON_THE_JOB', 'On-the-Job Training'),
+            ('WORKSHOP', 'Workshop'),
+            ('CERTIFICATION', 'Certification Program'),
+            ('EXTERNAL', 'External Training'),
+        ]
+        for i, (code, label) in enumerate(train_options):
+            opt, c = ConfigOption.objects.get_or_create(
+                category=train_type_cat, code=code,
+                defaults={'label': label, 'display_order': i, 'is_system': True}
+            )
+            if c: created.append(f'TRAINING_TYPES.{code}')
+        
+        return Response({
+            'message': f'Seeded {len(created)} configuration options',
+            'created': created
+        })
+
+
+class ConfigOptionViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing configuration options"""
+    queryset = ConfigOption.objects.all()
+    serializer_class = ConfigOptionSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = ConfigOption.objects.select_related('category').all()
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__code=category)
+        category_id = self.request.query_params.get('category_id')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
