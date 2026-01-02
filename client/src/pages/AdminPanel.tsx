@@ -119,6 +119,36 @@ interface Branch {
   code: string;
 }
 
+interface ConfigOption {
+  id: number;
+  category: number;
+  category_code: string;
+  category_name: string;
+  code: string;
+  label: string;
+  description: string;
+  color: string;
+  icon: string;
+  metadata: Record<string, unknown>;
+  display_order: number;
+  is_default: boolean;
+  is_system: boolean;
+  is_active: boolean;
+}
+
+interface ConfigCategory {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  module: string;
+  display_order: number;
+  is_system: boolean;
+  is_active: boolean;
+  options: ConfigOption[];
+  options_count: number;
+}
+
 interface Department {
   id: number;
   name: string;
@@ -1823,6 +1853,395 @@ function SystemHealthCard() {
   );
 }
 
+function ConfigurationManagementPanel() {
+  const { toast } = useToast();
+  const [selectedCategory, setSelectedCategory] = useState<ConfigCategory | null>(null);
+  const [editingOption, setEditingOption] = useState<ConfigOption | null>(null);
+  const [isAddingOption, setIsAddingOption] = useState(false);
+  const [newOption, setNewOption] = useState({
+    code: "",
+    label: "",
+    description: "",
+    color: "",
+    icon: "",
+    display_order: 0,
+    is_default: false,
+    is_active: true,
+  });
+
+  const { data: categories = [], isLoading } = useQuery<ConfigCategory[]>({
+    queryKey: ["/api/config/categories/"],
+  });
+
+  const createOptionMutation = useMutation({
+    mutationFn: async (data: { category: number } & typeof newOption) => {
+      return apiRequest("POST", "/api/config/options/", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Option created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      setIsAddingOption(false);
+      setNewOption({
+        code: "",
+        label: "",
+        description: "",
+        color: "",
+        icon: "",
+        display_order: 0,
+        is_default: false,
+        is_active: true,
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to create option", variant: "destructive" });
+    },
+  });
+
+  const updateOptionMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<ConfigOption> }) => {
+      return apiRequest("PATCH", `/api/config/options/${id}/`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Option updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      setEditingOption(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update option", variant: "destructive" });
+    },
+  });
+
+  const deleteOptionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/config/options/${id}/`);
+    },
+    onSuccess: () => {
+      toast({ title: "Option deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete option", variant: "destructive" });
+    },
+  });
+
+  const seedDefaultsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/config/categories/seed_defaults/", {});
+    },
+    onSuccess: () => {
+      toast({ title: "Default configurations seeded" });
+      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to seed defaults", variant: "destructive" });
+    },
+  });
+
+  const groupedCategories = categories.reduce((acc, cat) => {
+    const module = cat.module || "OTHER";
+    if (!acc[module]) acc[module] = [];
+    acc[module].push(cat);
+    return acc;
+  }, {} as Record<string, ConfigCategory[]>);
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/50 overflow-visible">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Settings className="h-5 w-5 text-primary" />
+              Configuration Management
+            </CardTitle>
+            <CardDescription>
+              Manage system-wide configuration options for all modules
+            </CardDescription>
+          </div>
+          <Button
+            onClick={() => seedDefaultsMutation.mutate()}
+            disabled={seedDefaultsMutation.isPending}
+            variant="outline"
+            data-testid="button-seed-defaults"
+          >
+            {seedDefaultsMutation.isPending ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Database className="mr-2 h-4 w-4" />
+            )}
+            Seed Defaults
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Object.entries(groupedCategories).map(([module, cats]) => (
+            <div key={module}>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">{module}</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {cats.map((category) => (
+                  <Card
+                    key={category.id}
+                    className={cn(
+                      "cursor-pointer hover-elevate transition-colors border-border/50",
+                      selectedCategory?.id === category.id && "ring-2 ring-primary"
+                    )}
+                    onClick={() => setSelectedCategory(category)}
+                    data-testid={`card-category-${category.code}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div>
+                          <p className="font-medium">{category.name}</p>
+                          <p className="text-xs text-muted-foreground">{category.code}</p>
+                        </div>
+                        <Badge variant="secondary">{category.options_count} options</Badge>
+                      </div>
+                      {category.is_system && (
+                        <Badge variant="outline" className="mt-2 text-xs">
+                          <ShieldCheck className="mr-1 h-3 w-3" />
+                          System
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {selectedCategory && (
+        <Card className="border-border/50 overflow-visible">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4 flex-wrap">
+            <div>
+              <CardTitle className="text-lg">{selectedCategory.name}</CardTitle>
+              <CardDescription>{selectedCategory.description || `Manage ${selectedCategory.name} options`}</CardDescription>
+            </div>
+            {!selectedCategory.is_system && (
+              <Button
+                onClick={() => setIsAddingOption(true)}
+                size="sm"
+                data-testid="button-add-option"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Option
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Color</TableHead>
+                  <TableHead>Order</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedCategory.options.map((option) => (
+                  <TableRow key={option.id} data-testid={`row-option-${option.id}`}>
+                    <TableCell className="font-mono text-xs">{option.code}</TableCell>
+                    <TableCell>{option.label}</TableCell>
+                    <TableCell>
+                      {option.color && (
+                        <Badge className={option.color}>{option.label}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{option.display_order}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={option.is_active}
+                        onCheckedChange={(checked) =>
+                          updateOptionMutation.mutate({
+                            id: option.id,
+                            data: { is_active: checked },
+                          })
+                        }
+                        disabled={option.is_system}
+                        data-testid={`switch-active-${option.id}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setEditingOption(option)}
+                          data-testid={`button-edit-option-${option.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {!option.is_system && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteOptionMutation.mutate(option.id)}
+                            className="text-destructive"
+                            data-testid={`button-delete-option-${option.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={isAddingOption} onOpenChange={setIsAddingOption}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Configuration Option</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="option-code">Code</Label>
+              <Input
+                id="option-code"
+                value={newOption.code}
+                onChange={(e) => setNewOption({ ...newOption, code: e.target.value.toUpperCase().replace(/\s/g, "_") })}
+                placeholder="OPTION_CODE"
+                data-testid="input-option-code"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="option-label">Label</Label>
+              <Input
+                id="option-label"
+                value={newOption.label}
+                onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
+                placeholder="Option Label"
+                data-testid="input-option-label"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="option-color">Color Classes</Label>
+              <Input
+                id="option-color"
+                value={newOption.color}
+                onChange={(e) => setNewOption({ ...newOption, color: e.target.value })}
+                placeholder="bg-blue-100 text-blue-800"
+                data-testid="input-option-color"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="option-order">Display Order</Label>
+              <Input
+                id="option-order"
+                type="number"
+                value={newOption.display_order}
+                onChange={(e) => setNewOption({ ...newOption, display_order: parseInt(e.target.value) || 0 })}
+                data-testid="input-option-order"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="option-default"
+                checked={newOption.is_default}
+                onCheckedChange={(checked) => setNewOption({ ...newOption, is_default: checked as boolean })}
+              />
+              <Label htmlFor="option-default">Is Default</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingOption(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedCategory) {
+                  createOptionMutation.mutate({ category: selectedCategory.id, ...newOption });
+                }
+              }}
+              disabled={createOptionMutation.isPending || !newOption.code || !newOption.label}
+              data-testid="button-save-option"
+            >
+              {createOptionMutation.isPending ? "Saving..." : "Save Option"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingOption} onOpenChange={() => setEditingOption(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Configuration Option</DialogTitle>
+          </DialogHeader>
+          {editingOption && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Code</Label>
+                <Input value={editingOption.code} disabled className="bg-muted" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-label">Label</Label>
+                <Input
+                  id="edit-label"
+                  value={editingOption.label}
+                  onChange={(e) => setEditingOption({ ...editingOption, label: e.target.value })}
+                  data-testid="input-edit-label"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-color">Color Classes</Label>
+                <Input
+                  id="edit-color"
+                  value={editingOption.color || ""}
+                  onChange={(e) => setEditingOption({ ...editingOption, color: e.target.value })}
+                  data-testid="input-edit-color"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-order">Display Order</Label>
+                <Input
+                  id="edit-order"
+                  type="number"
+                  value={editingOption.display_order}
+                  onChange={(e) => setEditingOption({ ...editingOption, display_order: parseInt(e.target.value) || 0 })}
+                  data-testid="input-edit-order"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingOption(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingOption) {
+                  updateOptionMutation.mutate({
+                    id: editingOption.id,
+                    data: {
+                      label: editingOption.label,
+                      color: editingOption.color,
+                      display_order: editingOption.display_order,
+                    },
+                  });
+                }
+              }}
+              disabled={updateOptionMutation.isPending}
+              data-testid="button-update-option"
+            >
+              {updateOptionMutation.isPending ? "Updating..." : "Update Option"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Record<string, string>>(() => {
@@ -2221,6 +2640,7 @@ export default function AdminPanel() {
             <TabsTrigger value="allocation" data-testid="tab-allocation">Allocation</TabsTrigger>
             <TabsTrigger value="permissions" data-testid="tab-permissions">Permissions</TabsTrigger>
             <TabsTrigger value="attendance" data-testid="tab-attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="license" data-testid="tab-license">License</TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
@@ -2244,6 +2664,10 @@ export default function AdminPanel() {
 
           <TabsContent value="attendance">
             <AttendancePanel />
+          </TabsContent>
+
+          <TabsContent value="configuration">
+            <ConfigurationManagementPanel />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
