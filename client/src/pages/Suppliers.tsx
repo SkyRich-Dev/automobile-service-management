@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -104,6 +104,9 @@ export default function Suppliers() {
   const { data: supplierPerformance = [], isLoading: performanceLoading } = useSupplierPerformance();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [poDialogOpen, setPoDialogOpen] = useState(false);
 
@@ -285,28 +288,52 @@ export default function Suppliers() {
   const totalOutstanding = suppliers.reduce((sum, s) => sum + parseFloat(s.outstanding_balance || "0"), 0);
   const pendingOrders = purchaseOrders.filter((po) => ["PENDING_APPROVAL", "APPROVED", "ORDERED"].includes(po.status));
 
-  const filteredSuppliers = suppliers.filter((supplier) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        supplier.name?.toLowerCase().includes(query) ||
-        supplier.supplier_id?.toLowerCase().includes(query) ||
-        supplier.city?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    suppliers.forEach((s) => {
+      s.categories?.forEach((c) => cats.add(c));
+    });
+    return Array.from(cats).sort();
+  }, [suppliers]);
 
-  const filteredOrders = purchaseOrders.filter((po) => {
-    if (searchQuery) {
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter((supplier) => {
+      // Search logic
       const query = searchQuery.toLowerCase();
-      return (
-        po.po_number?.toLowerCase().includes(query) ||
-        po.supplier_name?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+      const matchesSearch = !searchQuery || 
+        supplier.name?.toLowerCase().includes(query) ||
+        supplier.contact_person?.toLowerCase().includes(query) ||
+        supplier.phone?.toLowerCase().includes(query) ||
+        supplier.supplier_id?.toLowerCase().includes(query);
+
+      // Category filter
+      const matchesCategory = categoryFilter === "all" || 
+        (supplier.categories && supplier.categories.includes(categoryFilter));
+
+      // Status filter
+      const matchesStatus = activeFilter === "all" || 
+        (activeFilter === "active" ? supplier.is_active : !supplier.is_active);
+
+      // Rating filter
+      const matchesRating = ratingFilter === "all" || 
+        (supplier.rating && parseInt(supplier.rating) >= parseInt(ratingFilter));
+
+      return matchesSearch && matchesCategory && matchesStatus && matchesRating;
+    });
+  }, [suppliers, searchQuery, categoryFilter, activeFilter, ratingFilter]);
+
+  const filteredOrders = useMemo(() => {
+    return purchaseOrders.filter((po) => {
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          po.po_number?.toLowerCase().includes(query) ||
+          po.supplier_name?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+  }, [purchaseOrders, searchQuery]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -413,13 +440,54 @@ export default function Suppliers() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={activeTab === "suppliers" ? t('suppliers.searchSuppliers', 'Search suppliers...') : t('suppliers.searchOrders', 'Search orders...')}
+                placeholder={activeTab === "suppliers" ? t('suppliers.searchSuppliers', 'Search by name, contact or phone...') : t('suppliers.searchOrders', 'Search orders...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
                 data-testid="input-search"
               />
             </div>
+            {activeTab === "suppliers" && (
+              <>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-48" data-testid="select-category-filter">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder={t('suppliers.filters.category', 'Category')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('suppliers.filters.allCategories', 'All Categories')}</SelectItem>
+                    {allCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={activeFilter} onValueChange={setActiveFilter}>
+                  <SelectTrigger className="w-40" data-testid="select-status-filter">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder={t('common.status', 'Status')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('suppliers.filters.allStatus', 'All Status')}</SelectItem>
+                    <SelectItem value="active">{t('common.active', 'Active')}</SelectItem>
+                    <SelectItem value="inactive">{t('common.inactive', 'Inactive')}</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={ratingFilter} onValueChange={setRatingFilter}>
+                  <SelectTrigger className="w-40" data-testid="select-rating-filter">
+                    <Star className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder={t('suppliers.filters.rating', 'Rating')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('suppliers.filters.allRatings', 'All Ratings')}</SelectItem>
+                    <SelectItem value="4">{t('suppliers.filters.fourPlus', '4+ Stars')}</SelectItem>
+                    <SelectItem value="3">{t('suppliers.filters.threePlus', '3+ Stars')}</SelectItem>
+                    <SelectItem value="2">{t('suppliers.filters.twoPlus', '2+ Stars')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
             {activeTab === "orders" && (
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-48" data-testid="select-status-filter">

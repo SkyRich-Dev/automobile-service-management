@@ -1321,6 +1321,32 @@ export default function ServiceOperations() {
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterStage, setFilterStage] = useState("all");
+
+  const filteredJobCards = useMemo(() => {
+    if (!jobCards) return [];
+    return jobCards.filter((job) => {
+      const matchesSearch = searchTerm === "" || 
+        (job.job_card_number?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (job.vehicle_info?.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesPriority = filterPriority === "all" || job.priority === filterPriority;
+      const matchesStage = filterStage === "all" || job.workflow_stage === filterStage;
+      
+      return matchesSearch && matchesPriority && matchesStage;
+    });
+  }, [jobCards, searchTerm, filterPriority, filterStage]);
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setFilterPriority("all");
+    setFilterStage("all");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || filterPriority !== "all" || filterStage !== "all";
 
   const handleTransition = async (jobId: number, newStage: string) => {
     try {
@@ -1415,9 +1441,59 @@ export default function ServiceOperations() {
           </div>
         </header>
 
+        {(viewMode === "kanban" || viewMode === "list") && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder={t('serviceOps.searchPlaceholder', 'Search job card, customer, or vehicle...')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-jobs"
+              />
+            </div>
+            <Select value={filterPriority} onValueChange={setFilterPriority}>
+              <SelectTrigger className="w-[140px]" data-testid="select-filter-priority">
+                <SelectValue placeholder={t('serviceOps.priority', 'Priority')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all', 'All')} {t('serviceOps.priority', 'Priority')}</SelectItem>
+                <SelectItem value="CRITICAL">{t('priority.critical', 'Critical')}</SelectItem>
+                <SelectItem value="HIGH">{t('priority.high', 'High')}</SelectItem>
+                <SelectItem value="NORMAL">{t('priority.normal', 'Normal')}</SelectItem>
+                <SelectItem value="LOW">{t('priority.low', 'Low')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStage} onValueChange={setFilterStage}>
+              <SelectTrigger className="w-[160px]" data-testid="select-filter-stage">
+                <SelectValue placeholder={t('jobCard.stage', 'Stage')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all', 'All')} {t('jobCard.stages', 'Stages')}</SelectItem>
+                {WORKFLOW_COLUMNS.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="gap-1" data-testid="button-clear-filters">
+                <Filter className="h-4 w-4" />
+                {t('common.clearFilters', 'Clear')}
+              </Button>
+            )}
+            {hasActiveFilters && (
+              <Badge variant="secondary" className="text-xs">
+                {filteredJobCards.length} {t('serviceOps.results', 'results')}
+              </Badge>
+            )}
+          </div>
+        )}
+
         {viewMode === "kanban" && (
           <KanbanView
-            jobCards={jobCards}
+            jobCards={filteredJobCards}
             onTransition={handleTransition}
             isPending={transitionMutation.isPending}
             formatCurrency={formatCurrency}
@@ -1427,7 +1503,7 @@ export default function ServiceOperations() {
 
         {viewMode === "list" && (
           <ListView
-            jobCards={jobCards}
+            jobCards={filteredJobCards}
             onTransition={handleTransition}
             isPending={transitionMutation.isPending}
             formatCurrency={formatCurrency}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -44,6 +44,7 @@ import {
   ArrowDownRight,
   PieChart,
   BarChart3,
+  Search,
   RefreshCw,
   Plus,
   Eye,
@@ -274,6 +275,9 @@ export default function AccountsFinance() {
   const { formatCurrency } = useLocalization();
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+  const [datePeriodFilter, setDatePeriodFilter] = useState("all");
   const searchString = useSearch();
 
   const getTabFromSearch = useCallback((search: string) => {
@@ -366,13 +370,74 @@ export default function AccountsFinance() {
     return <LoadingSkeleton />;
   }
 
-  const filteredInvoices = invoices?.filter((inv) =>
-    invoiceStatusFilter === "all" ? true : inv.status === invoiceStatusFilter
-  ) || [];
+  const isWithinDateRange = (dateStr: string, period: string) => {
+    if (period === "all") return true;
+    const date = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const filteredExpenses = expenses?.filter((exp) =>
-    expenseStatusFilter === "all" ? true : exp.status === expenseStatusFilter
-  ) || [];
+    switch (period) {
+      case "today":
+        return date >= today;
+      case "this_week": {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        return date >= startOfWeek;
+      }
+      case "this_month":
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      case "this_quarter": {
+        const quarter = Math.floor(now.getMonth() / 3);
+        const startOfQuarter = new Date(now.getFullYear(), quarter * 3, 1);
+        return date >= startOfQuarter;
+      }
+      default:
+        return true;
+    }
+  };
+
+  const filteredInvoices = useMemo(() => {
+    return invoices?.filter((inv) => {
+      const matchesStatus = invoiceStatusFilter === "all" ? true : inv.status === invoiceStatusFilter;
+      const matchesPaymentStatus = paymentStatusFilter === "all" ? true : inv.status === paymentStatusFilter;
+      const matchesSearch = !searchTerm ||
+        inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inv.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDate = isWithinDateRange(inv.invoice_date, datePeriodFilter);
+      return matchesStatus && matchesPaymentStatus && matchesSearch && matchesDate;
+    }) || [];
+  }, [invoices, invoiceStatusFilter, paymentStatusFilter, searchTerm, datePeriodFilter]);
+
+  const filteredExpenses = useMemo(() => {
+    return expenses?.filter((exp) => {
+      const matchesStatus = expenseStatusFilter === "all" ? true : exp.status === expenseStatusFilter;
+      const matchesSearch = !searchTerm ||
+        exp.expense_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        exp.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        exp.category_name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDate = isWithinDateRange(exp.expense_date, datePeriodFilter);
+      return matchesStatus && matchesSearch && matchesDate;
+    }) || [];
+  }, [expenses, expenseStatusFilter, searchTerm, datePeriodFilter]);
+
+  const filteredReceivables = useMemo(() => {
+    return receivables?.filter((rec) => {
+      const matchesSearch = !searchTerm ||
+        rec.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rec.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDate = isWithinDateRange(rec.due_date, datePeriodFilter);
+      return matchesSearch && matchesDate;
+    }) || [];
+  }, [receivables, searchTerm, datePeriodFilter]);
+
+  const filteredAccounts = useMemo(() => {
+    return accounts?.filter((acc) => {
+      return !searchTerm ||
+        acc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.category.toLowerCase().includes(searchTerm.toLowerCase());
+    }) || [];
+  }, [accounts, searchTerm]);
 
   const getInvoiceStatusLabel = (status: string) => {
     const statusMap: Record<string, string> = {
@@ -435,6 +500,63 @@ export default function AccountsFinance() {
               >
                 <Calculator className="mr-2 h-4 w-4" />
                 {t('finance.seedTaxRates', 'Seed Tax Rates')}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={t('finance.searchPlaceholder', 'Search by number, customer, or description...')}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-search-finance"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-40" data-testid="select-payment-status">
+                  <SelectValue placeholder={t('finance.paymentStatus', 'Payment Status')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('finance.allPayments', 'All Payments')}</SelectItem>
+                  <SelectItem value="PAID">{t('finance.status.PAID', 'Paid')}</SelectItem>
+                  <SelectItem value="PARTIALLY_PAID">{t('finance.status.PARTIALLY_PAID', 'Partial')}</SelectItem>
+                  <SelectItem value="ISSUED">{t('finance.status.UNPAID', 'Unpaid')}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={datePeriodFilter} onValueChange={setDatePeriodFilter}>
+                <SelectTrigger className="w-40" data-testid="select-date-period">
+                  <SelectValue placeholder={t('finance.datePeriod', 'Date Period')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('finance.allTime', 'All Time')}</SelectItem>
+                  <SelectItem value="today">{t('finance.today', 'Today')}</SelectItem>
+                  <SelectItem value="this_week">{t('finance.thisWeek', 'This Week')}</SelectItem>
+                  <SelectItem value="this_month">{t('finance.thisMonth', 'This Month')}</SelectItem>
+                  <SelectItem value="this_quarter">{t('finance.thisQuarter', 'This Quarter')}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm("");
+                  setPaymentStatusFilter("all");
+                  setDatePeriodFilter("all");
+                  setInvoiceStatusFilter("all");
+                  setExpenseStatusFilter("all");
+                }}
+                data-testid="button-reset-filters"
+              >
+                {t('common.reset', 'Reset')}
               </Button>
             </div>
           </div>
@@ -831,7 +953,7 @@ export default function AccountsFinance() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {receivables.map((rec) => (
+                      {filteredReceivables.map((rec) => (
                         <TableRow key={rec.id} data-testid={`row-receivable-${rec.id}`}>
                           <TableCell className="font-medium">{rec.customer_name}</TableCell>
                           <TableCell>{rec.invoice_number}</TableCell>
@@ -899,7 +1021,7 @@ export default function AccountsFinance() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {accounts.map((account) => (
+                      {filteredAccounts.map((account) => (
                         <TableRow key={account.id} data-testid={`row-account-${account.id}`}>
                           <TableCell className="font-mono font-medium">{account.code}</TableCell>
                           <TableCell>{account.name}</TableCell>
