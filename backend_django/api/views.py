@@ -5237,7 +5237,7 @@ class IntegrationViewSet(viewsets.ViewSet):
         finance_metrics = {
             'unpaid_invoices': EnhancedInvoice.objects.filter(status__in=[InvoiceStatus.DRAFT, InvoiceStatus.ISSUED]).count(),
             'pending_payments': EnhancedInvoice.objects.filter(status=InvoiceStatus.ISSUED).aggregate(total=Sum('balance_due'))['total'] or 0,
-            'pending_expenses': Expense.objects.filter(status=ExpenseStatus.PENDING).count()
+            'pending_expenses': Expense.objects.filter(status=ExpenseStatus.PENDING_APPROVAL).count()
         }
         
         hrms_metrics = {
