@@ -4846,3 +4846,401 @@ class ConfigOptionViewSet(viewsets.ModelViewSet):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         return queryset
+
+
+class IntegrationViewSet(viewsets.ViewSet):
+    """Cross-module integration APIs for unified system operations"""
+    permission_classes = [AllowAny]
+    
+    @action(detail=False, methods=['get'])
+    def master_lookup(self, request):
+        """Unified master data lookup across all modules"""
+        search = request.query_params.get('search', '')
+        entity_type = request.query_params.get('type', 'all')
+        limit = int(request.query_params.get('limit', 20))
+        
+        result = {}
+        
+        if entity_type in ['all', 'customer']:
+            customers = Customer.objects.filter(
+                Q(name__icontains=search) | Q(phone__icontains=search) | Q(email__icontains=search) | Q(customer_id__icontains=search)
+            )[:limit]
+            result['customers'] = [{'id': c.id, 'customer_id': c.customer_id, 'name': c.name, 'phone': c.phone, 'email': c.email} for c in customers]
+        
+        if entity_type in ['all', 'vehicle']:
+            vehicles = Vehicle.objects.select_related('customer').filter(
+                Q(plate_number__icontains=search) | Q(vin__icontains=search) | Q(make__icontains=search) | Q(model__icontains=search)
+            )[:limit]
+            result['vehicles'] = [{'id': v.id, 'vehicle_id': v.vehicle_id, 'plate_number': v.plate_number, 'make': v.make, 'model': v.model, 'customer_name': v.customer.name if v.customer else None, 'customer_id': v.customer_id} for v in vehicles]
+        
+        if entity_type in ['all', 'employee']:
+            employees = Profile.objects.select_related('user', 'branch').filter(
+                Q(user__first_name__icontains=search) | Q(user__last_name__icontains=search) | Q(employee_id__icontains=search)
+            )[:limit]
+            result['employees'] = [{'id': e.id, 'employee_id': e.employee_id, 'name': f"{e.user.first_name} {e.user.last_name}".strip() or e.user.username, 'role': e.role, 'branch': e.branch.name if e.branch else None, 'is_available': e.is_available} for e in employees]
+        
+        if entity_type in ['all', 'job_card']:
+            job_cards = JobCard.objects.select_related('customer', 'vehicle').filter(
+                Q(job_card_number__icontains=search) | Q(service_tracking_id__icontains=search)
+            )[:limit]
+            result['job_cards'] = [{'id': j.id, 'job_card_number': j.job_card_number, 'workflow_stage': j.workflow_stage, 'customer_name': j.customer.name, 'vehicle': f"{j.vehicle.make} {j.vehicle.model}"} for j in job_cards]
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def available_technicians(self, request):
+        """Get technicians available for job assignment with skill matching"""
+        skill_category = request.query_params.get('skill_category')
+        skill_level = request.query_params.get('min_level', 'BEGINNER')
+        branch_id = request.query_params.get('branch_id')
+        date = request.query_params.get('date', timezone.now().date().isoformat())
+        
+        technicians = Profile.objects.filter(
+            role__in=[UserRole.TECHNICIAN, UserRole.SERVICE_ENGINEER],
+            is_available=True
+        ).select_related('user', 'branch')
+        
+        if branch_id:
+            technicians = technicians.filter(branch_id=branch_id)
+        
+        result = []
+        level_order = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT', 'MASTER']
+        min_level_idx = level_order.index(skill_level) if skill_level in level_order else 0
+        
+        for tech in technicians:
+            tech_skills = EmployeeSkill.objects.filter(
+                profile=tech,
+                approval_status='APPROVED'
+            ).select_related('skill')
+            
+            matching_skills = []
+            for es in tech_skills:
+                if skill_category and es.skill.category != skill_category:
+                    continue
+                level_idx = level_order.index(es.current_level) if es.current_level in level_order else 0
+                if level_idx >= min_level_idx:
+                    matching_skills.append({
+                        'skill_name': es.skill.name,
+                        'category': es.skill.category,
+                        'level': es.current_level,
+                        'is_certified': es.is_certified
+                    })
+            
+            active_jobs = JobCard.objects.filter(
+                lead_technician=tech.user,
+                workflow_stage__in=['EXECUTION', 'INSPECTION', 'JOB_CARD']
+            ).count()
+            
+            try:
+                metrics = tech.metrics
+                utilization = metrics.utilization_percentage
+                avg_rating = float(metrics.average_rating)
+            except:
+                utilization = 0
+                avg_rating = 0
+            
+            result.append({
+                'id': tech.id,
+                'user_id': tech.user.id,
+                'employee_id': tech.employee_id,
+                'name': f"{tech.user.first_name} {tech.user.last_name}".strip() or tech.user.username,
+                'role': tech.role,
+                'branch': tech.branch.name if tech.branch else None,
+                'skills': matching_skills,
+                'skill_match_count': len(matching_skills),
+                'active_jobs': active_jobs,
+                'utilization': utilization,
+                'avg_rating': avg_rating,
+                'hourly_rate': float(tech.hourly_rate)
+            })
+        
+        result.sort(key=lambda x: (-x['skill_match_count'], x['active_jobs'], -x['avg_rating']))
+        return Response(result)
+    
+    @action(detail=False, methods=['post'])
+    def assign_technician_to_job(self, request):
+        """Assign technician to job card with skill validation"""
+        job_card_id = request.data.get('job_card_id')
+        technician_id = request.data.get('technician_id')
+        
+        try:
+            job_card = JobCard.objects.get(id=job_card_id)
+            technician = Profile.objects.select_related('user').get(id=technician_id)
+            
+            job_card.lead_technician = technician.user
+            job_card.save()
+            
+            ServiceEvent.objects.create(
+                job_card=job_card,
+                event_type=ServiceEventType.NOTE_ADDED,
+                actor=request.user if request.user.is_authenticated else None,
+                comment=f"Technician {technician.user.username} assigned to job",
+                metadata={'technician_id': technician.id, 'action': 'assignment'}
+            )
+            
+            return Response({'success': True, 'message': f'Technician assigned successfully'})
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=404)
+        except Profile.DoesNotExist:
+            return Response({'error': 'Technician not found'}, status=404)
+    
+    @action(detail=False, methods=['get'])
+    def check_contract_coverage(self, request):
+        """Check contract coverage for a vehicle/service"""
+        vehicle_id = request.query_params.get('vehicle_id')
+        service_type = request.query_params.get('service_type')
+        
+        if not vehicle_id:
+            return Response({'error': 'vehicle_id required'}, status=400)
+        
+        active_contracts = Contract.objects.filter(
+            vehicles__vehicle_id=vehicle_id,
+            status=ContractStatus.ACTIVE,
+            start_date__lte=timezone.now().date(),
+            end_date__gte=timezone.now().date()
+        ).prefetch_related('coverage_rules')
+        
+        coverage_result = []
+        for contract in active_contracts:
+            for rule in contract.coverage_rules.filter(is_active=True):
+                if service_type and rule.service_type != service_type:
+                    continue
+                
+                consumed = ContractConsumption.objects.filter(
+                    contract=contract,
+                    vehicle_id=vehicle_id
+                ).aggregate(total=Sum('quantity_used'))['total'] or 0
+                
+                coverage_result.append({
+                    'contract_id': contract.id,
+                    'contract_number': contract.contract_number,
+                    'contract_type': contract.contract_type,
+                    'service_type': rule.service_type,
+                    'coverage_percentage': float(rule.coverage_percentage),
+                    'max_amount': float(rule.max_amount) if rule.max_amount else None,
+                    'quantity_limit': rule.quantity_limit,
+                    'quantity_consumed': consumed,
+                    'remaining': (rule.quantity_limit - consumed) if rule.quantity_limit else None
+                })
+        
+        return Response({
+            'vehicle_id': vehicle_id,
+            'has_coverage': len(coverage_result) > 0,
+            'coverages': coverage_result
+        })
+    
+    @action(detail=False, methods=['post'])
+    def reserve_parts_for_job(self, request):
+        """Reserve inventory parts for a job card"""
+        job_card_id = request.data.get('job_card_id')
+        parts = request.data.get('parts', [])
+        
+        try:
+            job_card = JobCard.objects.get(id=job_card_id)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=404)
+        
+        reservations = []
+        errors = []
+        
+        for part_req in parts:
+            part_id = part_req.get('part_id')
+            quantity = part_req.get('quantity', 1)
+            
+            try:
+                part = Part.objects.get(id=part_id)
+                available = part.quantity_on_hand - part.quantity_reserved
+                
+                if available >= quantity:
+                    reservation = PartReservation.objects.create(
+                        part=part,
+                        job_card=job_card,
+                        quantity=quantity,
+                        status=ReservationStatus.RESERVED
+                    )
+                    part.quantity_reserved += quantity
+                    part.save()
+                    
+                    reservations.append({
+                        'part_id': part.id,
+                        'part_number': part.part_number,
+                        'quantity': quantity,
+                        'status': 'reserved'
+                    })
+                else:
+                    errors.append({
+                        'part_id': part.id,
+                        'part_number': part.part_number,
+                        'requested': quantity,
+                        'available': available,
+                        'error': 'Insufficient stock'
+                    })
+            except Part.DoesNotExist:
+                errors.append({'part_id': part_id, 'error': 'Part not found'})
+        
+        return Response({
+            'job_card_id': job_card_id,
+            'reservations': reservations,
+            'errors': errors
+        })
+    
+    @action(detail=False, methods=['post'])
+    def generate_invoice_from_job(self, request):
+        """Generate invoice from completed job card"""
+        job_card_id = request.data.get('job_card_id')
+        
+        try:
+            job_card = JobCard.objects.select_related('customer', 'vehicle', 'branch').prefetch_related('estimates__lines', 'part_issues').get(id=job_card_id)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=404)
+        
+        if job_card.workflow_stage not in ['BILLING', 'DELIVERY', 'COMPLETED']:
+            return Response({'error': 'Job must be in billing stage or later'}, status=400)
+        
+        existing = EnhancedInvoice.objects.filter(job_card=job_card).first()
+        if existing:
+            return Response({'error': 'Invoice already exists', 'invoice_id': existing.id}, status=400)
+        
+        approved_estimate = job_card.estimates.filter(is_approved=True).first()
+        
+        invoice = EnhancedInvoice.objects.create(
+            customer=job_card.customer,
+            job_card=job_card,
+            invoice_type=InvoiceType.SERVICE,
+            subtotal=job_card.labor_amount + job_card.parts_amount,
+            tax_amount=job_card.tax_amount,
+            discount_amount=job_card.discount_amount,
+            total_amount=(job_card.labor_amount + job_card.parts_amount + job_card.tax_amount - job_card.discount_amount),
+            notes=f"Service Invoice for {job_card.job_card_number}"
+        )
+        
+        InvoiceLine.objects.create(
+            invoice=invoice,
+            description=f"Labor Charges - {job_card.job_type}",
+            quantity=1,
+            unit_price=job_card.labor_amount,
+            line_total=job_card.labor_amount,
+            line_type='LABOR'
+        )
+        
+        for pi in job_card.part_issues.all():
+            InvoiceLine.objects.create(
+                invoice=invoice,
+                part=pi.part,
+                description=f"{pi.part.name}",
+                quantity=pi.quantity,
+                unit_price=pi.unit_price,
+                line_total=pi.total_price,
+                line_type='PART'
+            )
+        
+        ServiceEvent.objects.create(
+            job_card=job_card,
+            event_type=ServiceEventType.INVOICE_GENERATED,
+            actor=request.user if request.user.is_authenticated else None,
+            new_value=invoice.invoice_number,
+            metadata={'invoice_id': invoice.id, 'total': float(invoice.total_amount)}
+        )
+        
+        return Response({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'total_amount': float(invoice.total_amount)
+        })
+    
+    @action(detail=False, methods=['get'])
+    def customer_360(self, request):
+        """Get 360-degree customer view with all related data"""
+        customer_id = request.query_params.get('customer_id')
+        
+        try:
+            customer = Customer.objects.get(id=customer_id)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+        
+        vehicles = Vehicle.objects.filter(customer=customer)
+        job_cards = JobCard.objects.filter(customer=customer).order_by('-created_at')[:10]
+        contracts = Contract.objects.filter(customer=customer)
+        invoices = EnhancedInvoice.objects.filter(customer=customer).order_by('-invoice_date')[:10]
+        tickets = Ticket.objects.filter(customer=customer).order_by('-created_at')[:5]
+        interactions = CustomerInteraction.objects.filter(customer=customer).order_by('-interaction_date')[:10]
+        
+        try:
+            score = CustomerScore.objects.get(customer=customer)
+            customer_score = {
+                'overall_score': score.overall_score,
+                'revenue_score': score.revenue_score,
+                'loyalty_score': score.loyalty_score,
+                'engagement_score': score.engagement_score,
+                'segment': score.segment
+            }
+        except CustomerScore.DoesNotExist:
+            customer_score = None
+        
+        return Response({
+            'customer': {
+                'id': customer.id,
+                'customer_id': customer.customer_id,
+                'name': customer.name,
+                'phone': customer.phone,
+                'email': customer.email,
+                'address': customer.address,
+                'loyalty_points': customer.loyalty_points,
+                'total_revenue': float(customer.total_revenue),
+                'total_visits': customer.total_visits,
+                'last_visit_date': customer.last_visit_date
+            },
+            'score': customer_score,
+            'vehicles': [{'id': v.id, 'plate_number': v.plate_number, 'make': v.make, 'model': v.model, 'year': v.year} for v in vehicles],
+            'recent_jobs': [{'id': j.id, 'job_card_number': j.job_card_number, 'workflow_stage': j.workflow_stage, 'job_type': j.job_type, 'created_at': j.created_at} for j in job_cards],
+            'contracts': [{'id': c.id, 'contract_number': c.contract_number, 'contract_type': c.contract_type, 'status': c.status, 'end_date': c.end_date} for c in contracts],
+            'recent_invoices': [{'id': i.id, 'invoice_number': i.invoice_number, 'total_amount': float(i.total_amount), 'status': i.status, 'invoice_date': i.invoice_date} for i in invoices],
+            'open_tickets': [{'id': t.id, 'ticket_number': t.ticket_number, 'subject': t.subject, 'status': t.status, 'priority': t.priority} for t in tickets],
+            'recent_interactions': [{'id': i.id, 'interaction_type': i.interaction_type, 'channel': i.channel, 'summary': i.summary[:100] if i.summary else None, 'date': i.interaction_date} for i in interactions]
+        })
+    
+    @action(detail=False, methods=['get'])
+    def unified_dashboard(self, request):
+        """Get unified dashboard metrics across all modules"""
+        today = timezone.now().date()
+        
+        service_metrics = {
+            'active_jobs': JobCard.objects.exclude(workflow_stage='COMPLETED').count(),
+            'jobs_today': JobCard.objects.filter(created_at__date=today).count(),
+            'pending_approval': JobCard.objects.filter(workflow_stage='APPROVAL').count(),
+            'overdue_sla': JobCard.objects.filter(sla_deadline__lt=timezone.now(), workflow_stage__in=['EXECUTION', 'INSPECTION', 'QC']).count()
+        }
+        
+        crm_metrics = {
+            'new_leads_today': Lead.objects.filter(created_at__date=today).count(),
+            'open_tickets': Ticket.objects.exclude(status=TicketStatus.CLOSED).count(),
+            'pending_followups': FollowUpTask.objects.filter(status=FollowUpStatus.PENDING, due_date__lte=today).count()
+        }
+        
+        inventory_metrics = {
+            'low_stock_alerts': InventoryAlert.objects.filter(is_resolved=False, alert_type=AlertType.LOW_STOCK).count(),
+            'pending_pos': PurchaseOrder.objects.filter(status=PurchaseOrderStatus.PENDING).count(),
+            'pending_grns': GoodsReceiptNote.objects.filter(status=GRNStatus.DRAFT).count()
+        }
+        
+        finance_metrics = {
+            'unpaid_invoices': EnhancedInvoice.objects.filter(status__in=[InvoiceStatus.DRAFT, InvoiceStatus.SENT]).count(),
+            'pending_payments': EnhancedInvoice.objects.filter(status=InvoiceStatus.SENT).aggregate(total=Sum('balance_due'))['total'] or 0,
+            'pending_expenses': Expense.objects.filter(status=ExpenseStatus.PENDING).count()
+        }
+        
+        hrms_metrics = {
+            'employees_present': HRAttendance.objects.filter(date=today, status='PRESENT').count(),
+            'pending_leave': LeaveRequest.objects.filter(status='PENDING').count(),
+            'training_in_progress': TrainingProgram.objects.filter(status='ONGOING').count()
+        }
+        
+        return Response({
+            'service': service_metrics,
+            'crm': crm_metrics,
+            'inventory': inventory_metrics,
+            'finance': finance_metrics,
+            'hrms': hrms_metrics,
+            'generated_at': timezone.now().isoformat()
+        })

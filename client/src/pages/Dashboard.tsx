@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useJobCards } from "@/hooks/use-job-cards";
+import { useUnifiedDashboard } from "@/hooks/use-integration";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,15 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Activity,
+  Users,
+  Package,
+  IndianRupee,
+  UserCheck,
+  Ticket,
+  CalendarClock,
+  GraduationCap,
+  ShoppingCart,
+  FileWarning,
 } from "lucide-react";
 import {
   BarChart,
@@ -100,6 +110,7 @@ function LoadingSkeleton() {
 export default function Dashboard() {
   const { user } = useAuth();
   const { data: jobCards, isLoading } = useJobCards();
+  const { data: unifiedMetrics } = useUnifiedDashboard();
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -291,6 +302,128 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {unifiedMetrics && (
+          <div className="mt-6">
+            <h2 className="mb-4 text-lg font-semibold">Cross-Module Overview</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <Card className="border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">CRM</CardTitle>
+                  <Users className="h-4 w-4 text-blue-500" />
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">New Leads</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.crm.new_leads_today}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Open Tickets</span>
+                      <Badge variant={unifiedMetrics.crm.open_tickets > 5 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.crm.open_tickets}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending Follow-ups</span>
+                      <Badge variant={unifiedMetrics.crm.pending_followups > 3 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.crm.pending_followups}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Inventory</CardTitle>
+                  <Package className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Low Stock Alerts</span>
+                      <Badge variant={unifiedMetrics.inventory.low_stock_alerts > 0 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.inventory.low_stock_alerts}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending POs</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.inventory.pending_pos}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending GRNs</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.inventory.pending_grns}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Finance</CardTitle>
+                  <IndianRupee className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Unpaid Invoices</span>
+                      <Badge variant={unifiedMetrics.finance.unpaid_invoices > 10 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.finance.unpaid_invoices}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending Amount</span>
+                      <Badge variant="secondary" className="text-xs">{BUSINESS_RULES.CURRENCY_SYMBOL}{Number(unifiedMetrics.finance.pending_payments || 0).toLocaleString()}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending Expenses</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.finance.pending_expenses}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">HRMS</CardTitle>
+                  <UserCheck className="h-4 w-4 text-purple-500" />
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Present Today</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.hrms.employees_present}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pending Leave</span>
+                      <Badge variant={unifiedMetrics.hrms.pending_leave > 3 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.hrms.pending_leave}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Training Active</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.hrms.training_in_progress}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Service</CardTitle>
+                  <Wrench className="h-4 w-4 text-cyan-500" />
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Active Jobs</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.service.active_jobs}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Jobs Today</span>
+                      <Badge variant="secondary" className="text-xs">{unifiedMetrics.service.jobs_today}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Overdue SLA</span>
+                      <Badge variant={unifiedMetrics.service.overdue_sla > 0 ? "destructive" : "secondary"} className="text-xs">{unifiedMetrics.service.overdue_sla}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

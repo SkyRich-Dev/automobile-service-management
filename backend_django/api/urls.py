@@ -102,6 +102,9 @@ router.register(r'finance/budgets', views.BudgetEntryViewSet, basename='budget-e
 router.register(r'config/categories', views.ConfigCategoryViewSet, basename='config-categories')
 router.register(r'config/options', views.ConfigOptionViewSet, basename='config-options')
 
+# Cross-Module Integration Routes
+router.register(r'integration', views.IntegrationViewSet, basename='integration')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),
