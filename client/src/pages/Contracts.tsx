@@ -455,10 +455,10 @@ export default function Contracts() {
                       </div>
                       <div className="flex flex-col gap-1 items-end">
                         <Badge className={cn("text-xs", CONTRACT_TYPE_COLORS[contract.contract_type])}>
-                          {CONTRACT_TYPE_LABELS[contract.contract_type] || contract.contract_type}
+                          {t(`contracts.types.${contract.contract_type}`, CONTRACT_TYPE_LABELS[contract.contract_type] || contract.contract_type)}
                         </Badge>
                         <Badge className={cn("text-xs", CONTRACT_STATUS_COLORS[contract.status])}>
-                          {CONTRACT_STATUS_LABELS[contract.status] || contract.status}
+                          {t(`contracts.status.${contract.status}`, CONTRACT_STATUS_LABELS[contract.status] || contract.status)}
                         </Badge>
                       </div>
                     </div>
@@ -718,16 +718,16 @@ export default function Contracts() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-contract">
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    {t('contracts.creating', 'Creating...')}
                   </>
                 ) : (
-                  "Create Contract"
+                  t('contracts.createContract', 'Create Contract')
                 )}
               </Button>
             </DialogFooter>

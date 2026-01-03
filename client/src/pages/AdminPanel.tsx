@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -246,6 +247,7 @@ const USER_ROLES = [
 ];
 
 function UserManagementPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -275,12 +277,12 @@ function UserManagementPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
-      toast({ title: "User created successfully" });
+      toast({ title: t('admin.users.createSuccess', 'User created successfully') });
       setIsCreateOpen(false);
       resetForm();
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
+      toast({ title: t('admin.users.createError', 'Failed to create user'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -290,12 +292,12 @@ function UserManagementPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
-      toast({ title: "User updated successfully" });
+      toast({ title: t('admin.users.updateSuccess', 'User updated successfully') });
       setEditingUser(null);
       resetForm();
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update user", description: error.message, variant: "destructive" });
+      toast({ title: t('admin.users.updateError', 'Failed to update user'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -305,10 +307,10 @@ function UserManagementPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles/"] });
-      toast({ title: "User status updated" });
+      toast({ title: t('admin.users.statusUpdated', 'User status updated') });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+      toast({ title: t('admin.users.statusError', 'Failed to update status'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -369,7 +371,7 @@ function UserManagementPanel() {
   };
 
   if (isLoading) {
-    return <div className="space-y-4">Loading users...</div>;
+    return <div className="space-y-4">{t('common.loading', 'Loading...')}</div>;
   }
 
   return (
@@ -379,10 +381,10 @@ function UserManagementPanel() {
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <UserCog className="h-5 w-5 text-primary" />
-              User Management
+              {t('admin.users.title', 'User Management')}
             </CardTitle>
             <CardDescription className="mt-1">
-              Create, edit, and manage user accounts and permissions
+              {t('admin.users.description', 'Create, edit, and manage user accounts and permissions')}
             </CardDescription>
           </div>
           <Dialog open={isCreateOpen || !!editingUser} onOpenChange={(open) => {
@@ -395,19 +397,19 @@ function UserManagementPanel() {
             <DialogTrigger asChild>
               <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-user">
                 <Plus className="mr-2 h-4 w-4" />
-                Add User
+                {t('admin.users.addUser', 'Add User')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
+                <DialogTitle>{editingUser ? t('admin.users.editUser', 'Edit User') : t('admin.users.createUser', 'Create New User')}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 {!editingUser && (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Username</Label>
+                        <Label>{t('auth.username', 'Username')}</Label>
                         <Input
                           value={formData.username}
                           onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -416,7 +418,7 @@ function UserManagementPanel() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Email</Label>
+                        <Label>{t('auth.email', 'Email')}</Label>
                         <Input
                           type="email"
                           value={formData.email}
@@ -428,7 +430,7 @@ function UserManagementPanel() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>First Name</Label>
+                        <Label>{t('auth.firstName', 'First Name')}</Label>
                         <Input
                           value={formData.first_name}
                           onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
@@ -437,7 +439,7 @@ function UserManagementPanel() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Last Name</Label>
+                        <Label>{t('auth.lastName', 'Last Name')}</Label>
                         <Input
                           value={formData.last_name}
                           onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
@@ -447,12 +449,12 @@ function UserManagementPanel() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Password</Label>
+                      <Label>{t('auth.password', 'Password')}</Label>
                       <Input
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        placeholder="Enter password"
+                        placeholder={t('auth.enterPassword', 'Enter password')}
                         data-testid="input-password"
                       />
                     </div>
@@ -460,13 +462,13 @@ function UserManagementPanel() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Role</Label>
+                    <Label>{t('admin.users.role', 'Role')}</Label>
                     <Select
                       value={formData.role}
                       onValueChange={(value) => setFormData({ ...formData, role: value })}
                     >
                       <SelectTrigger data-testid="select-role">
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue placeholder={t('admin.users.selectRole', 'Select role')} />
                       </SelectTrigger>
                       <SelectContent>
                         {USER_ROLES.map((role) => (
@@ -478,13 +480,13 @@ function UserManagementPanel() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Branch</Label>
+                    <Label>{t('admin.users.branch', 'Branch')}</Label>
                     <Select
                       value={formData.branch}
                       onValueChange={(value) => setFormData({ ...formData, branch: value })}
                     >
                       <SelectTrigger data-testid="select-branch">
-                        <SelectValue placeholder="Select branch" />
+                        <SelectValue placeholder={t('admin.users.selectBranch', 'Select branch')} />
                       </SelectTrigger>
                       <SelectContent>
                         {branches.map((branch) => (
@@ -498,7 +500,7 @@ function UserManagementPanel() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Employee ID</Label>
+                    <Label>{t('admin.users.employeeId', 'Employee ID')}</Label>
                     <Input
                       value={formData.employee_id}
                       onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
@@ -507,7 +509,7 @@ function UserManagementPanel() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Phone</Label>
+                    <Label>{t('customer.phone', 'Phone')}</Label>
                     <Input
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -526,7 +528,7 @@ function UserManagementPanel() {
                     resetForm();
                   }}
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button
                   onClick={handleSubmit}
@@ -536,7 +538,7 @@ function UserManagementPanel() {
                   {createUserMutation.isPending || updateProfileMutation.isPending ? (
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  {editingUser ? 'Update' : 'Create'}
+                  {editingUser ? t('common.edit', 'Update') : t('common.add', 'Create')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -546,12 +548,12 @@ function UserManagementPanel() {
       <CardContent>
         <div className="rounded-lg border">
           <div className="grid grid-cols-6 gap-4 border-b bg-muted/30 p-3 text-sm font-medium">
-            <div>User</div>
-            <div>Role</div>
-            <div>Branch</div>
-            <div>Employee ID</div>
-            <div>Status</div>
-            <div className="text-right">Actions</div>
+            <div>{t('admin.users.user', 'User')}</div>
+            <div>{t('admin.users.role', 'Role')}</div>
+            <div>{t('admin.users.branch', 'Branch')}</div>
+            <div>{t('admin.users.employeeId', 'Employee ID')}</div>
+            <div>{t('common.status', 'Status')}</div>
+            <div className="text-right">{t('common.actions', 'Actions')}</div>
           </div>
           <div className="divide-y">
             {profiles.map((profile) => (
@@ -598,7 +600,7 @@ function UserManagementPanel() {
             ))}
             {profiles.length === 0 && (
               <div className="p-8 text-center text-muted-foreground">
-                No users found. Click "Add User" to create one.
+                {t('admin.users.noUsers', 'No users found. Click "Add User" to create one.')}
               </div>
             )}
           </div>
@@ -609,6 +611,7 @@ function UserManagementPanel() {
 }
 
 function DepartmentManagementPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -636,12 +639,12 @@ function DepartmentManagementPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/departments/"] });
-      toast({ title: "Department created successfully" });
+      toast({ title: t('admin.departments.createSuccess', 'Department created successfully') });
       setIsCreateOpen(false);
       setFormData({ name: '', code: '', description: '', branch: '', allowed_roles: [] });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to create department", description: error.message, variant: "destructive" });
+      toast({ title: t('admin.departments.createError', 'Failed to create department'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -651,7 +654,7 @@ function DepartmentManagementPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/departments/"] });
-      toast({ title: "Department deleted" });
+      toast({ title: t('admin.departments.deleted', 'Department deleted') });
     },
   });
 
@@ -661,25 +664,25 @@ function DepartmentManagementPanel() {
         <div>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Building className="h-5 w-5 text-primary" />
-            Department Management
+            {t('admin.departments.title', 'Department Management')}
           </CardTitle>
-          <CardDescription>Create and manage organizational departments</CardDescription>
+          <CardDescription>{t('admin.departments.description', 'Create and manage organizational departments')}</CardDescription>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-department">
               <Plus className="mr-2 h-4 w-4" />
-              Add Department
+              {t('admin.departments.addDepartment', 'Add Department')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create Department</DialogTitle>
+              <DialogTitle>{t('admin.departments.createDepartment', 'Create Department')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Name</Label>
+                  <Label>{t('common.name', 'Name')}</Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -742,21 +745,21 @@ function DepartmentManagementPanel() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Branch</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t('common.name', 'Name')}</TableHead>
+              <TableHead>{t('admin.departments.code', 'Code')}</TableHead>
+              <TableHead>{t('admin.users.branch', 'Branch')}</TableHead>
+              <TableHead>{t('common.status', 'Status')}</TableHead>
+              <TableHead className="text-right">{t('common.actions', 'Actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">{t('common.loading', 'Loading...')}</TableCell>
               </TableRow>
             ) : departments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">No departments found</TableCell>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">{t('admin.departments.noDepartments', 'No departments found')}</TableCell>
               </TableRow>
             ) : (
               departments.map((dept) => (
@@ -766,7 +769,7 @@ function DepartmentManagementPanel() {
                   <TableCell>{dept.branch_name || '-'}</TableCell>
                   <TableCell>
                     <Badge variant={dept.is_active ? "default" : "secondary"}>
-                      {dept.is_active ? "Active" : "Inactive"}
+                      {dept.is_active ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -796,6 +799,7 @@ const MODULES = [
 ];
 
 function RolePermissionPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [selectedRole, setSelectedRole] = useState('BRANCH_MANAGER');
 
@@ -814,7 +818,7 @@ function RolePermissionPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/role-permissions/"] });
-      toast({ title: "Permissions updated" });
+      toast({ title: t('admin.permissions.updated', 'Permissions updated') });
     },
   });
 
@@ -845,13 +849,13 @@ function RolePermissionPanel() {
         <div>
           <CardTitle className="flex items-center gap-2 text-lg">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            Role Permissions Matrix
+            {t('admin.permissions.title', 'Role Permissions Matrix')}
           </CardTitle>
-          <CardDescription>Configure granular permissions for each role</CardDescription>
+          <CardDescription>{t('admin.permissions.description', 'Configure granular permissions for each role')}</CardDescription>
         </div>
         <Select value={selectedRole} onValueChange={setSelectedRole}>
           <SelectTrigger className="w-48" data-testid="select-role-permission">
-            <SelectValue placeholder="Select role" />
+            <SelectValue placeholder={t('admin.users.selectRole', 'Select role')} />
           </SelectTrigger>
           <SelectContent>
             {USER_ROLES.map((role) => (
@@ -866,13 +870,13 @@ function RolePermissionPanel() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Module</TableHead>
-              <TableHead className="text-center">View</TableHead>
-              <TableHead className="text-center">Create</TableHead>
-              <TableHead className="text-center">Edit</TableHead>
-              <TableHead className="text-center">Delete</TableHead>
-              <TableHead className="text-center">Approve</TableHead>
-              <TableHead className="text-center">Export</TableHead>
+              <TableHead>{t('admin.permissions.module', 'Module')}</TableHead>
+              <TableHead className="text-center">{t('common.view', 'View')}</TableHead>
+              <TableHead className="text-center">{t('admin.permissions.create', 'Create')}</TableHead>
+              <TableHead className="text-center">{t('common.edit', 'Edit')}</TableHead>
+              <TableHead className="text-center">{t('common.delete', 'Delete')}</TableHead>
+              <TableHead className="text-center">{t('admin.permissions.approve', 'Approve')}</TableHead>
+              <TableHead className="text-center">{t('common.export', 'Export')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -2244,6 +2248,7 @@ function ConfigurationManagementPanel() {
 }
 
 function SettingsForm({ settings }: { settings: SystemSetting[] }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [formData, setFormData] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -2258,11 +2263,11 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
       return apiRequest("POST", "/api/system-settings/bulk_update/", data);
     },
     onSuccess: () => {
-      toast({ title: "Settings saved successfully" });
+      toast({ title: t('admin.settings.saveSuccess', 'Settings saved successfully') });
       queryClient.invalidateQueries({ queryKey: ["/api/system-settings/"] });
     },
     onError: () => {
-      toast({ title: "Failed to save settings", variant: "destructive" });
+      toast({ title: t('admin.settings.saveError', 'Failed to save settings'), variant: "destructive" });
     },
   });
 
@@ -2288,9 +2293,9 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Settings className="h-5 w-5 text-primary" />
-          System Settings
+          {t('admin.settings.title', 'System Settings')}
         </CardTitle>
-        <CardDescription>Configure global application settings</CardDescription>
+        <CardDescription>{t('admin.settings.description', 'Configure global application settings')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -2318,10 +2323,10 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
             {updateMutation.isPending ? (
               <>
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                {t('admin.settings.saving', 'Saving...')}
               </>
             ) : (
-              "Save Settings"
+              t('admin.settings.saveSettings', 'Save Settings')
             )}
           </Button>
         </div>
@@ -2331,6 +2336,7 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
 }
 
 function PaymentGatewaysPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
@@ -2350,13 +2356,13 @@ function PaymentGatewaysPanel() {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Razorpay configured successfully" });
+      toast({ title: t('admin.payments.razorpaySuccess', 'Razorpay configured successfully') });
       refetchRazorpay();
       setRazorpayKeyId("");
       setRazorpayKeySecret("");
     },
     onError: (error: any) => {
-      toast({ title: "Configuration failed", description: error.message, variant: "destructive" });
+      toast({ title: t('admin.payments.configFailed', 'Configuration failed'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -2583,6 +2589,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
 
   const { data: license, isLoading: licenseLoading } = useQuery<License>({
@@ -2603,7 +2610,7 @@ export default function AdminPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/integrations/"] });
-      toast({ title: "Integration status updated" });
+      toast({ title: t('admin.integrations.statusUpdated', 'Integration status updated') });
     },
   });
 
@@ -2612,10 +2619,10 @@ export default function AdminPanel() {
       return apiRequest("POST", `/api/integrations/${id}/test_connection/`, {});
     },
     onSuccess: () => {
-      toast({ title: "Connection test successful" });
+      toast({ title: t('admin.integrations.testSuccess', 'Connection test successful') });
     },
     onError: () => {
-      toast({ title: "Connection test failed", variant: "destructive" });
+      toast({ title: t('admin.integrations.testFailed', 'Connection test failed'), variant: "destructive" });
     },
   });
 
@@ -2628,24 +2635,24 @@ export default function AdminPanel() {
       <AppSidebar />
       <main className="ml-64 flex-1 p-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Admin Control Panel</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.title', 'Admin Control Panel')}</h1>
           <p className="mt-1 text-muted-foreground">
-            Manage system settings, licenses, and integrations
+            {t('admin.subtitle', 'Manage system settings, licenses, and integrations')}
           </p>
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
           <TabsList className="flex flex-wrap gap-1 h-auto p-1 w-full max-w-4xl" data-testid="admin-tabs">
-            <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
-            <TabsTrigger value="departments" data-testid="tab-departments">Departments</TabsTrigger>
-            <TabsTrigger value="allocation" data-testid="tab-allocation">Allocation</TabsTrigger>
-            <TabsTrigger value="permissions" data-testid="tab-permissions">Permissions</TabsTrigger>
-            <TabsTrigger value="attendance" data-testid="tab-attendance">Attendance</TabsTrigger>
-            <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
-            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
-            <TabsTrigger value="license" data-testid="tab-license">License</TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
-            <TabsTrigger value="localization" data-testid="tab-localization">Localization</TabsTrigger>
+            <TabsTrigger value="users" data-testid="tab-users">{t('admin.tabs.users', 'Users')}</TabsTrigger>
+            <TabsTrigger value="departments" data-testid="tab-departments">{t('admin.tabs.departments', 'Departments')}</TabsTrigger>
+            <TabsTrigger value="allocation" data-testid="tab-allocation">{t('admin.tabs.allocation', 'Allocation')}</TabsTrigger>
+            <TabsTrigger value="permissions" data-testid="tab-permissions">{t('admin.tabs.permissions', 'Permissions')}</TabsTrigger>
+            <TabsTrigger value="attendance" data-testid="tab-attendance">{t('admin.tabs.attendance', 'Attendance')}</TabsTrigger>
+            <TabsTrigger value="configuration" data-testid="tab-configuration">{t('admin.tabs.configuration', 'Configuration')}</TabsTrigger>
+            <TabsTrigger value="integrations" data-testid="tab-integrations">{t('admin.tabs.integrations', 'Integrations')}</TabsTrigger>
+            <TabsTrigger value="license" data-testid="tab-license">{t('admin.tabs.license', 'License')}</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">{t('admin.tabs.settings', 'Settings')}</TabsTrigger>
+            <TabsTrigger value="localization" data-testid="tab-localization">{t('admin.tabs.localization', 'Localization')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">

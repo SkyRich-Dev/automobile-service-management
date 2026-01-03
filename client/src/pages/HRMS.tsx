@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useLocalization } from "@/lib/currency-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -217,6 +219,8 @@ function getStatusConfig(config: ConfigData | undefined, category: string, fallb
 }
 
 export default function HRMS() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const { toast } = useToast();
   const search = useSearch();
   const [, setLocation] = useLocation();
@@ -291,7 +295,7 @@ export default function HRMS() {
       apiRequest("POST", "/api/hrms/skills/", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/skills/"] });
-      toast({ title: "Skill created successfully" });
+      toast({ title: t('hrms.messages.skillCreated', 'Skill created successfully') });
       setSkillDialogOpen(false);
       setNewSkill({
         name: "",
@@ -304,7 +308,7 @@ export default function HRMS() {
       });
     },
     onError: () => {
-      toast({ title: "Failed to create skill", variant: "destructive" });
+      toast({ title: t('hrms.messages.skillCreateError', 'Failed to create skill'), variant: "destructive" });
     },
   });
 
@@ -313,7 +317,7 @@ export default function HRMS() {
       apiRequest("POST", `/api/hrms/leave-requests/${id}/approve/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/leave-requests/"] });
-      toast({ title: "Leave request approved" });
+      toast({ title: t('hrms.messages.leaveApproved', 'Leave request approved') });
     },
   });
 
@@ -322,7 +326,7 @@ export default function HRMS() {
       apiRequest("POST", `/api/hrms/leave-requests/${id}/reject/`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hrms/leave-requests/"] });
-      toast({ title: "Leave request rejected" });
+      toast({ title: t('hrms.messages.leaveRejected', 'Leave request rejected') });
     },
   });
 
@@ -359,9 +363,9 @@ export default function HRMS() {
         <div className="mb-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">HRMS</h1>
+              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">{t('hrms.title', 'HRMS')}</h1>
               <p className="text-muted-foreground">
-                Human Resource Management & Skill Tracking
+                {t('hrms.subtitle', 'Human Resource Management & Skill Tracking')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -383,65 +387,65 @@ export default function HRMS() {
         <div className="space-y-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="grid grid-cols-6 w-full max-w-4xl">
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="skills" data-testid="tab-skills">Skills</TabsTrigger>
-            <TabsTrigger value="employees" data-testid="tab-employees">Employees</TabsTrigger>
-            <TabsTrigger value="training" data-testid="tab-training">Training</TabsTrigger>
-            <TabsTrigger value="leave" data-testid="tab-leave">Leave</TabsTrigger>
-            <TabsTrigger value="matrix" data-testid="tab-matrix">Skill Matrix</TabsTrigger>
+            <TabsTrigger value="overview" data-testid="tab-overview">{t('nav.overview', 'Overview')}</TabsTrigger>
+            <TabsTrigger value="skills" data-testid="tab-skills">{t('nav.skills', 'Skills')}</TabsTrigger>
+            <TabsTrigger value="employees" data-testid="tab-employees">{t('nav.employees', 'Employees')}</TabsTrigger>
+            <TabsTrigger value="training" data-testid="tab-training">{t('nav.training', 'Training')}</TabsTrigger>
+            <TabsTrigger value="leave" data-testid="tab-leave">{t('nav.leave', 'Leave')}</TabsTrigger>
+            <TabsTrigger value="matrix" data-testid="tab-matrix">{t('nav.skillmatrix', 'Skill Matrix')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Skills</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('hrms.totalSkills', 'Total Skills')}</CardTitle>
                   <Award className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="text-total-skills">{skills.length}</div>
                   <p className="text-xs text-muted-foreground">
-                    {skills.filter(s => s.is_active).length} active
+                    {skills.filter(s => s.is_active).length} {t('common.active', 'active')}
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('hrms.pendingApprovals', 'Pending Approvals')}</CardTitle>
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="text-pending-approvals">
                     {pendingSkillApprovals.length}
                   </div>
-                  <p className="text-xs text-muted-foreground">skill requests pending</p>
+                  <p className="text-xs text-muted-foreground">{t('hrms.skillRequestsPending', 'skill requests pending')}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Training</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('hrms.activeTraining', 'Active Training')}</CardTitle>
                   <GraduationCap className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="text-active-training">
                     {activeTrainingCount}
                   </div>
-                  <p className="text-xs text-muted-foreground">programs in progress</p>
+                  <p className="text-xs text-muted-foreground">{t('hrms.programsInProgress', 'programs in progress')}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="text-sm font-medium">Leave Requests</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('hrms.leaveRequests', 'Leave Requests')}</CardTitle>
                   <CalendarDays className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="text-pending-leave">
                     {pendingLeaveCount}
                   </div>
-                  <p className="text-xs text-muted-foreground">awaiting approval</p>
+                  <p className="text-xs text-muted-foreground">{t('hrms.awaitingApproval', 'awaiting approval')}</p>
                 </CardContent>
               </Card>
             </div>
@@ -451,20 +455,20 @@ export default function HRMS() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    Certification Expiry Alerts
+                    {t('hrms.certificationExpiryAlerts', 'Certification Expiry Alerts')}
                   </CardTitle>
                   <CardDescription>
-                    Certifications expiring within 30 days
+                    {t('hrms.certificationsExpiring30Days', 'Certifications expiring within 30 days')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Skill</TableHead>
-                        <TableHead>Expiry Date</TableHead>
-                        <TableHead>Days Left</TableHead>
+                        <TableHead>{t('hrms.employee', 'Employee')}</TableHead>
+                        <TableHead>{t('hrms.skill', 'Skill')}</TableHead>
+                        <TableHead>{t('hrms.expiryDate', 'Expiry Date')}</TableHead>
+                        <TableHead>{t('hrms.daysLeft', 'Days Left')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -475,7 +479,7 @@ export default function HRMS() {
                           <TableCell>{new Date(cert.expiry_date).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <Badge variant={cert.days_until_expiry <= 7 ? "destructive" : "outline"}>
-                              {cert.days_until_expiry} days
+                              {cert.days_until_expiry} {t('hrms.days', 'days')}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -491,18 +495,18 @@ export default function HRMS() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <UserCheck className="h-5 w-5" />
-                    Pending Skill Approvals
+                    {t('hrms.pendingSkillApprovals', 'Pending Skill Approvals')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Skill</TableHead>
-                        <TableHead>Level</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>{t('hrms.employee', 'Employee')}</TableHead>
+                        <TableHead>{t('hrms.skill', 'Skill')}</TableHead>
+                        <TableHead>{t('hrms.level', 'Level')}</TableHead>
+                        <TableHead>{t('hrms.category', 'Category')}</TableHead>
+                        <TableHead>{t('common.actions', 'Actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -541,10 +545,10 @@ export default function HRMS() {
             <div className="flex items-center justify-between gap-4">
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="w-48" data-testid="select-category">
-                  <SelectValue placeholder="Filter by category" />
+                  <SelectValue placeholder={t('hrms.filterByCategory', 'Filter by category')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="all">{t('hrms.allCategories', 'All Categories')}</SelectItem>
                   {SKILL_CATEGORIES.map(cat => (
                     <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
                   ))}
@@ -555,41 +559,41 @@ export default function HRMS() {
                 <DialogTrigger asChild>
                   <Button data-testid="button-add-skill">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Skill
+                    {t('hrms.addSkill', 'Add Skill')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add New Skill</DialogTitle>
+                    <DialogTitle>{t('hrms.addNewSkill', 'Add New Skill')}</DialogTitle>
                     <DialogDescription>
-                      Create a new skill that can be assigned to employees
+                      {t('hrms.createSkillDescription', 'Create a new skill that can be assigned to employees')}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="skill-name">Skill Name</Label>
+                        <Label htmlFor="skill-name">{t('hrms.skillName', 'Skill Name')}</Label>
                         <Input
                           id="skill-name"
                           value={newSkill.name}
                           onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
-                          placeholder="e.g., Engine Diagnostics"
+                          placeholder={t('hrms.skillNamePlaceholder', 'e.g., Engine Diagnostics')}
                           data-testid="input-skill-name"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="skill-code">Code</Label>
+                        <Label htmlFor="skill-code">{t('hrms.code', 'Code')}</Label>
                         <Input
                           id="skill-code"
                           value={newSkill.code}
                           onChange={(e) => setNewSkill({ ...newSkill, code: e.target.value })}
-                          placeholder="e.g., ENG-DIAG"
+                          placeholder={t('hrms.codePlaceholder', 'e.g., ENG-DIAG')}
                           data-testid="input-skill-code"
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="skill-category">Category</Label>
+                      <Label htmlFor="skill-category">{t('hrms.category', 'Category')}</Label>
                       <Select
                         value={newSkill.category}
                         onValueChange={(value) => setNewSkill({ ...newSkill, category: value })}
@@ -605,26 +609,26 @@ export default function HRMS() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="skill-description">Description</Label>
+                      <Label htmlFor="skill-description">{t('common.description', 'Description')}</Label>
                       <Textarea
                         id="skill-description"
                         value={newSkill.description}
                         onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
-                        placeholder="Describe the skill..."
+                        placeholder={t('hrms.describeSkill', 'Describe the skill...')}
                         data-testid="input-skill-description"
                       />
                     </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setSkillDialogOpen(false)}>
-                      Cancel
+                      {t('common.cancel', 'Cancel')}
                     </Button>
                     <Button 
                       onClick={() => createSkillMutation.mutate(newSkill)}
                       disabled={createSkillMutation.isPending}
                       data-testid="button-save-skill"
                     >
-                      {createSkillMutation.isPending ? "Creating..." : "Create Skill"}
+                      {createSkillMutation.isPending ? t('hrms.creating', 'Creating...') : t('hrms.createSkill', 'Create Skill')}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -635,13 +639,13 @@ export default function HRMS() {
               {skillsLoading ? (
                 <Card className="col-span-full">
                   <CardContent className="p-8 text-center text-muted-foreground">
-                    Loading skills...
+                    {t('hrms.loadingSkills', 'Loading skills...')}
                   </CardContent>
                 </Card>
               ) : filteredSkills.length === 0 ? (
                 <Card className="col-span-full">
                   <CardContent className="p-8 text-center text-muted-foreground">
-                    No skills found. Create your first skill to get started.
+                    {t('hrms.noSkillsFound', 'No skills found. Create your first skill to get started.')}
                   </CardContent>
                 </Card>
               ) : (
@@ -658,23 +662,23 @@ export default function HRMS() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm text-muted-foreground mb-4">
-                        {skill.description || "No description provided"}
+                        {skill.description || t('hrms.noDescription', 'No description provided')}
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
                         {skill.is_certifiable && (
                           <Badge variant="outline">
                             <Shield className="h-3 w-3 mr-1" />
-                            Certifiable
+                            {t('hrms.certifiable', 'Certifiable')}
                           </Badge>
                         )}
                         {skill.certification_required && (
                           <Badge variant="outline">
                             <Award className="h-3 w-3 mr-1" />
-                            Cert Required
+                            {t('hrms.certRequired', 'Cert Required')}
                           </Badge>
                         )}
                         <Badge variant="outline">
-                          Max Level: {skill.max_level}
+                          {t('hrms.maxLevel', 'Max Level')}: {skill.max_level}
                         </Badge>
                       </div>
                     </CardContent>
@@ -687,35 +691,35 @@ export default function HRMS() {
           <TabsContent value="employees" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Employee Skills</CardTitle>
+                <CardTitle>{t('hrms.employeeSkills', 'Employee Skills')}</CardTitle>
                 <CardDescription>
-                  View and manage employee skill assignments
+                  {t('hrms.viewManageEmployeeSkills', 'View and manage employee skill assignments')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Skill</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Experience</TableHead>
-                      <TableHead>Jobs Completed</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>{t('hrms.employee', 'Employee')}</TableHead>
+                      <TableHead>{t('hrms.skill', 'Skill')}</TableHead>
+                      <TableHead>{t('hrms.level', 'Level')}</TableHead>
+                      <TableHead>{t('hrms.experience', 'Experience')}</TableHead>
+                      <TableHead>{t('hrms.jobsCompleted', 'Jobs Completed')}</TableHead>
+                      <TableHead>{t('hrms.rating', 'Rating')}</TableHead>
+                      <TableHead>{t('common.status', 'Status')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {empSkillsLoading ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          Loading employee skills...
+                          {t('hrms.loadingEmployeeSkills', 'Loading employee skills...')}
                         </TableCell>
                       </TableRow>
                     ) : employeeSkills.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No employee skills found
+                          {t('hrms.noEmployeeSkillsFound', 'No employee skills found')}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -733,7 +737,7 @@ export default function HRMS() {
                           <TableCell>
                             <Badge className={getLevelBadge(es.level)}>{es.level}</Badge>
                           </TableCell>
-                          <TableCell>{es.years_of_experience} years</TableCell>
+                          <TableCell>{es.years_of_experience} {t('hrms.years', 'years')}</TableCell>
                           <TableCell>{es.jobs_completed}</TableCell>
                           <TableCell>
                             {es.average_rating > 0 ? (
@@ -761,10 +765,10 @@ export default function HRMS() {
 
           <TabsContent value="training" className="space-y-6">
             <div className="flex items-center justify-between gap-4">
-              <h3 className="text-lg font-medium">Training Programs</h3>
+              <h3 className="text-lg font-medium">{t('hrms.trainingPrograms', 'Training Programs')}</h3>
               <Button data-testid="button-add-training">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Program
+                {t('hrms.addProgram', 'Add Program')}
               </Button>
             </div>
 
@@ -772,13 +776,13 @@ export default function HRMS() {
               {trainingLoading ? (
                 <Card className="col-span-full">
                   <CardContent className="p-8 text-center text-muted-foreground">
-                    Loading training programs...
+                    {t('hrms.loadingTrainingPrograms', 'Loading training programs...')}
                   </CardContent>
                 </Card>
               ) : trainingPrograms.length === 0 ? (
                 <Card className="col-span-full">
                   <CardContent className="p-8 text-center text-muted-foreground">
-                    No training programs found
+                    {t('hrms.noTrainingProgramsFound', 'No training programs found')}
                   </CardContent>
                 </Card>
               ) : (
@@ -795,15 +799,15 @@ export default function HRMS() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm text-muted-foreground mb-4">
-                        {program.description || "No description provided"}
+                        {program.description || t('hrms.noDescription', 'No description provided')}
                       </p>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Duration</span>
-                          <span>{program.duration_hours} hours</span>
+                          <span className="text-muted-foreground">{t('hrms.duration', 'Duration')}</span>
+                          <span>{program.duration_hours} {t('hrms.hours', 'hours')}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Enrolled</span>
+                          <span className="text-muted-foreground">{t('hrms.enrolled', 'Enrolled')}</span>
                           <span>{program.enrolled_count} / {program.max_participants}</span>
                         </div>
                         <Progress 
@@ -811,7 +815,7 @@ export default function HRMS() {
                           className="h-2"
                         />
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Dates</span>
+                          <span className="text-muted-foreground">{t('hrms.dates', 'Dates')}</span>
                           <span>
                             {new Date(program.start_date).toLocaleDateString()} - {new Date(program.end_date).toLocaleDateString()}
                           </span>
@@ -827,36 +831,36 @@ export default function HRMS() {
           <TabsContent value="leave" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Leave Requests</CardTitle>
+                <CardTitle>{t('hrms.leaveRequests', 'Leave Requests')}</CardTitle>
                 <CardDescription>
-                  Manage employee leave requests
+                  {t('hrms.manageLeaveRequests', 'Manage employee leave requests')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Leave Type</TableHead>
-                      <TableHead>From</TableHead>
-                      <TableHead>To</TableHead>
-                      <TableHead>Days</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>{t('hrms.employee', 'Employee')}</TableHead>
+                      <TableHead>{t('hrms.leaveType', 'Leave Type')}</TableHead>
+                      <TableHead>{t('hrms.from', 'From')}</TableHead>
+                      <TableHead>{t('hrms.to', 'To')}</TableHead>
+                      <TableHead>{t('hrms.days', 'Days')}</TableHead>
+                      <TableHead>{t('hrms.reason', 'Reason')}</TableHead>
+                      <TableHead>{t('common.status', 'Status')}</TableHead>
+                      <TableHead>{t('common.actions', 'Actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {leaveLoading ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          Loading leave requests...
+                          {t('hrms.loadingLeaveRequests', 'Loading leave requests...')}
                         </TableCell>
                       </TableRow>
                     ) : leaveRequests.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No leave requests found
+                          {t('hrms.noLeaveRequestsFound', 'No leave requests found')}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -911,16 +915,16 @@ export default function HRMS() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Target className="h-5 w-5" />
-                  Skill Matrix
+                  {t('nav.skillmatrix', 'Skill Matrix')}
                 </CardTitle>
                 <CardDescription>
-                  Overview of skill coverage across the organization
+                  {t('hrms.skillCoverageOverview', 'Overview of skill coverage across the organization')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {matrixLoading ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    Loading skill matrix...
+                    {t('hrms.loadingSkillMatrix', 'Loading skill matrix...')}
                   </div>
                 ) : skillMatrix ? (
                   <div className="space-y-6">
@@ -928,7 +932,7 @@ export default function HRMS() {
                       <div key={category} className="space-y-3">
                         <h4 className="font-medium flex items-center gap-2">
                           <Badge className={getCategoryColor(category)}>{category}</Badge>
-                          <span className="text-muted-foreground">({categorySkills.length} skills)</span>
+                          <span className="text-muted-foreground">({categorySkills.length} {t('nav.skills', 'skills')})</span>
                         </h4>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                           {categorySkills.map((skill) => {
@@ -950,7 +954,7 @@ export default function HRMS() {
                                   })}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-2">
-                                  Total: {totalEmployees} employees
+                                  {t('hrms.total', 'Total')}: {totalEmployees} {t('nav.employees', 'employees')}
                                 </div>
                               </Card>
                             );
@@ -961,7 +965,7 @@ export default function HRMS() {
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
-                    No skill data available
+                    {t('hrms.noSkillDataAvailable', 'No skill data available')}
                   </div>
                 )}
               </CardContent>

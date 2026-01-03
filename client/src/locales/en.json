@@ -504,5 +504,123 @@
       "BODY_WORK": "Body Work",
       "EMERGENCY": "Emergency"
     }
+  },
+  "analytics": {
+    "title": "Analytics Dashboard",
+    "subtitle": "Business insights and performance metrics",
+    "period": "Period",
+    "noData": "No analytics data available",
+    "noRevenueData": "No revenue data available",
+    "noStageData": "No stage data available",
+    "periods": {
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days",
+      "lastYear": "Last year"
+    },
+    "metrics": {
+      "totalRevenue": "Total Revenue",
+      "labor": "Labor",
+      "jobsCompleted": "Jobs Completed",
+      "rate": "rate",
+      "avgJobValue": "Avg Job Value",
+      "slaCompliance": "SLA Compliance",
+      "newCustomers": "New Customers",
+      "appointments": "Appointments",
+      "partsRevenue": "Parts Revenue",
+      "period": "Period",
+      "days": "days",
+      "revenue": "Revenue"
+    },
+    "charts": {
+      "revenueTrend": "Revenue Trend",
+      "jobsByStage": "Jobs by Stage",
+      "stageDistribution": "Stage Distribution"
+    },
+    "stages": {
+      "appointment": "Appointment",
+      "checkIn": "Check-in",
+      "inspection": "Inspection",
+      "jobCard": "Job Card",
+      "estimate": "Estimate",
+      "approval": "Approval",
+      "execution": "Execution",
+      "qc": "QC",
+      "billing": "Billing",
+      "delivery": "Delivery",
+      "completed": "Completed"
+    }
+  },
+  "admin": {
+    "title": "Admin Control Panel",
+    "subtitle": "Manage system settings, licenses, and integrations",
+    "tabs": {
+      "users": "Users",
+      "departments": "Departments",
+      "allocation": "Allocation",
+      "permissions": "Permissions",
+      "attendance": "Attendance",
+      "configuration": "Configuration",
+      "integrations": "Integrations",
+      "license": "License",
+      "settings": "Settings",
+      "localization": "Localization"
+    },
+    "users": {
+      "title": "User Management",
+      "description": "Create, edit, and manage user accounts and permissions",
+      "addUser": "Add User",
+      "editUser": "Edit User",
+      "createUser": "Create New User",
+      "user": "User",
+      "role": "Role",
+      "branch": "Branch",
+      "employeeId": "Employee ID",
+      "selectRole": "Select role",
+      "selectBranch": "Select branch",
+      "noUsers": "No users found. Click \"Add User\" to create one.",
+      "createSuccess": "User created successfully",
+      "createError": "Failed to create user",
+      "updateSuccess": "User updated successfully",
+      "updateError": "Failed to update user",
+      "statusUpdated": "User status updated",
+      "statusError": "Failed to update status"
+    },
+    "departments": {
+      "title": "Department Management",
+      "description": "Create and manage organizational departments",
+      "addDepartment": "Add Department",
+      "createDepartment": "Create Department",
+      "code": "Code",
+      "noDepartments": "No departments found",
+      "createSuccess": "Department created successfully",
+      "createError": "Failed to create department",
+      "deleted": "Department deleted"
+    },
+    "permissions": {
+      "title": "Role Permissions Matrix",
+      "description": "Configure granular permissions for each role",
+      "module": "Module",
+      "create": "Create",
+      "approve": "Approve",
+      "updated": "Permissions updated"
+    },
+    "settings": {
+      "title": "System Settings",
+      "description": "Configure global application settings",
+      "saveSettings": "Save Settings",
+      "saving": "Saving...",
+      "saveSuccess": "Settings saved successfully",
+      "saveError": "Failed to save settings"
+    },
+    "integrations": {
+      "statusUpdated": "Integration status updated",
+      "testSuccess": "Connection test successful",
+      "testFailed": "Connection test failed"
+    },
+    "payments": {
+      "razorpaySuccess": "Razorpay configured successfully",
+      "configFailed": "Configuration failed"
+    }
   }
 }

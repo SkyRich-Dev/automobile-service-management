@@ -263,5 +263,113 @@
     "requiredField": "यह फ़ील्ड आवश्यक है",
     "invalidEmail": "अमान्य ईमेल पता",
     "invalidPhone": "अमान्य फोन नंबर"
+  },
+  "crm": {
+    "title": "सीआरएम",
+    "subtitle": "लीड्स, ग्राहकों, टिकट और अभियानों का प्रबंधन करें",
+    "addCustomer": "ग्राहक जोड़ें",
+    "newLead": "नई लीड",
+    "customers": "ग्राहक",
+    "newLeads": "नई लीड्स",
+    "openTickets": "खुले टिकट",
+    "pendingTasks": "लंबित कार्य",
+    "overdue": "अतिदेय",
+    "campaigns": "अभियान",
+    "atRisk": "जोखिम में",
+    "tabs": {
+      "overview": "अवलोकन",
+      "leads": "लीड्स",
+      "tickets": "टिकट",
+      "tasks": "फॉलो-अप",
+      "customers": "ग्राहक",
+      "campaigns": "अभियान"
+    },
+    "leadStatus": {
+      "NEW": "नया",
+      "CONTACTED": "संपर्क किया",
+      "QUALIFIED": "योग्य",
+      "QUOTED": "कोट किया",
+      "NEGOTIATION": "बातचीत",
+      "CONVERTED": "रूपांतरित",
+      "LOST": "खो गया"
+    },
+    "priority": {
+      "LOW": "कम",
+      "MEDIUM": "मध्यम",
+      "HIGH": "उच्च",
+      "CRITICAL": "गंभीर"
+    }
+  },
+  "contracts": {
+    "title": "अनुबंध और वारंटी",
+    "subtitle": "वारंटी, एएमसी और सेवा अनुबंधों का प्रबंधन करें",
+    "newContract": "नया अनुबंध",
+    "types": {
+      "WARRANTY": "वारंटी",
+      "EXTENDED_WARRANTY": "विस्तारित वारंटी",
+      "AMC": "एएमसी",
+      "SERVICE_PACKAGE": "सेवा पैकेज",
+      "INSURANCE": "बीमा"
+    },
+    "status": {
+      "DRAFT": "ड्राफ्ट",
+      "PENDING_APPROVAL": "स्वीकृति लंबित",
+      "ACTIVE": "सक्रिय",
+      "EXPIRED": "समाप्त"
+    }
+  },
+  "appointments": {
+    "title": "अपॉइंटमेंट",
+    "subtitle": "सेवा अपॉइंटमेंट और बुकिंग प्रबंधित करें",
+    "newAppointment": "नई अपॉइंटमेंट",
+    "bookAppointment": "अपॉइंटमेंट बुक करें",
+    "status": {
+      "scheduled": "निर्धारित",
+      "confirmed": "पुष्टि",
+      "checkedIn": "चेक इन",
+      "cancelled": "रद्द"
+    },
+    "serviceTypes": {
+      "REGULAR_SERVICE": "नियमित सेवा",
+      "MAJOR_SERVICE": "प्रमुख सेवा",
+      "REPAIR": "मरम्मत",
+      "INSPECTION": "निरीक्षण",
+      "WARRANTY_WORK": "वारंटी कार्य",
+      "BODY_WORK": "बॉडी वर्क",
+      "EMERGENCY": "आपातकालीन"
+    }
+  },
+  "analytics": {
+    "title": "एनालिटिक्स डैशबोर्ड",
+    "subtitle": "व्यावसायिक अंतर्दृष्टि और प्रदर्शन मेट्रिक्स",
+    "period": "अवधि",
+    "periods": {
+      "last7Days": "पिछले 7 दिन",
+      "last30Days": "पिछले 30 दिन",
+      "last90Days": "पिछले 90 दिन",
+      "lastYear": "पिछला वर्ष"
+    },
+    "metrics": {
+      "totalRevenue": "कुल राजस्व",
+      "jobsCompleted": "पूर्ण कार्य",
+      "avgJobValue": "औसत कार्य मूल्य",
+      "slaCompliance": "एसएलए अनुपालन",
+      "newCustomers": "नए ग्राहक"
+    }
+  },
+  "admin": {
+    "title": "एडमिन कंट्रोल पैनल",
+    "subtitle": "सिस्टम सेटिंग्स, लाइसेंस और एकीकरण प्रबंधित करें",
+    "tabs": {
+      "users": "उपयोगकर्ता",
+      "departments": "विभाग",
+      "permissions": "अनुमतियां",
+      "settings": "सेटिंग्स"
+    },
+    "users": {
+      "title": "उपयोगकर्ता प्रबंधन",
+      "addUser": "उपयोगकर्ता जोड़ें",
+      "createSuccess": "उपयोगकर्ता सफलतापूर्वक बनाया गया"
+    }
   }
 }

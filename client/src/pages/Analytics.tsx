@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useLocalization } from "@/lib/currency-context";
 import {
   BarChart3,
   TrendingUp,
@@ -63,22 +65,24 @@ const STAGE_COLORS = [
   "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1", "#14b8a6"
 ];
 
-const STAGE_LABELS: Record<string, string> = {
-  APPOINTMENT: "Appointment",
-  CHECK_IN: "Check-in",
-  INSPECTION: "Inspection",
-  JOB_CARD: "Job Card",
-  ESTIMATE: "Estimate",
-  APPROVAL: "Approval",
-  EXECUTION: "Execution",
-  QC: "QC",
-  BILLING: "Billing",
-  DELIVERY: "Delivery",
-  COMPLETED: "Completed",
-};
-
 export default function Analytics() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const [period, setPeriod] = useState("30");
+
+  const STAGE_LABELS: Record<string, string> = {
+    APPOINTMENT: t('analytics.stages.appointment', 'Appointment'),
+    CHECK_IN: t('analytics.stages.checkIn', 'Check-in'),
+    INSPECTION: t('analytics.stages.inspection', 'Inspection'),
+    JOB_CARD: t('analytics.stages.jobCard', 'Job Card'),
+    ESTIMATE: t('analytics.stages.estimate', 'Estimate'),
+    APPROVAL: t('analytics.stages.approval', 'Approval'),
+    EXECUTION: t('analytics.stages.execution', 'Execution'),
+    QC: t('analytics.stages.qc', 'QC'),
+    BILLING: t('analytics.stages.billing', 'Billing'),
+    DELIVERY: t('analytics.stages.delivery', 'Delivery'),
+    COMPLETED: t('analytics.stages.completed', 'Completed'),
+  };
 
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ["analytics", "summary", period],
@@ -106,19 +110,23 @@ export default function Analytics() {
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Analytics Dashboard</h1>
-              <p className="text-muted-foreground">Business insights and performance metrics</p>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">
+                {t('analytics.title', 'Analytics Dashboard')}
+              </h1>
+              <p className="text-muted-foreground">
+                {t('analytics.subtitle', 'Business insights and performance metrics')}
+              </p>
             </div>
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-40" data-testid="select-period">
                 <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Period" />
+                <SelectValue placeholder={t('analytics.period', 'Period')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-                <SelectItem value="365">Last year</SelectItem>
+                <SelectItem value="7">{t('analytics.periods.last7Days', 'Last 7 days')}</SelectItem>
+                <SelectItem value="30">{t('analytics.periods.last30Days', 'Last 30 days')}</SelectItem>
+                <SelectItem value="90">{t('analytics.periods.last90Days', 'Last 90 days')}</SelectItem>
+                <SelectItem value="365">{t('analytics.periods.lastYear', 'Last year')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -134,13 +142,15 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Total Revenue</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.totalRevenue', 'Total Revenue')}
+                        </p>
                         <p className="text-2xl font-bold" data-testid="text-total-revenue">
-                          ${analytics.total_revenue.toLocaleString()}
+                          {formatCurrency(analytics.total_revenue)}
                         </p>
                         <div className="flex items-center gap-1 mt-1">
                           <Badge variant="secondary" className="text-xs">
-                            Labor: ${analytics.labor_revenue.toLocaleString()}
+                            {t('analytics.metrics.labor', 'Labor')}: {formatCurrency(analytics.labor_revenue)}
                           </Badge>
                         </div>
                       </div>
@@ -153,13 +163,17 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Jobs Completed</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.jobsCompleted', 'Jobs Completed')}
+                        </p>
                         <p className="text-2xl font-bold" data-testid="text-completed-jobs">
                           {analytics.completed_jobs} / {analytics.total_jobs}
                         </p>
                         <div className="flex items-center gap-1 mt-1">
                           <TrendingUp className="h-3 w-3 text-green-500" />
-                          <span className="text-xs text-green-600">{analytics.completion_rate}% rate</span>
+                          <span className="text-xs text-green-600">
+                            {analytics.completion_rate}% {t('analytics.metrics.rate', 'rate')}
+                          </span>
                         </div>
                       </div>
                       <Car className="h-8 w-8 text-blue-500 opacity-50" />
@@ -171,9 +185,11 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Avg Job Value</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.avgJobValue', 'Avg Job Value')}
+                        </p>
                         <p className="text-2xl font-bold" data-testid="text-avg-job-value">
-                          ${analytics.average_job_value.toFixed(0)}
+                          {formatCurrency(analytics.average_job_value)}
                         </p>
                       </div>
                       <BarChart3 className="h-8 w-8 text-purple-500 opacity-50" />
@@ -185,7 +201,9 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">SLA Compliance</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.slaCompliance', 'SLA Compliance')}
+                        </p>
                         <p className={cn(
                           "text-2xl font-bold",
                           analytics.sla_compliance_rate >= 80 ? "text-green-600" : "text-orange-600"
@@ -215,7 +233,9 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">New Customers</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.newCustomers', 'New Customers')}
+                        </p>
                         <p className="text-2xl font-bold">{analytics.new_customers}</p>
                       </div>
                       <Users className="h-8 w-8 text-indigo-500 opacity-50" />
@@ -227,7 +247,9 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Appointments</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.appointments', 'Appointments')}
+                        </p>
                         <p className="text-2xl font-bold">
                           {analytics.appointments_completed} / {analytics.appointments_scheduled}
                         </p>
@@ -241,8 +263,10 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Parts Revenue</p>
-                        <p className="text-2xl font-bold">${analytics.parts_revenue.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.partsRevenue', 'Parts Revenue')}
+                        </p>
+                        <p className="text-2xl font-bold">{formatCurrency(analytics.parts_revenue)}</p>
                       </div>
                       <Activity className="h-8 w-8 text-pink-500 opacity-50" />
                     </div>
@@ -253,8 +277,12 @@ export default function Analytics() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Period</p>
-                        <p className="text-2xl font-bold">{analytics.period_days} days</p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('analytics.metrics.period', 'Period')}
+                        </p>
+                        <p className="text-2xl font-bold">
+                          {analytics.period_days} {t('analytics.metrics.days', 'days')}
+                        </p>
                       </div>
                       <Clock className="h-8 w-8 text-gray-500 opacity-50" />
                     </div>
@@ -265,7 +293,9 @@ export default function Analytics() {
               <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Revenue Trend</CardTitle>
+                    <CardTitle className="text-lg">
+                      {t('analytics.charts.revenueTrend', 'Revenue Trend')}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {revenueData.length > 0 ? (
@@ -279,10 +309,10 @@ export default function Analytics() {
                           />
                           <YAxis
                             className="text-xs"
-                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                            tickFormatter={(value) => formatCurrency(value)}
                           />
                           <Tooltip
-                            formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
+                            formatter={(value: number) => [formatCurrency(value), t('analytics.metrics.revenue', 'Revenue')]}
                             labelFormatter={(label) => format(new Date(label), "MMM d, yyyy")}
                           />
                           <Area
@@ -296,7 +326,7 @@ export default function Analytics() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                        No revenue data available
+                        {t('analytics.noRevenueData', 'No revenue data available')}
                       </div>
                     )}
                   </CardContent>
@@ -304,7 +334,9 @@ export default function Analytics() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Jobs by Stage</CardTitle>
+                    <CardTitle className="text-lg">
+                      {t('analytics.charts.jobsByStage', 'Jobs by Stage')}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {stageData.length > 0 ? (
@@ -328,7 +360,7 @@ export default function Analytics() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                        No stage data available
+                        {t('analytics.noStageData', 'No stage data available')}
                       </div>
                     )}
                   </CardContent>
@@ -337,7 +369,9 @@ export default function Analytics() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Stage Distribution</CardTitle>
+                  <CardTitle className="text-lg">
+                    {t('analytics.charts.stageDistribution', 'Stage Distribution')}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -361,7 +395,9 @@ export default function Analytics() {
             <Card>
               <CardContent className="py-12 text-center">
                 <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No analytics data available</p>
+                <p className="text-muted-foreground">
+                  {t('analytics.noData', 'No analytics data available')}
+                </p>
               </CardContent>
             </Card>
           )}

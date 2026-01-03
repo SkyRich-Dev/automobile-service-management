@@ -263,5 +263,113 @@
     "requiredField": "هذا الحقل مطلوب",
     "invalidEmail": "عنوان بريد إلكتروني غير صالح",
     "invalidPhone": "رقم هاتف غير صالح"
+  },
+  "crm": {
+    "title": "إدارة العملاء",
+    "subtitle": "إدارة العملاء المحتملين والتذاكر والحملات",
+    "addCustomer": "إضافة عميل",
+    "newLead": "عميل محتمل جديد",
+    "customers": "العملاء",
+    "newLeads": "عملاء محتملون جدد",
+    "openTickets": "التذاكر المفتوحة",
+    "pendingTasks": "المهام المعلقة",
+    "overdue": "متأخر",
+    "campaigns": "الحملات",
+    "atRisk": "في خطر",
+    "tabs": {
+      "overview": "نظرة عامة",
+      "leads": "العملاء المحتملون",
+      "tickets": "التذاكر",
+      "tasks": "المتابعات",
+      "customers": "العملاء",
+      "campaigns": "الحملات"
+    },
+    "leadStatus": {
+      "NEW": "جديد",
+      "CONTACTED": "تم الاتصال",
+      "QUALIFIED": "مؤهل",
+      "QUOTED": "تم التسعير",
+      "NEGOTIATION": "تفاوض",
+      "CONVERTED": "محول",
+      "LOST": "مفقود"
+    },
+    "priority": {
+      "LOW": "منخفض",
+      "MEDIUM": "متوسط",
+      "HIGH": "مرتفع",
+      "CRITICAL": "حرج"
+    }
+  },
+  "contracts": {
+    "title": "العقود والضمانات",
+    "subtitle": "إدارة الضمانات وعقود الصيانة السنوية",
+    "newContract": "عقد جديد",
+    "types": {
+      "WARRANTY": "ضمان",
+      "EXTENDED_WARRANTY": "ضمان ممتد",
+      "AMC": "عقد صيانة سنوي",
+      "SERVICE_PACKAGE": "باقة خدمات",
+      "INSURANCE": "تأمين"
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "PENDING_APPROVAL": "في انتظار الموافقة",
+      "ACTIVE": "نشط",
+      "EXPIRED": "منتهي"
+    }
+  },
+  "appointments": {
+    "title": "المواعيد",
+    "subtitle": "إدارة مواعيد الخدمة والحجوزات",
+    "newAppointment": "موعد جديد",
+    "bookAppointment": "حجز موعد",
+    "status": {
+      "scheduled": "مجدول",
+      "confirmed": "مؤكد",
+      "checkedIn": "تم التسجيل",
+      "cancelled": "ملغي"
+    },
+    "serviceTypes": {
+      "REGULAR_SERVICE": "خدمة منتظمة",
+      "MAJOR_SERVICE": "خدمة رئيسية",
+      "REPAIR": "إصلاح",
+      "INSPECTION": "فحص",
+      "WARRANTY_WORK": "عمل ضمان",
+      "BODY_WORK": "أعمال الهيكل",
+      "EMERGENCY": "طوارئ"
+    }
+  },
+  "analytics": {
+    "title": "لوحة التحليلات",
+    "subtitle": "رؤى الأعمال ومقاييس الأداء",
+    "period": "الفترة",
+    "periods": {
+      "last7Days": "آخر 7 أيام",
+      "last30Days": "آخر 30 يوم",
+      "last90Days": "آخر 90 يوم",
+      "lastYear": "العام الماضي"
+    },
+    "metrics": {
+      "totalRevenue": "إجمالي الإيرادات",
+      "jobsCompleted": "الأعمال المكتملة",
+      "avgJobValue": "متوسط قيمة العمل",
+      "slaCompliance": "الامتثال لاتفاقية مستوى الخدمة",
+      "newCustomers": "عملاء جدد"
+    }
+  },
+  "admin": {
+    "title": "لوحة تحكم المسؤول",
+    "subtitle": "إدارة إعدادات النظام والتراخيص والتكاملات",
+    "tabs": {
+      "users": "المستخدمون",
+      "departments": "الأقسام",
+      "permissions": "الصلاحيات",
+      "settings": "الإعدادات"
+    },
+    "users": {
+      "title": "إدارة المستخدمين",
+      "addUser": "إضافة مستخدم",
+      "createSuccess": "تم إنشاء المستخدم بنجاح"
+    }
   }
 }

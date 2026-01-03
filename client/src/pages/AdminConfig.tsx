@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +70,7 @@ const iconMap: Record<string, any> = {
 };
 
 export default function AdminConfig() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeModule, setActiveModule] = useState<string>('SYSTEM');
@@ -104,7 +106,7 @@ export default function AdminConfig() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin-config/feature-flags/'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin-config/dashboard/overview/'] });
-      toast({ title: 'Feature flag toggled successfully' });
+      toast({ title: t('config.featureFlagToggled', 'Feature flag toggled successfully') });
     }
   });
 
@@ -137,14 +139,14 @@ export default function AdminConfig() {
     <div className="p-6 space-y-6" data-testid="admin-config-page">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Admin Configuration Center</h1>
-          <p className="text-muted-foreground">Centralized system configuration and management</p>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('config.title', 'Admin Configuration Center')}</h1>
+          <p className="text-muted-foreground">{t('config.subtitle', 'Centralized system configuration and management')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search settings..."
+              placeholder={t('config.searchSettings', 'Search settings...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 w-64"
@@ -162,7 +164,7 @@ export default function AdminConfig() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">System Configs</p>
+                <p className="text-sm text-muted-foreground">{t('config.systemConfigs', 'System Configs')}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-configs">{overview?.total_configs || 0}</p>
               </div>
               <Settings className="h-8 w-8 text-muted-foreground" />
@@ -174,7 +176,7 @@ export default function AdminConfig() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Workflows</p>
+                <p className="text-sm text-muted-foreground">{t('config.workflows', 'Workflows')}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-workflows">{overview?.total_workflows || 0}</p>
               </div>
               <Workflow className="h-8 w-8 text-muted-foreground" />
@@ -186,7 +188,7 @@ export default function AdminConfig() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Automation Rules</p>
+                <p className="text-sm text-muted-foreground">{t('config.automationRules', 'Automation Rules')}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-automation">{overview?.total_automation_rules || 0}</p>
               </div>
               <Cpu className="h-8 w-8 text-muted-foreground" />
@@ -198,7 +200,7 @@ export default function AdminConfig() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Active Feature Flags</p>
+                <p className="text-sm text-muted-foreground">{t('config.activeFeatureFlags', 'Active Feature Flags')}</p>
                 <p className="text-2xl font-bold" data-testid="text-active-flags">{overview?.active_feature_flags || 0}</p>
               </div>
               <Flag className="h-8 w-8 text-muted-foreground" />
@@ -211,7 +213,7 @@ export default function AdminConfig() {
         <div className="lg:col-span-1">
           <Card className="h-full" data-testid="card-modules">
             <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm font-medium">Configuration Modules</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('config.configurationModules', 'Configuration Modules')}</CardTitle>
             </CardHeader>
             <CardContent className="p-2">
               <ScrollArea className="h-[400px]">
@@ -243,19 +245,19 @@ export default function AdminConfig() {
             <TabsList data-testid="tabs-config">
               <TabsTrigger value="settings" data-testid="tab-settings">
                 <Sliders className="h-4 w-4 mr-2" />
-                Settings
+                {t('config.tabs.settings', 'Settings')}
               </TabsTrigger>
               <TabsTrigger value="workflows" data-testid="tab-workflows">
                 <GitBranch className="h-4 w-4 mr-2" />
-                Workflows
+                {t('config.tabs.workflows', 'Workflows')}
               </TabsTrigger>
               <TabsTrigger value="feature-flags" data-testid="tab-feature-flags">
                 <Flag className="h-4 w-4 mr-2" />
-                Feature Flags
+                {t('config.tabs.featureFlags', 'Feature Flags')}
               </TabsTrigger>
               <TabsTrigger value="audit" data-testid="tab-audit">
                 <History className="h-4 w-4 mr-2" />
-                Audit Log
+                {t('config.tabs.auditLog', 'Audit Log')}
               </TabsTrigger>
             </TabsList>
 
@@ -264,13 +266,13 @@ export default function AdminConfig() {
                 <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between gap-2">
                   <div>
                     <CardTitle className="text-base">
-                      {modules?.modules?.find(m => m.code === activeModule)?.name || 'System'} Settings
+                      {modules?.modules?.find(m => m.code === activeModule)?.name || t('config.system', 'System')} {t('config.settingsSuffix', 'Settings')}
                     </CardTitle>
-                    <CardDescription>Configure module-specific settings</CardDescription>
+                    <CardDescription>{t('config.configureModuleSettings', 'Configure module-specific settings')}</CardDescription>
                   </div>
                   <Button size="sm" data-testid="button-add-config">
                     <Plus className="h-4 w-4 mr-1" />
-                    Add Setting
+                    {t('config.addSetting', 'Add Setting')}
                   </Button>
                 </CardHeader>
                 <CardContent className="p-4">
@@ -296,8 +298,8 @@ export default function AdminConfig() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Settings className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No configurations for this module yet</p>
-                      <p className="text-sm">Add your first setting to get started</p>
+                      <p>{t('config.noConfigsYet', 'No configurations for this module yet')}</p>
+                      <p className="text-sm">{t('config.addFirstSetting', 'Add your first setting to get started')}</p>
                     </div>
                   )}
                 </CardContent>
@@ -308,12 +310,12 @@ export default function AdminConfig() {
               <Card>
                 <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between gap-2">
                   <div>
-                    <CardTitle className="text-base">Workflow Configurations</CardTitle>
-                    <CardDescription>Define and manage service workflows</CardDescription>
+                    <CardTitle className="text-base">{t('config.workflowConfigurations', 'Workflow Configurations')}</CardTitle>
+                    <CardDescription>{t('config.defineManageWorkflows', 'Define and manage service workflows')}</CardDescription>
                   </div>
                   <Button size="sm" data-testid="button-add-workflow">
                     <Plus className="h-4 w-4 mr-1" />
-                    Create Workflow
+                    {t('config.createWorkflow', 'Create Workflow')}
                   </Button>
                 </CardHeader>
                 <CardContent className="p-4">
@@ -336,9 +338,9 @@ export default function AdminConfig() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant={wf.is_active ? 'default' : 'secondary'}>
-                              {wf.is_active ? 'Active' : 'Inactive'}
+                              {wf.is_active ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
                             </Badge>
-                            <Badge variant="outline">{wf.stages?.length || 0} stages</Badge>
+                            <Badge variant="outline">{wf.stages?.length || 0} {t('config.stages', 'stages')}</Badge>
                           </div>
                         </div>
                       ))}
@@ -346,8 +348,8 @@ export default function AdminConfig() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <GitBranch className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No workflows configured yet</p>
-                      <p className="text-sm">Create your first workflow to manage service processes</p>
+                      <p>{t('config.noWorkflowsYet', 'No workflows configured yet')}</p>
+                      <p className="text-sm">{t('config.createFirstWorkflow', 'Create your first workflow to manage service processes')}</p>
                     </div>
                   )}
                 </CardContent>
@@ -358,12 +360,12 @@ export default function AdminConfig() {
               <Card>
                 <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between gap-2">
                   <div>
-                    <CardTitle className="text-base">Feature Flags</CardTitle>
-                    <CardDescription>Control feature rollout and availability</CardDescription>
+                    <CardTitle className="text-base">{t('config.featureFlags', 'Feature Flags')}</CardTitle>
+                    <CardDescription>{t('config.controlFeatureRollout', 'Control feature rollout and availability')}</CardDescription>
                   </div>
                   <Button size="sm" data-testid="button-add-flag">
                     <Plus className="h-4 w-4 mr-1" />
-                    Add Flag
+                    {t('config.addFlag', 'Add Flag')}
                   </Button>
                 </CardHeader>
                 <CardContent className="p-4">
@@ -386,7 +388,7 @@ export default function AdminConfig() {
                           </div>
                           <div className="flex items-center gap-4">
                             {flag.rollout_percentage < 100 && (
-                              <Badge variant="outline">{flag.rollout_percentage}% rollout</Badge>
+                              <Badge variant="outline">{flag.rollout_percentage}% {t('config.rollout', 'rollout')}</Badge>
                             )}
                             <Switch
                               checked={flag.is_enabled}
@@ -400,8 +402,8 @@ export default function AdminConfig() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Flag className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No feature flags defined</p>
-                      <p className="text-sm">Create feature flags to control feature availability</p>
+                      <p>{t('config.noFeatureFlagsDefined', 'No feature flags defined')}</p>
+                      <p className="text-sm">{t('config.createFeatureFlagsToControl', 'Create feature flags to control feature availability')}</p>
                     </div>
                   )}
                 </CardContent>
@@ -411,8 +413,8 @@ export default function AdminConfig() {
             <TabsContent value="audit" className="space-y-4" data-testid="content-audit">
               <Card>
                 <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base">Configuration Audit Log</CardTitle>
-                  <CardDescription>Track all configuration changes</CardDescription>
+                  <CardTitle className="text-base">{t('config.configurationAuditLog', 'Configuration Audit Log')}</CardTitle>
+                  <CardDescription>{t('config.trackAllConfigChanges', 'Track all configuration changes')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4">
                   {Array.isArray(auditLogs) && auditLogs.length > 0 ? (
@@ -438,7 +440,7 @@ export default function AdminConfig() {
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">
-                              by {log.performed_by_name} at {new Date(log.created_at).toLocaleString()}
+                              {t('config.byUser', 'by')} {log.performed_by_name} {t('config.atTime', 'at')} {new Date(log.created_at).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -447,8 +449,8 @@ export default function AdminConfig() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <History className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No audit logs available</p>
-                      <p className="text-sm">Configuration changes will be tracked here</p>
+                      <p>{t('config.noAuditLogsAvailable', 'No audit logs available')}</p>
+                      <p className="text-sm">{t('config.configChangesTrackedHere', 'Configuration changes will be tracked here')}</p>
                     </div>
                   )}
                 </CardContent>
@@ -463,7 +465,7 @@ export default function AdminConfig() {
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="h-4 w-4" />
-              System Health
+              {t('config.systemHealth', 'System Health')}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -471,7 +473,7 @@ export default function AdminConfig() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span>Active Integrations</span>
+                  <span>{t('config.activeIntegrations', 'Active Integrations')}</span>
                 </div>
                 <span className="font-medium" data-testid="text-integrations-active">
                   {overview?.system_health?.integrations_active || 0}
@@ -484,7 +486,7 @@ export default function AdminConfig() {
                   ) : (
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   )}
-                  <span>Integration Errors</span>
+                  <span>{t('config.integrationErrors', 'Integration Errors')}</span>
                 </div>
                 <span className="font-medium" data-testid="text-integrations-error">
                   {overview?.system_health?.integrations_error || 0}
@@ -494,7 +496,7 @@ export default function AdminConfig() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Shield className="h-4 w-4 text-blue-500" />
-                  <span>Active Delegations</span>
+                  <span>{t('config.activeDelegations', 'Active Delegations')}</span>
                 </div>
                 <span className="font-medium" data-testid="text-delegations">
                   {overview?.pending_delegations || 0}
@@ -503,7 +505,7 @@ export default function AdminConfig() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bell className="h-4 w-4 text-purple-500" />
-                  <span>Notification Rules</span>
+                  <span>{t('config.notificationRules', 'Notification Rules')}</span>
                 </div>
                 <span className="font-medium" data-testid="text-notification-rules">
                   {overview?.total_notification_rules || 0}
@@ -517,7 +519,7 @@ export default function AdminConfig() {
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <History className="h-4 w-4" />
-              Recent Changes
+              {t('config.recentChanges', 'Recent Changes')}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -536,7 +538,9 @@ export default function AdminConfig() {
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-4">No recent changes</p>
+              <div className="text-center py-4 text-muted-foreground">
+                <p className="text-sm">{t('config.noRecentChanges', 'No recent changes')}</p>
+              </div>
             )}
           </CardContent>
         </Card>
