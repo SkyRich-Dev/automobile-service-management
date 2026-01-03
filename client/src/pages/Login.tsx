@@ -138,12 +138,6 @@ export default function Login() {
                       t('auth.signIn', 'Sign In')
                     )}
                   </Button>
-
-                  <div className="rounded-lg border border-dashed border-border bg-muted/50 p-3 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      Demo: <span className="font-mono font-medium">demo / demo123</span>
-                    </p>
-                  </div>
                 </form>
               </TabsContent>
 
