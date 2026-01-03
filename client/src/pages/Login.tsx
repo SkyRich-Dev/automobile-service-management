@@ -248,7 +248,7 @@ export default function Login() {
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          2024 AutoServ Enterprise. All rights reserved.
+          2026 AutoServ Enterprise. By SkyRich. All rights reserved.
         </p>
       </div>
     </div>
