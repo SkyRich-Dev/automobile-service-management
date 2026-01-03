@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
+import { useLocalization } from "@/lib/currency-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,14 +148,6 @@ const EXPENSE_STATUS_COLORS: Record<string, string> = {
 
 const AGING_COLORS = ["#22c55e", "#84cc16", "#eab308", "#f97316", "#ef4444"];
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 function StatCard({
   title,
   value,
@@ -202,6 +195,7 @@ function StatCard({
 }
 
 function AgingChart({ data, title }: { data: Record<string, number>; title: string }) {
+  const { formatCurrency } = useLocalization();
   const chartData = Object.entries(data).map(([bucket, amount], index) => ({
     name: bucket,
     value: amount,
@@ -272,6 +266,7 @@ function LoadingSkeleton() {
 
 export default function AccountsFinance() {
   const { toast } = useToast();
+  const { formatCurrency } = useLocalization();
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
   const searchString = useSearch();

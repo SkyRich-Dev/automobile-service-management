@@ -2,6 +2,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useJobCards } from "@/hooks/use-job-cards";
 import { useUnifiedDashboard } from "@/hooks/use-integration";
 import { AppSidebar } from "@/components/AppSidebar";
+import { useLocalization } from "@/lib/currency-context";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -111,6 +113,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { data: jobCards, isLoading } = useJobCards();
   const { data: unifiedMetrics } = useUnifiedDashboard();
+  const { formatCurrency } = useLocalization();
+  const { t } = useTranslation();
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -130,9 +134,9 @@ export default function Dashboard() {
 
   const statsCards = [
     {
-      title: "Total Revenue",
-      value: `${BUSINESS_RULES.CURRENCY_SYMBOL}${revenue.toLocaleString()}`,
-      subtitle: "From all service jobs",
+      title: t('dashboard.totalRevenue', 'Total Revenue'),
+      value: formatCurrency(revenue),
+      subtitle: t('dashboard.fromAllJobs', 'From all service jobs'),
       icon: TrendingUp,
       trend: "+12%",
       color: "bg-gradient-to-br from-emerald-500 to-emerald-600",

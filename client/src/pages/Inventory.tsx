@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
+import { useLocalization } from "@/lib/currency-context";
 import { 
   useParts, 
   useCreatePart, 
@@ -62,6 +63,7 @@ function LoadingSkeleton() {
 
 function PartsTab() {
   const { toast } = useToast();
+  const { formatCurrency } = useLocalization();
   const { data: parts, isLoading } = useParts();
   const createPart = useCreatePart();
   const [open, setOpen] = useState(false);
@@ -156,7 +158,7 @@ function PartsTab() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold">${part.price}</p>
+                    <p className="text-lg font-bold">{formatCurrency(Number(part.price))}</p>
                     <Badge variant="secondary" className="text-[10px]">
                       {part.category}
                     </Badge>
