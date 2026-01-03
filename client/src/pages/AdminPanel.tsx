@@ -65,6 +65,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LocalizationSettings } from "@/components/LocalizationSettings";
 
 interface License {
   id: number;
@@ -2644,6 +2645,7 @@ export default function AdminPanel() {
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="license" data-testid="tab-license">License</TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
+            <TabsTrigger value="localization" data-testid="tab-localization">Localization</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -2684,6 +2686,10 @@ export default function AdminPanel() {
 
           <TabsContent value="settings">
             <SettingsForm settings={settings} />
+          </TabsContent>
+
+          <TabsContent value="localization">
+            <LocalizationSettings />
           </TabsContent>
         </Tabs>
       </main>

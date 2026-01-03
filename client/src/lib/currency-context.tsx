@@ -45,18 +45,18 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
   const [currentLanguage, setCurrentLanguage] = useState<Language | null>(null);
 
   const { data: currencies = [], isLoading: currenciesLoading } = useQuery<Currency[]>({
-    queryKey: ['/api/currencies/', { active_only: true }],
+    queryKey: ['/api/currencies/?active_only=true'],
   });
 
   const { data: languages = [], isLoading: languagesLoading } = useQuery<Language[]>({
-    queryKey: ['/api/languages/', { active_only: true }],
+    queryKey: ['/api/languages/?active_only=true'],
   });
 
   const { data: preferences, isLoading: preferencesLoading } = useQuery<{
     currency: Currency | null;
     language: Language | null;
   }>({
-    queryKey: ['/api/system-preferences/', 'current'],
+    queryKey: ['/api/system-preferences/current/'],
   });
 
   useEffect(() => {
@@ -89,7 +89,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       await apiRequest('POST', '/api/system-preferences/set_currency/', { currency_code: currencyCode });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/system-preferences/'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/system-preferences/current/'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/currencies/?active_only=true'] });
     },
   });
 
@@ -98,7 +99,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       await apiRequest('POST', '/api/system-preferences/set_language/', { language_code: languageCode });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/system-preferences/'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/system-preferences/current/'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/languages/?active_only=true'] });
     },
   });
 

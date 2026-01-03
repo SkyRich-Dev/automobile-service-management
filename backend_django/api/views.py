@@ -5792,7 +5792,11 @@ class CurrencyViewSet(viewsets.ModelViewSet):
     """ViewSet for managing currencies"""
     queryset = Currency.objects.all()
     serializer_class = CurrencySerializer
-    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
     
     def get_queryset(self):
         queryset = Currency.objects.all()
@@ -5836,7 +5840,11 @@ class LanguageViewSet(viewsets.ModelViewSet):
     """ViewSet for managing languages"""
     queryset = Language.objects.all()
     serializer_class = LanguageSerializer
-    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
     
     def get_queryset(self):
         queryset = Language.objects.all()
@@ -5885,7 +5893,11 @@ class SystemPreferenceViewSet(viewsets.ModelViewSet):
     """ViewSet for managing system preferences"""
     queryset = SystemPreference.objects.all()
     serializer_class = SystemPreferenceSerializer
-    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'current']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
     
     def perform_create(self, serializer):
         serializer.save(updated_by=self.request.user)
