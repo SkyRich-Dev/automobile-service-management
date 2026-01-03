@@ -33,7 +33,7 @@ interface LocalizationContextType {
   isLoading: boolean;
   setCurrency: (code: string) => Promise<void>;
   setLanguage: (code: string) => Promise<void>;
-  formatCurrency: (amount: number, currencyCode?: string) => string;
+  formatCurrency: (amount: number | string | null | undefined, currencyCode?: string) => string;
   convertCurrency: (amount: number, fromCode: string, toCode: string) => number;
 }
 
@@ -104,16 +104,19 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const formatCurrency = (amount: number, currencyCode?: string): string => {
+  const formatCurrency = (amount: number | string | null | undefined, currencyCode?: string): string => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : (amount ?? 0);
+    const safeAmount = isNaN(numAmount) ? 0 : numAmount;
+    
     const currency = currencyCode 
       ? currencies.find(c => c.code === currencyCode) 
       : currentCurrency;
     
     if (!currency) {
-      return `${amount.toFixed(2)}`;
+      return `${safeAmount.toFixed(2)}`;
     }
 
-    const formattedAmount = amount.toFixed(currency.decimal_places);
+    const formattedAmount = safeAmount.toFixed(currency.decimal_places);
     
     const locale = getLocaleForCurrency(currency.code);
     try {
@@ -122,7 +125,7 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
         currency: currency.code,
         minimumFractionDigits: currency.decimal_places,
         maximumFractionDigits: currency.decimal_places,
-      }).format(amount);
+      }).format(safeAmount);
     } catch {
       return `${currency.symbol}${formattedAmount}`;
     }
