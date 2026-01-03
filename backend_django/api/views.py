@@ -4850,7 +4850,7 @@ class ConfigOptionViewSet(viewsets.ModelViewSet):
 
 class IntegrationViewSet(viewsets.ViewSet):
     """Cross-module integration APIs for unified system operations"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @action(detail=False, methods=['get'])
     def master_lookup(self, request):
