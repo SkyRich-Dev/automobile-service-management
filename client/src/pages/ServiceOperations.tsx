@@ -1,8 +1,11 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useJobCards, useTransitionJobCard, useCreateJobCard, useServiceEvents } from "@/hooks/use-job-cards";
 import { useCustomers, useVehicles } from "@/hooks/use-crm";
+import { useLocalization } from "@/lib/currency-context";
 import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
 import {
@@ -150,9 +153,11 @@ interface JobCardItemProps {
   column: typeof WORKFLOW_COLUMNS[0];
   onTransition: (newStage: string) => void;
   isPending: boolean;
+  formatCurrency: (amount: number) => string;
+  t: TFunction;
 }
 
-function JobCardItem({ job, column, onTransition, isPending }: JobCardItemProps) {
+function JobCardItem({ job, column, onTransition, isPending, formatCurrency, t }: JobCardItemProps) {
   const allowedTransitions = job.allowed_transitions || [];
   const nextStage = allowedTransitions[0];
   const isOverdue = job.sla_deadline && new Date(job.sla_deadline) < new Date();
@@ -205,7 +210,7 @@ function JobCardItem({ job, column, onTransition, isPending }: JobCardItemProps)
                           onTransition(transition.value);
                         }}
                       >
-                        Move to {stage?.label || transition.label}
+                        {t('serviceOps.moveTo', 'Move to')} {stage?.label || transition.label}
                       </DropdownMenuItem>
                     );
                   })}
@@ -217,13 +222,13 @@ function JobCardItem({ job, column, onTransition, isPending }: JobCardItemProps)
           <div className="mb-3 flex items-center gap-2">
             <Car className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold leading-tight">
-              {job.vehicle_info?.split(" - ")[0] || "Vehicle"}
+              {job.vehicle_info?.split(" - ")[0] || t('vehicle.title', 'Vehicle')}
             </span>
           </div>
 
           <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
             <User className="h-3.5 w-3.5" />
-            <span className="truncate">{job.customer_name || "Customer"}</span>
+            <span className="truncate">{job.customer_name || t('customer.title', 'Customer')}</span>
           </div>
 
           <div className="flex items-center justify-between">
@@ -233,9 +238,8 @@ function JobCardItem({ job, column, onTransition, isPending }: JobCardItemProps)
                 ? formatDistanceToNow(new Date(job.created_at), { addSuffix: true })
                 : ""}
             </div>
-            <div className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-              <DollarSign className="h-3.5 w-3.5" />
-              {job.estimated_amount || "0"}
+            <div className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(parseFloat(job.estimated_amount || "0"))}
             </div>
           </div>
 
@@ -250,7 +254,7 @@ function JobCardItem({ job, column, onTransition, isPending }: JobCardItemProps)
                 onTransition(nextStage.value);
               }}
             >
-              <span>Move to {WORKFLOW_COLUMNS.find((c) => c.id === nextStage.value)?.label || nextStage.label}</span>
+              <span>{t('serviceOps.moveTo', 'Move to')} {WORKFLOW_COLUMNS.find((c) => c.id === nextStage.value)?.label || nextStage.label}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -267,6 +271,7 @@ interface CreateJobDialogProps {
 }
 
 function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -287,8 +292,8 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
     e.preventDefault();
     if (!selectedCustomer || !formData.vehicle) {
       toast({
-        title: "Validation Error",
-        description: "Please select a customer and vehicle",
+        title: t('messages.requiredField', 'Validation Error'),
+        description: t('serviceOps.selectCustomerVehicle', 'Please select a customer and vehicle'),
         variant: "destructive",
       });
       return;
@@ -304,8 +309,8 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
         estimated_amount: formData.estimated_amount || "0",
       });
       toast({
-        title: "Job Card Created",
-        description: "New service job has been created successfully",
+        title: t('serviceOps.jobCardCreated', 'Job Card Created'),
+        description: t('serviceOps.jobCardCreatedDesc', 'New service job has been created successfully'),
       });
       onSuccess();
       onOpenChange(false);
@@ -319,8 +324,8 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
       });
     } catch (err) {
       toast({
-        title: "Creation Failed",
-        description: err instanceof Error ? err.message : "Failed to create job card",
+        title: t('serviceOps.creationFailed', 'Creation Failed'),
+        description: err instanceof Error ? err.message : t('serviceOps.failedToCreateJobCard', 'Failed to create job card'),
         variant: "destructive",
       });
     }
@@ -330,11 +335,11 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New Job Card</DialogTitle>
+          <DialogTitle>{t('jobCard.createNew', 'Create New Job Card')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="customer">Customer</Label>
+            <Label htmlFor="customer">{t('customer.title', 'Customer')}</Label>
             <Select
               value={selectedCustomer}
               onValueChange={(value) => {
@@ -343,7 +348,7 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
               }}
             >
               <SelectTrigger data-testid="select-customer">
-                <SelectValue placeholder={customersLoading ? "Loading..." : "Select customer"} />
+                <SelectValue placeholder={customersLoading ? t('common.loading', 'Loading...') : t('serviceOps.selectCustomer', 'Select customer')} />
               </SelectTrigger>
               <SelectContent>
                 {customers?.map((customer) => (
@@ -356,14 +361,14 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vehicle">Vehicle</Label>
+            <Label htmlFor="vehicle">{t('vehicle.title', 'Vehicle')}</Label>
             <Select
               value={formData.vehicle}
               onValueChange={(value) => setFormData({ ...formData, vehicle: value })}
               disabled={!selectedCustomer}
             >
               <SelectTrigger data-testid="select-vehicle">
-                <SelectValue placeholder={vehiclesLoading ? "Loading..." : "Select vehicle"} />
+                <SelectValue placeholder={vehiclesLoading ? t('common.loading', 'Loading...') : t('serviceOps.selectVehicle', 'Select vehicle')} />
               </SelectTrigger>
               <SelectContent>
                 {vehicles?.map((vehicle) => (
@@ -377,7 +382,7 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="job_type">Job Type</Label>
+              <Label htmlFor="job_type">{t('serviceOps.jobType', 'Job Type')}</Label>
               <Select
                 value={formData.job_type}
                 onValueChange={(value) => setFormData({ ...formData, job_type: value })}
@@ -386,17 +391,17 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="REGULAR">Regular Service</SelectItem>
-                  <SelectItem value="EXPRESS">Express Service</SelectItem>
-                  <SelectItem value="REPAIR">Repair</SelectItem>
-                  <SelectItem value="BODY_WORK">Body Work</SelectItem>
-                  <SelectItem value="ACCIDENT">Accident Repair</SelectItem>
+                  <SelectItem value="REGULAR">{t('serviceOps.regularService', 'Regular Service')}</SelectItem>
+                  <SelectItem value="EXPRESS">{t('serviceOps.expressService', 'Express Service')}</SelectItem>
+                  <SelectItem value="REPAIR">{t('serviceOps.repair', 'Repair')}</SelectItem>
+                  <SelectItem value="BODY_WORK">{t('serviceOps.bodyWork', 'Body Work')}</SelectItem>
+                  <SelectItem value="ACCIDENT">{t('serviceOps.accidentRepair', 'Accident Repair')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
+              <Label htmlFor="priority">{t('serviceOps.priority', 'Priority')}</Label>
               <Select
                 value={formData.priority}
                 onValueChange={(value) => setFormData({ ...formData, priority: value })}
@@ -405,20 +410,20 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="LOW">Low</SelectItem>
-                  <SelectItem value="NORMAL">Normal</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                  <SelectItem value="CRITICAL">Critical</SelectItem>
+                  <SelectItem value="LOW">{t('serviceOps.priorityLow', 'Low')}</SelectItem>
+                  <SelectItem value="NORMAL">{t('serviceOps.priorityNormal', 'Normal')}</SelectItem>
+                  <SelectItem value="HIGH">{t('serviceOps.priorityHigh', 'High')}</SelectItem>
+                  <SelectItem value="CRITICAL">{t('serviceOps.priorityCritical', 'Critical')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="complaint">Customer Complaint</Label>
+            <Label htmlFor="complaint">{t('serviceOps.customerComplaint', 'Customer Complaint')}</Label>
             <Textarea
               id="complaint"
-              placeholder="Describe the issue or service required..."
+              placeholder={t('serviceOps.complaintPlaceholder', 'Describe the issue or service required...')}
               value={formData.complaint}
               onChange={(e) => setFormData({ ...formData, complaint: e.target.value })}
               rows={3}
@@ -426,7 +431,7 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="estimated_amount">Estimated Amount ($)</Label>
+            <Label htmlFor="estimated_amount">{t('serviceOps.estimatedAmount', 'Estimated Amount')}</Label>
             <Input
               id="estimated_amount"
               type="number"
@@ -438,16 +443,16 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button type="submit" disabled={createJobCard.isPending} data-testid="button-submit-job">
               {createJobCard.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {t('serviceOps.creating', 'Creating...')}
                 </>
               ) : (
-                "Create Job Card"
+                t('jobCard.createNew', 'Create Job Card')
               )}
             </Button>
           </DialogFooter>
@@ -461,9 +466,11 @@ interface ListViewProps {
   jobCards: ReturnType<typeof useJobCards>["data"];
   onTransition: (jobId: number, newStage: string) => void;
   isPending: boolean;
+  formatCurrency: (amount: number) => string;
+  t: TFunction;
 }
 
-function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
+function ListView({ jobCards, onTransition, isPending, formatCurrency, t }: ListViewProps) {
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -540,14 +547,14 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <SortHeader field="job_card_number">Job Card</SortHeader>
-            <TableHead>Vehicle</TableHead>
-            <SortHeader field="customer_name">Customer</SortHeader>
-            <SortHeader field="workflow_stage">Stage</SortHeader>
-            <SortHeader field="priority">Priority</SortHeader>
-            <SortHeader field="estimated_amount">Amount</SortHeader>
-            <SortHeader field="created_at">Created</SortHeader>
-            <TableHead>Actions</TableHead>
+            <SortHeader field="job_card_number">{t('jobCard.title', 'Job Card')}</SortHeader>
+            <TableHead>{t('vehicle.title', 'Vehicle')}</TableHead>
+            <SortHeader field="customer_name">{t('customer.title', 'Customer')}</SortHeader>
+            <SortHeader field="workflow_stage">{t('jobCard.stage', 'Stage')}</SortHeader>
+            <SortHeader field="priority">{t('serviceOps.priority', 'Priority')}</SortHeader>
+            <SortHeader field="estimated_amount">{t('common.amount', 'Amount')}</SortHeader>
+            <SortHeader field="created_at">{t('serviceOps.created', 'Created')}</SortHeader>
+            <TableHead>{t('common.actions', 'Actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -565,12 +572,12 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
                 </TableCell>
                 <TableCell className="flex items-center gap-2">
                   <Car className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{job.vehicle_info?.split(" - ")[0] || "Vehicle"}</span>
+                  <span className="text-sm">{job.vehicle_info?.split(" - ")[0] || t('vehicle.title', 'Vehicle')}</span>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm">{job.customer_name || "Customer"}</span>
+                    <span className="text-sm">{job.customer_name || t('customer.title', 'Customer')}</span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -587,9 +594,8 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <DollarSign className="h-3.5 w-3.5" />
-                    {job.estimated_amount || "0"}
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(parseFloat(job.estimated_amount || "0"))}
                   </span>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
@@ -608,7 +614,7 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
                           const stage = WORKFLOW_COLUMNS.find((c) => c.id === transition.value);
                           return (
                             <DropdownMenuItem key={transition.value} onClick={() => onTransition(job.id, transition.value)}>
-                              Move to {stage?.label || transition.label}
+                              {t('serviceOps.moveTo', 'Move to')} {stage?.label || transition.label}
                             </DropdownMenuItem>
                           );
                         })}
@@ -622,7 +628,7 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
           {sortedJobs.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                No job cards found
+                {t('serviceOps.noJobCardsFound', 'No job cards found')}
               </TableCell>
             </TableRow>
           )}
@@ -633,6 +639,7 @@ function ListView({ jobCards, onTransition, isPending }: ListViewProps) {
 }
 
 function ActivityView() {
+  const { t } = useTranslation();
   const { data: serviceEvents, isLoading } = useServiceEvents();
 
   if (isLoading) {
@@ -661,21 +668,21 @@ function ActivityView() {
   const eventLabel = (eventType: string) => {
     switch (eventType) {
       case "WORKFLOW_TRANSITION":
-        return "Stage Change";
+        return t('serviceOps.stageChange', 'Stage Change');
       case "REMARK_ADDED":
-        return "Remark Added";
+        return t('serviceOps.remarkAdded', 'Remark Added');
       case "CUSTOMER_NOTIFIED":
-        return "Customer Notified";
+        return t('serviceOps.customerNotified', 'Customer Notified');
       case "ESCALATION":
-        return "Escalation";
+        return t('serviceOps.escalation', 'Escalation');
       case "TASK_STARTED":
-        return "Task Started";
+        return t('serviceOps.taskStarted', 'Task Started');
       case "TASK_COMPLETED":
-        return "Task Completed";
+        return t('serviceOps.taskCompleted', 'Task Completed');
       case "PART_ISSUED":
-        return "Part Issued";
+        return t('serviceOps.partIssued', 'Part Issued');
       case "AI_INSIGHT":
-        return "AI Insight";
+        return t('serviceOps.aiInsight', 'AI Insight');
       default:
         return eventType.replace(/_/g, " ");
     }
@@ -705,7 +712,7 @@ function ActivityView() {
                       {event.timestamp ? format(new Date(event.timestamp), "MMM d, h:mm a") : ""}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm">{event.comment || event.new_value || "No description"}</p>
+                  <p className="mt-1 text-sm">{event.comment || event.new_value || t('serviceOps.noDescription', 'No description')}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     by {event.actor_name || "System"} {event.actor_role && `(${event.actor_role})`}
                   </p>
@@ -714,7 +721,7 @@ function ActivityView() {
             ))}
             {(!serviceEvents || serviceEvents.length === 0) && (
               <div className="flex h-24 items-center justify-center text-muted-foreground">
-                No recent activity
+                {t('serviceOps.noRecentActivity', 'No recent activity')}
               </div>
             )}
           </div>
@@ -728,9 +735,11 @@ interface KanbanViewProps {
   jobCards: ReturnType<typeof useJobCards>["data"];
   onTransition: (jobId: number, newStage: string) => void;
   isPending: boolean;
+  formatCurrency: (amount: number) => string;
+  t: TFunction;
 }
 
-function KanbanView({ jobCards, onTransition, isPending }: KanbanViewProps) {
+function KanbanView({ jobCards, onTransition, isPending, formatCurrency, t }: KanbanViewProps) {
   return (
     <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
       {WORKFLOW_COLUMNS.map((column) => {
@@ -763,13 +772,15 @@ function KanbanView({ jobCards, onTransition, isPending }: KanbanViewProps) {
                   column={column}
                   onTransition={(newStage) => onTransition(job.id, newStage)}
                   isPending={isPending}
+                  formatCurrency={formatCurrency}
+                  t={t}
                 />
               ))}
 
               {jobsInColumn.length === 0 && (
                 <div className="flex h-24 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30">
                   <span className="text-xs text-muted-foreground">
-                    No jobs in this stage
+                    {t('serviceOps.noJobsInStage', 'No jobs in this stage')}
                   </span>
                 </div>
               )}
@@ -876,6 +887,7 @@ function HistoryVehicleSelector({
   onSelect: (id: number) => void;
   selectedId: number | null;
 }) {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
 
   const vehicleUrl = searchTerm ? `/api/vehicles/?search=${encodeURIComponent(searchTerm)}` : "/api/vehicles/";
@@ -888,10 +900,10 @@ function HistoryVehicleSelector({
       <CardContent className="space-y-4 p-4">
         <div className="flex items-center gap-2">
           <Search className="h-5 w-5 text-muted-foreground" />
-          <span className="font-semibold">Search Vehicle for Service History</span>
+          <span className="font-semibold">{t('serviceOps.searchVehicleHistory', 'Search Vehicle for Service History')}</span>
         </div>
         <Input
-          placeholder="Search by plate number, make, or model..."
+          placeholder={t('serviceOps.searchVehiclePlaceholder', 'Search by plate number, make, or model...')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           data-testid="input-history-vehicle-search"
@@ -930,7 +942,7 @@ function HistoryVehicleSelector({
               </div>
             ))}
             {vehicles?.length === 0 && (
-              <div className="py-8 text-center text-muted-foreground">No vehicles found</div>
+              <div className="py-8 text-center text-muted-foreground">{t('serviceOps.noVehiclesFound', 'No vehicles found')}</div>
             )}
           </div>
         )}
@@ -939,59 +951,66 @@ function HistoryVehicleSelector({
   );
 }
 
-function HistorySummaryCards({ summary }: { summary: ServiceHistoryData["summary"] }) {
+function HistorySummaryCards({ summary, formatCurrency, t }: { 
+  summary: ServiceHistoryData["summary"]; 
+  formatCurrency: (amount: number) => string;
+  t: TFunction;
+}) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Wrench className="mb-2 h-6 w-6 text-blue-500" />
           <div className="text-2xl font-bold">{summary.total_services}</div>
-          <div className="text-xs text-muted-foreground">Total Services</div>
+          <div className="text-xs text-muted-foreground">{t('serviceOps.totalServices', 'Total Services')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <CheckCircle2 className="mb-2 h-6 w-6 text-green-500" />
           <div className="text-2xl font-bold">{summary.completed_services}</div>
-          <div className="text-xs text-muted-foreground">Completed</div>
+          <div className="text-xs text-muted-foreground">{t('common.completed', 'Completed')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <IndianRupee className="mb-2 h-6 w-6 text-amber-500" />
           <div className="text-2xl font-bold">
-            {BUSINESS_RULES.CURRENCY_SYMBOL}
-            {summary.total_spent.toLocaleString()}
+            {formatCurrency(summary.total_spent)}
           </div>
-          <div className="text-xs text-muted-foreground">Total Spent</div>
+          <div className="text-xs text-muted-foreground">{t('serviceOps.totalSpent', 'Total Spent')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Star className="mb-2 h-6 w-6 text-yellow-500" />
           <div className="text-2xl font-bold">{summary.average_rating || "-"}</div>
-          <div className="text-xs text-muted-foreground">Avg Rating</div>
+          <div className="text-xs text-muted-foreground">{t('serviceOps.avgRating', 'Avg Rating')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Shield className="mb-2 h-6 w-6 text-purple-500" />
           <div className="text-2xl font-bold">{summary.warranty_services}</div>
-          <div className="text-xs text-muted-foreground">Warranty</div>
+          <div className="text-xs text-muted-foreground">{t('serviceOps.warranty', 'Warranty')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <TrendingUp className="mb-2 h-6 w-6 text-cyan-500" />
           <div className="text-2xl font-bold">{summary.amc_services}</div>
-          <div className="text-xs text-muted-foreground">AMC</div>
+          <div className="text-xs text-muted-foreground">{t('serviceOps.amc', 'AMC')}</div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
+function HistoryTimelineCard({ item, formatCurrency, t }: { 
+  item: HistoryTimelineItem;
+  formatCurrency: (amount: number) => string;
+  t: TFunction;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const stageConfig = WORKFLOW_STAGE_DEFINITIONS[item.workflow_stage];
   const stageBadgeColor =
@@ -1047,8 +1066,7 @@ function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold">
-                    {BUSINESS_RULES.CURRENCY_SYMBOL}
-                    {item.actual_amount.toLocaleString()}
+                    {formatCurrency(item.actual_amount)}
                   </div>
                   <div className="text-sm text-muted-foreground">{item.job_type}</div>
                 </div>
@@ -1060,45 +1078,45 @@ function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
             <CardContent className="space-y-4 border-t pt-4">
               {item.complaint && (
                 <div>
-                  <div className="mb-1 text-sm font-medium">Complaint</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceOps.complaint', 'Complaint')}</div>
                   <p className="text-sm text-muted-foreground">{item.complaint}</p>
                 </div>
               )}
               {item.diagnosis && (
                 <div>
-                  <div className="mb-1 text-sm font-medium">Diagnosis</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceOps.diagnosis', 'Diagnosis')}</div>
                   <p className="text-sm text-muted-foreground">{item.diagnosis}</p>
                 </div>
               )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-sm font-medium">Service Details</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceOps.serviceDetails', 'Service Details')}</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Service Advisor</span>
+                      <span className="text-muted-foreground">{t('serviceOps.serviceAdvisor', 'Service Advisor')}</span>
                       <span>{item.service_advisor || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Lead Technician</span>
+                      <span className="text-muted-foreground">{t('serviceOps.leadTechnician', 'Lead Technician')}</span>
                       <span>{item.lead_technician || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Priority</span>
+                      <span className="text-muted-foreground">{t('serviceOps.priority', 'Priority')}</span>
                       <span>{item.priority}</span>
                     </div>
                   </div>
                 </div>
                 <div>
-                  <div className="mb-1 text-sm font-medium">Financial</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceOps.financial', 'Financial')}</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Estimated</span>
-                      <span>{BUSINESS_RULES.CURRENCY_SYMBOL}{item.estimated_amount.toLocaleString()}</span>
+                      <span className="text-muted-foreground">{t('serviceOps.estimated', 'Estimated')}</span>
+                      <span>{formatCurrency(item.estimated_amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Actual</span>
-                      <span>{BUSINESS_RULES.CURRENCY_SYMBOL}{item.actual_amount.toLocaleString()}</span>
+                      <span className="text-muted-foreground">{t('serviceOps.actual', 'Actual')}</span>
+                      <span>{formatCurrency(item.actual_amount)}</span>
                     </div>
                   </div>
                 </div>
@@ -1106,14 +1124,14 @@ function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
 
               {item.tasks.length > 0 && (
                 <div>
-                  <div className="mb-2 text-sm font-medium">Tasks ({item.tasks.length})</div>
+                  <div className="mb-2 text-sm font-medium">{t('jobCard.tasks', 'Tasks')} ({item.tasks.length})</div>
                   <div className="space-y-1">
                     {item.tasks.map((task) => (
                       <div key={task.id} className="flex items-center justify-between rounded bg-muted/50 px-2 py-1 text-sm">
                         <span>{task.name}</span>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">{task.status}</Badge>
-                          <span className="text-muted-foreground">{BUSINESS_RULES.CURRENCY_SYMBOL}{task.labor_cost}</span>
+                          <span className="text-muted-foreground">{formatCurrency(task.labor_cost)}</span>
                         </div>
                       </div>
                     ))}
@@ -1135,13 +1153,13 @@ function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
                 <Link href={`/job-cards/${item.id}`}>
                   <Button size="sm" variant="outline" data-testid={`button-history-view-details-${item.id}`}>
                     <FileText className="mr-1 h-3 w-3" />
-                    View Details
+                    {t('common.details', 'View Details')}
                   </Button>
                 </Link>
                 {item.invoices.length > 0 && (
                   <Button size="sm" variant="outline">
                     <Receipt className="mr-1 h-3 w-3" />
-                    {item.invoices.length} Invoice(s)
+                    {item.invoices.length} {t('finance.invoices', 'Invoice(s)')}
                   </Button>
                 )}
               </div>
@@ -1154,6 +1172,8 @@ function HistoryTimelineCard({ item }: { item: HistoryTimelineItem }) {
 }
 
 function ServiceHistoryView() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
@@ -1193,10 +1213,10 @@ function ServiceHistoryView() {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <AlertCircle className="mb-2 h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">Failed to load service history</p>
+        <p className="text-muted-foreground">{t('serviceOps.failedToLoadHistory', 'Failed to load service history')}</p>
         <Button variant="outline" className="mt-4" onClick={() => setSelectedVehicleId(null)}>
           <ArrowLeft className="mr-1 h-4 w-4" />
-          Select Different Vehicle
+          {t('serviceOps.selectDifferentVehicle', 'Select Different Vehicle')}
         </Button>
       </div>
     );
@@ -1238,22 +1258,22 @@ function ServiceHistoryView() {
             <Badge variant="outline" className="text-sm">{data.vehicle.color}</Badge>
             <Button variant="ghost" size="sm" onClick={() => setSelectedVehicleId(null)} data-testid="button-change-history-vehicle">
               <ArrowLeft className="mr-1 h-4 w-4" />
-              Change Vehicle
+              {t('serviceOps.changeVehicle', 'Change Vehicle')}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <HistorySummaryCards summary={data.summary} />
+      <HistorySummaryCards summary={data.summary} formatCurrency={formatCurrency} t={t} />
 
       <div className="flex flex-wrap items-center gap-3">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-32" data-testid="select-history-year-filter">
-            <SelectValue placeholder="Year" />
+            <SelectValue placeholder={t('serviceOps.year', 'Year')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Years</SelectItem>
+            <SelectItem value="all">{t('serviceOps.allYears', 'All Years')}</SelectItem>
             {data.available_years.map((year) => (
               <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
             ))}
@@ -1261,10 +1281,10 @@ function ServiceHistoryView() {
         </Select>
         <Select value={stageFilter} onValueChange={setStageFilter}>
           <SelectTrigger className="w-40" data-testid="select-history-stage-filter">
-            <SelectValue placeholder="Stage" />
+            <SelectValue placeholder={t('jobCard.stage', 'Stage')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Stages</SelectItem>
+            <SelectItem value="all">{t('serviceOps.allStages', 'All Stages')}</SelectItem>
             {Object.entries(WORKFLOW_STAGE_DEFINITIONS).map(([key, def]) => (
               <SelectItem key={key} value={key}>{def.label}</SelectItem>
             ))}
@@ -1276,12 +1296,12 @@ function ServiceHistoryView() {
         {data.timeline.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <History className="mb-2 h-12 w-12 text-muted-foreground" />
-            <p className="text-muted-foreground">No service history found for this vehicle</p>
+            <p className="text-muted-foreground">{t('serviceOps.noHistoryFound', 'No service history found for this vehicle')}</p>
           </div>
         ) : (
           <div className="space-y-0">
             {data.timeline.map((item) => (
-              <HistoryTimelineCard key={item.id} item={item} />
+              <HistoryTimelineCard key={item.id} item={item} formatCurrency={formatCurrency} t={t} />
             ))}
           </div>
         )}
@@ -1291,6 +1311,8 @@ function ServiceHistoryView() {
 }
 
 export default function ServiceOperations() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const { data: jobCards, isLoading, refetch } = useJobCards();
   const transitionMutation = useTransitionJobCard();
   const { toast } = useToast();
@@ -1305,14 +1327,14 @@ export default function ServiceOperations() {
         comment: `Transitioned to ${newStage}`,
       });
       toast({
-        title: "Transition Successful",
-        description: `Job moved to ${WORKFLOW_COLUMNS.find((c) => c.id === newStage)?.label}`,
+        title: t('serviceOps.transitionSuccessful', 'Transition Successful'),
+        description: `${t('serviceOps.jobMovedTo', 'Job moved to')} ${WORKFLOW_COLUMNS.find((c) => c.id === newStage)?.label}`,
       });
       refetch();
     } catch (err) {
       toast({
-        title: "Transition Failed",
-        description: err instanceof Error ? err.message : "Failed to transition job",
+        title: t('serviceOps.transitionFailed', 'Transition Failed'),
+        description: err instanceof Error ? err.message : t('serviceOps.failedToTransition', 'Failed to transition job'),
         variant: "destructive",
       });
     }
@@ -1328,12 +1350,12 @@ export default function ServiceOperations() {
       <main className="ml-64 flex-1 overflow-x-auto p-6">
         <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Service Operations</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('serviceOps.title', 'Service Operations')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {viewMode === "kanban" && "11-Stage Workflow: Drag jobs through the pipeline or use quick actions"}
-              {viewMode === "list" && "View all job cards in a sortable table format"}
-              {viewMode === "activity" && "Recent activity timeline across all job cards"}
-              {viewMode === "history" && "Search vehicles and view their complete service history"}
+              {viewMode === "kanban" && t('serviceOps.kanbanDesc', '11-Stage Workflow: Drag jobs through the pipeline or use quick actions')}
+              {viewMode === "list" && t('serviceOps.listDesc', 'View all job cards in a sortable table format')}
+              {viewMode === "activity" && t('serviceOps.activityDesc', 'Recent activity timeline across all job cards')}
+              {viewMode === "history" && t('serviceOps.historyDesc', 'Search vehicles and view their complete service history')}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1346,7 +1368,7 @@ export default function ServiceOperations() {
                 data-testid="button-view-kanban"
               >
                 <LayoutGrid className="h-4 w-4" />
-                Kanban
+                {t('serviceOps.kanban', 'Kanban')}
               </Button>
               <Button
                 variant={viewMode === "list" ? "secondary" : "ghost"}
@@ -1356,7 +1378,7 @@ export default function ServiceOperations() {
                 data-testid="button-view-list"
               >
                 <List className="h-4 w-4" />
-                List
+                {t('serviceOps.list', 'List')}
               </Button>
               <Button
                 variant={viewMode === "activity" ? "secondary" : "ghost"}
@@ -1366,7 +1388,7 @@ export default function ServiceOperations() {
                 data-testid="button-view-activity"
               >
                 <Activity className="h-4 w-4" />
-                Activity
+                {t('serviceOps.activity', 'Activity')}
               </Button>
               <Button
                 variant={viewMode === "history" ? "secondary" : "ghost"}
@@ -1376,7 +1398,7 @@ export default function ServiceOperations() {
                 data-testid="button-view-history"
               >
                 <History className="h-4 w-4" />
-                History
+                {t('serviceOps.history', 'History')}
               </Button>
             </div>
             <Button
@@ -1385,7 +1407,7 @@ export default function ServiceOperations() {
               data-testid="button-add-job"
             >
               <Plus className="h-4 w-4" />
-              New Job Card
+              {t('serviceOps.newJobCard', 'New Job Card')}
             </Button>
           </div>
         </header>
@@ -1395,6 +1417,8 @@ export default function ServiceOperations() {
             jobCards={jobCards}
             onTransition={handleTransition}
             isPending={transitionMutation.isPending}
+            formatCurrency={formatCurrency}
+            t={t}
           />
         )}
 
@@ -1403,6 +1427,8 @@ export default function ServiceOperations() {
             jobCards={jobCards}
             onTransition={handleTransition}
             isPending={transitionMutation.isPending}
+            formatCurrency={formatCurrency}
+            t={t}
           />
         )}
 

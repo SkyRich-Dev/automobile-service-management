@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -105,6 +106,7 @@ const SERVICE_TYPES = [
 ];
 
 export default function Appointments() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -195,10 +197,10 @@ export default function Appointments() {
       qc.invalidateQueries({ queryKey: ["appointments"] });
       setIsDialogOpen(false);
       resetForm();
-      toast({ title: "Appointment booked successfully" });
+      toast({ title: t('appointments.bookSuccess', 'Appointment booked successfully') });
     },
     onError: (error) => {
-      toast({ title: "Failed to book appointment", description: error.message, variant: "destructive" });
+      toast({ title: t('appointments.bookError', 'Failed to book appointment'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -206,7 +208,7 @@ export default function Appointments() {
     mutationFn: (id: number) => apiRequest("POST", `/api/appointments/${id}/confirm/`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
-      toast({ title: "Appointment confirmed" });
+      toast({ title: t('appointments.confirmSuccess', 'Appointment confirmed') });
     },
   });
 
@@ -215,7 +217,7 @@ export default function Appointments() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
       qc.invalidateQueries({ queryKey: ["job-cards"] });
-      toast({ title: "Customer checked in, job card created" });
+      toast({ title: t('appointments.checkInSuccess', 'Customer checked in, job card created') });
     },
   });
 
@@ -224,7 +226,7 @@ export default function Appointments() {
       apiRequest("POST", `/api/appointments/${id}/cancel/`, { reason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
-      toast({ title: "Appointment cancelled" });
+      toast({ title: t('appointments.cancelSuccess', 'Appointment cancelled') });
     },
   });
 
@@ -250,7 +252,7 @@ export default function Appointments() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customer || !formData.vehicle) {
-      toast({ title: "Please select customer and vehicle", variant: "destructive" });
+      toast({ title: t('appointments.selectCustomerVehicle', 'Please select customer and vehicle'), variant: "destructive" });
       return;
     }
     createMutation.mutate(formData);
@@ -288,12 +290,12 @@ export default function Appointments() {
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Appointments</h1>
-              <p className="text-muted-foreground">Manage service appointments and bookings</p>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('appointments.title', 'Appointments')}</h1>
+              <p className="text-muted-foreground">{t('appointments.subtitle', 'Manage service appointments and bookings')}</p>
             </div>
             <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-appointment">
               <Plus className="h-4 w-4 mr-2" />
-              New Appointment
+              {t('appointments.newAppointment', 'New Appointment')}
             </Button>
           </div>
 
@@ -301,7 +303,7 @@ export default function Appointments() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search appointments..."
+                placeholder={t('appointments.searchPlaceholder', 'Search appointments...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -318,14 +320,14 @@ export default function Appointments() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40" data-testid="select-status-filter">
                 <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t('common.status', 'Status')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                <SelectItem value="CHECKED_IN">Checked In</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="all">{t('appointments.allStatus', 'All Status')}</SelectItem>
+                <SelectItem value="SCHEDULED">{t('appointments.status.scheduled', 'Scheduled')}</SelectItem>
+                <SelectItem value="CONFIRMED">{t('appointments.status.confirmed', 'Confirmed')}</SelectItem>
+                <SelectItem value="CHECKED_IN">{t('appointments.status.checkedIn', 'Checked In')}</SelectItem>
+                <SelectItem value="CANCELLED">{t('appointments.status.cancelled', 'Cancelled')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -335,7 +337,7 @@ export default function Appointments() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Today</p>
+                    <p className="text-sm text-muted-foreground">{t('appointments.totalToday', 'Total Today')}</p>
                     <p className="text-2xl font-bold" data-testid="text-total-appointments">{appointments.length}</p>
                   </div>
                   <Calendar className="h-8 w-8 text-primary opacity-50" />
@@ -346,7 +348,7 @@ export default function Appointments() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Confirmed</p>
+                    <p className="text-sm text-muted-foreground">{t('appointments.status.confirmed', 'Confirmed')}</p>
                     <p className="text-2xl font-bold text-green-600">
                       {appointments.filter((a) => a.status === "CONFIRMED").length}
                     </p>
@@ -359,7 +361,7 @@ export default function Appointments() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-sm text-muted-foreground">{t('common.pending', 'Pending')}</p>
                     <p className="text-2xl font-bold text-blue-600">
                       {appointments.filter((a) => a.status === "SCHEDULED").length}
                     </p>
@@ -372,7 +374,7 @@ export default function Appointments() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Checked In</p>
+                    <p className="text-sm text-muted-foreground">{t('appointments.status.checkedIn', 'Checked In')}</p>
                     <p className="text-2xl font-bold text-purple-600">
                       {appointments.filter((a) => a.status === "CHECKED_IN").length}
                     </p>
@@ -391,10 +393,10 @@ export default function Appointments() {
             <Card>
               <CardContent className="py-12 text-center">
                 <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No appointments for this date</p>
+                <p className="text-muted-foreground">{t('appointments.noAppointments', 'No appointments for this date')}</p>
                 <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Book First Appointment
+                  {t('appointments.bookFirst', 'Book First Appointment')}
                 </Button>
               </CardContent>
             </Card>
@@ -405,7 +407,7 @@ export default function Appointments() {
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{time}</span>
-                    <Badge variant="outline">{groupedByTime[time].length} appointments</Badge>
+                    <Badge variant="outline">{groupedByTime[time].length} {t('appointments.appointments', 'appointments')}</Badge>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                     {groupedByTime[time].map((apt) => (
@@ -442,7 +444,7 @@ export default function Appointments() {
                                 disabled={confirmMutation.isPending}
                                 data-testid={`button-confirm-${apt.id}`}
                               >
-                                Confirm
+                                {t('common.confirm', 'Confirm')}
                               </Button>
                             )}
                             {(apt.status === "SCHEDULED" || apt.status === "CONFIRMED") && (
@@ -453,16 +455,16 @@ export default function Appointments() {
                                   disabled={checkInMutation.isPending}
                                   data-testid={`button-checkin-${apt.id}`}
                                 >
-                                  Check In
+                                  {t('appointments.checkIn', 'Check In')}
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => cancelMutation.mutate({ id: apt.id, reason: "Customer cancelled" })}
+                                  onClick={() => cancelMutation.mutate({ id: apt.id, reason: t('appointments.customerCancelled', 'Customer cancelled') })}
                                   disabled={cancelMutation.isPending}
                                   data-testid={`button-cancel-${apt.id}`}
                                 >
-                                  Cancel
+                                  {t('common.cancel', 'Cancel')}
                                 </Button>
                               </>
                             )}
@@ -480,15 +482,15 @@ export default function Appointments() {
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Book New Appointment</DialogTitle>
-              <DialogDescription>Schedule a service appointment for a customer</DialogDescription>
+              <DialogTitle>{t('appointments.bookNewAppointment', 'Book New Appointment')}</DialogTitle>
+              <DialogDescription>{t('appointments.bookDescription', 'Schedule a service appointment for a customer')}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="customer">Customer</Label>
+                <Label htmlFor="customer">{t('customer.title', 'Customer')}</Label>
                 <Select value={formData.customer} onValueChange={handleCustomerChange}>
                   <SelectTrigger data-testid="select-customer">
-                    <SelectValue placeholder="Select customer" />
+                    <SelectValue placeholder={t('appointments.selectCustomer', 'Select customer')} />
                   </SelectTrigger>
                   <SelectContent>
                     {customers.map((c) => (
@@ -501,14 +503,14 @@ export default function Appointments() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="vehicle">Vehicle</Label>
+                <Label htmlFor="vehicle">{t('vehicle.title', 'Vehicle')}</Label>
                 <Select
                   value={formData.vehicle}
                   onValueChange={(v) => setFormData({ ...formData, vehicle: v })}
                   disabled={!selectedCustomerId}
                 >
                   <SelectTrigger data-testid="select-vehicle">
-                    <SelectValue placeholder={selectedCustomerId ? "Select vehicle" : "Select customer first"} />
+                    <SelectValue placeholder={selectedCustomerId ? t('appointments.selectVehicle', 'Select vehicle') : t('appointments.selectCustomerFirst', 'Select customer first')} />
                   </SelectTrigger>
                   <SelectContent>
                     {customerVehicles.map((v) => (
@@ -517,7 +519,7 @@ export default function Appointments() {
                       </SelectItem>
                     ))}
                     {customerVehicles.length === 0 && selectedCustomerId && (
-                      <div className="p-2 text-sm text-muted-foreground">No vehicles found for this customer</div>
+                      <div className="p-2 text-sm text-muted-foreground">{t('appointments.noVehiclesFound', 'No vehicles found for this customer')}</div>
                     )}
                   </SelectContent>
                 </Select>
@@ -525,7 +527,7 @@ export default function Appointments() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="appointment_date">Date</Label>
+                  <Label htmlFor="appointment_date">{t('common.date', 'Date')}</Label>
                   <Input
                     type="date"
                     value={formData.appointment_date}
@@ -534,7 +536,7 @@ export default function Appointments() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="appointment_time">Time</Label>
+                  <Label htmlFor="appointment_time">{t('appointments.time', 'Time')}</Label>
                   <Input
                     type="time"
                     value={formData.appointment_time}
@@ -545,7 +547,7 @@ export default function Appointments() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="service_type">Service Type</Label>
+                <Label htmlFor="service_type">{t('appointments.serviceType', 'Service Type')}</Label>
                 <Select
                   value={formData.service_type}
                   onValueChange={(v) => setFormData({ ...formData, service_type: v })}
@@ -556,7 +558,7 @@ export default function Appointments() {
                   <SelectContent>
                     {SERVICE_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, " ")}
+                        {t(`appointments.serviceTypes.${type}`, type.replace(/_/g, " "))}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -564,22 +566,22 @@ export default function Appointments() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="complaint">Complaint / Issue</Label>
+                <Label htmlFor="complaint">{t('appointments.complaint', 'Complaint / Issue')}</Label>
                 <Textarea
                   value={formData.complaint}
                   onChange={(e) => setFormData({ ...formData, complaint: e.target.value })}
-                  placeholder="Describe the issue or service needed..."
+                  placeholder={t('appointments.complaintPlaceholder', 'Describe the issue or service needed...')}
                   rows={3}
                   data-testid="input-complaint"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
+                <Label htmlFor="notes">{t('appointments.additionalNotes', 'Additional Notes')}</Label>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Any additional notes..."
+                  placeholder={t('appointments.notesPlaceholder', 'Any additional notes...')}
                   rows={2}
                   data-testid="input-notes"
                 />
@@ -587,16 +589,16 @@ export default function Appointments() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending} data-testid="button-book-appointment">
                   {createMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Booking...
+                      {t('appointments.booking', 'Booking...')}
                     </>
                   ) : (
-                    "Book Appointment"
+                    t('appointments.bookAppointment', 'Book Appointment')
                   )}
                 </Button>
               </DialogFooter>

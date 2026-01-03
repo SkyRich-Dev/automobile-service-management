@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useCustomers, useCreateCustomer, useCreateVehicle } from "@/hooks/use-crm";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useLocalization } from "@/lib/currency-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,6 +177,8 @@ function LoadingSkeleton() {
 }
 
 export default function CRM() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const [activeTab, setActiveTab] = useState("overview");
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const createCustomer = useCreateCustomer();
@@ -234,7 +238,7 @@ export default function CRM() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads/"] });
       queryClient.invalidateQueries({ queryKey: ["/api/crm/dashboard/"] });
-      toast({ title: "Lead created successfully" });
+      toast({ title: t('crm.messages.leadCreated', 'Lead created successfully') });
       setLeadDialogOpen(false);
       setLeadFormData({
         name: "",
@@ -250,7 +254,7 @@ export default function CRM() {
       });
     },
     onError: () => {
-      toast({ title: "Failed to create lead", variant: "destructive" });
+      toast({ title: t('crm.messages.leadCreateError', 'Failed to create lead'), variant: "destructive" });
     },
   });
 
@@ -262,7 +266,7 @@ export default function CRM() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads/"] });
       queryClient.invalidateQueries({ queryKey: ["/api/crm/dashboard/"] });
-      toast({ title: "Lead status updated" });
+      toast({ title: t('crm.messages.leadStatusUpdated', 'Lead status updated') });
     },
   });
 
@@ -284,12 +288,12 @@ export default function CRM() {
     e.preventDefault();
     createCustomer.mutate(formData, {
       onSuccess: () => {
-        toast({ title: "Customer added successfully" });
+        toast({ title: t('crm.messages.customerAdded', 'Customer added successfully') });
         setOpen(false);
         setFormData({ name: "", email: "", phone: "", loyalty_points: 0, address: "", notes: "" });
       },
       onError: () => {
-        toast({ title: "Failed to create customer", variant: "destructive" });
+        toast({ title: t('crm.messages.customerCreateError', 'Failed to create customer'), variant: "destructive" });
       },
     });
   };
@@ -324,19 +328,19 @@ export default function CRM() {
       <main className="ml-64 flex-1 p-6">
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">CRM</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('crm.title', 'CRM')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manage leads, customers, tickets, and campaigns
+              {t('crm.subtitle', 'Manage leads, customers, tickets, and campaigns')}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={() => setOpen(true)} data-testid="button-add-customer">
               <Plus className="h-4 w-4 mr-2" />
-              Add Customer
+              {t('crm.addCustomer', 'Add Customer')}
             </Button>
             <Button onClick={() => setLeadDialogOpen(true)} data-testid="button-add-lead">
               <Plus className="h-4 w-4 mr-2" />
-              New Lead
+              {t('crm.newLead', 'New Lead')}
             </Button>
           </div>
         </header>
@@ -346,7 +350,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">Customers</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.customers', 'Customers')}</p>
                   <p className="text-2xl font-bold">{dashboard?.total_customers ?? 0}</p>
                 </div>
                 <Users className="h-6 w-6 text-primary opacity-50" />
@@ -357,7 +361,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">New Leads</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.newLeads', 'New Leads')}</p>
                   <p className="text-2xl font-bold text-blue-600">{dashboard?.new_leads ?? 0}</p>
                 </div>
                 <Target className="h-6 w-6 text-blue-500 opacity-50" />
@@ -368,7 +372,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">Open Tickets</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.openTickets', 'Open Tickets')}</p>
                   <p className="text-2xl font-bold text-orange-600">{dashboard?.open_tickets ?? 0}</p>
                 </div>
                 <Ticket className="h-6 w-6 text-orange-500 opacity-50" />
@@ -379,7 +383,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">Pending Tasks</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.pendingTasks', 'Pending Tasks')}</p>
                   <p className="text-2xl font-bold">{dashboard?.pending_tasks ?? 0}</p>
                 </div>
                 <Clock className="h-6 w-6 text-purple-500 opacity-50" />
@@ -390,7 +394,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">Overdue</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.overdue', 'Overdue')}</p>
                   <p className="text-2xl font-bold text-red-600">{dashboard?.overdue_tasks ?? 0}</p>
                 </div>
                 <AlertTriangle className="h-6 w-6 text-red-500 opacity-50" />
@@ -401,7 +405,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">Campaigns</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.campaigns', 'Campaigns')}</p>
                   <p className="text-2xl font-bold text-green-600">{dashboard?.active_campaigns ?? 0}</p>
                 </div>
                 <Megaphone className="h-6 w-6 text-green-500 opacity-50" />
@@ -412,7 +416,7 @@ export default function CRM() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">At Risk</p>
+                  <p className="text-xs text-muted-foreground">{t('crm.atRisk', 'At Risk')}</p>
                   <p className="text-2xl font-bold text-yellow-600">{dashboard?.at_risk_customers ?? 0}</p>
                 </div>
                 <TrendingUp className="h-6 w-6 text-yellow-500 opacity-50" />
@@ -423,19 +427,19 @@ export default function CRM() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="leads" data-testid="tab-leads">Leads ({leads.length})</TabsTrigger>
-            <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets ({openTickets.length})</TabsTrigger>
-            <TabsTrigger value="tasks" data-testid="tab-tasks">Follow-ups ({tasks.length})</TabsTrigger>
-            <TabsTrigger value="customers" data-testid="tab-customers">Customers ({customers?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="campaigns" data-testid="tab-campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="overview" data-testid="tab-overview">{t('crm.tabs.overview', 'Overview')}</TabsTrigger>
+            <TabsTrigger value="leads" data-testid="tab-leads">{t('crm.tabs.leads', 'Leads')} ({leads.length})</TabsTrigger>
+            <TabsTrigger value="tickets" data-testid="tab-tickets">{t('crm.tabs.tickets', 'Tickets')} ({openTickets.length})</TabsTrigger>
+            <TabsTrigger value="tasks" data-testid="tab-tasks">{t('crm.tabs.tasks', 'Follow-ups')} ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="customers" data-testid="tab-customers">{t('crm.tabs.customers', 'Customers')} ({customers?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="campaigns" data-testid="tab-campaigns">{t('crm.tabs.campaigns', 'Campaigns')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Lead Pipeline</CardTitle>
+                  <CardTitle className="text-base">{t('crm.leadPipeline', 'Lead Pipeline')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -443,7 +447,7 @@ export default function CRM() {
                       <div key={status} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Badge className={cn("text-xs", LEAD_STATUS_COLORS[status])}>
-                            {status.replace(/_/g, " ")}
+                            {t(`crm.leadStatus.${status}`, status.replace(/_/g, " "))}
                           </Badge>
                         </div>
                         <span className="font-medium">{count}</span>
@@ -455,7 +459,7 @@ export default function CRM() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Recent Leads</CardTitle>
+                  <CardTitle className="text-base">{t('crm.recentLeads', 'Recent Leads')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {leads.slice(0, 5).map((lead) => (
@@ -472,19 +476,19 @@ export default function CRM() {
                         </div>
                       </div>
                       <Badge className={cn("text-xs", LEAD_STATUS_COLORS[lead.status])}>
-                        {lead.status}
+                        {t(`crm.leadStatus.${lead.status}`, lead.status)}
                       </Badge>
                     </div>
                   ))}
                   {leads.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No leads yet</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('crm.noLeadsYet', 'No leads yet')}</p>
                   )}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Open Tickets</CardTitle>
+                  <CardTitle className="text-base">{t('crm.openTicketsTitle', 'Open Tickets')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {openTickets.slice(0, 5).map((ticket) => (
@@ -495,7 +499,7 @@ export default function CRM() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={cn("text-xs", PRIORITY_COLORS[ticket.priority])}>
-                          {ticket.priority}
+                          {t(`crm.priority.${ticket.priority}`, ticket.priority)}
                         </Badge>
                         {ticket.sla_breached && (
                           <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -504,14 +508,14 @@ export default function CRM() {
                     </div>
                   ))}
                   {openTickets.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No open tickets</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('crm.noOpenTickets', 'No open tickets')}</p>
                   )}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Overdue Follow-ups</CardTitle>
+                  <CardTitle className="text-base">{t('crm.overdueFollowups', 'Overdue Follow-ups')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {overdueTasks.slice(0, 5).map((task) => (
@@ -522,11 +526,11 @@ export default function CRM() {
                           {task.customer_name || task.lead_name} - Due: {format(new Date(task.due_date), "MMM d")}
                         </p>
                       </div>
-                      <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                      <Badge variant="destructive" className="text-xs">{t('crm.overdue', 'Overdue')}</Badge>
                     </div>
                   ))}
                   {overdueTasks.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No overdue tasks</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('crm.noOverdueTasks', 'No overdue tasks')}</p>
                   )}
                 </CardContent>
               </Card>
@@ -538,7 +542,7 @@ export default function CRM() {
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search leads..."
+                  placeholder={t('crm.searchLeads', 'Search leads...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -555,10 +559,10 @@ export default function CRM() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No leads found</p>
+                  <p className="text-muted-foreground">{t('crm.noLeadsFound', 'No leads found')}</p>
                   <Button className="mt-4" onClick={() => setLeadDialogOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create First Lead
+                    {t('crm.createFirstLead', 'Create First Lead')}
                   </Button>
                 </CardContent>
               </Card>
@@ -580,7 +584,7 @@ export default function CRM() {
                           </div>
                         </div>
                         <Badge className={cn("text-xs", LEAD_STATUS_COLORS[lead.status])}>
-                          {lead.status}
+                          {t(`crm.leadStatus.${lead.status}`, lead.status)}
                         </Badge>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -603,7 +607,7 @@ export default function CRM() {
                         {lead.expected_value && parseFloat(lead.expected_value) > 0 && (
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <TrendingUp className="h-3.5 w-3.5" />
-                            <span>Expected: Rs {parseFloat(lead.expected_value).toLocaleString()}</span>
+                            <span>{t('crm.expected', 'Expected')}: {formatCurrency(parseFloat(lead.expected_value))}</span>
                           </div>
                         )}
                       </div>
@@ -614,7 +618,7 @@ export default function CRM() {
                             variant="outline"
                             onClick={() => transitionLead.mutate({ id: lead.id, status: "CONTACTED" })}
                           >
-                            Mark Contacted
+                            {t('crm.actions.markContacted', 'Mark Contacted')}
                           </Button>
                         )}
                         {lead.status === "CONTACTED" && (
@@ -623,7 +627,7 @@ export default function CRM() {
                             variant="outline"
                             onClick={() => transitionLead.mutate({ id: lead.id, status: "QUALIFIED" })}
                           >
-                            Qualify
+                            {t('crm.actions.qualify', 'Qualify')}
                           </Button>
                         )}
                         {lead.status === "QUALIFIED" && (
@@ -632,7 +636,7 @@ export default function CRM() {
                             variant="outline"
                             onClick={() => transitionLead.mutate({ id: lead.id, status: "QUOTED" })}
                           >
-                            Send Quote
+                            {t('crm.actions.sendQuote', 'Send Quote')}
                           </Button>
                         )}
                         {["NEW", "CONTACTED", "QUALIFIED", "QUOTED", "NEGOTIATION"].includes(lead.status) && (
@@ -643,7 +647,7 @@ export default function CRM() {
                             onClick={() => transitionLead.mutate({ id: lead.id, status: "LOST" })}
                           >
                             <XCircle className="h-3.5 w-3.5 mr-1" />
-                            Lost
+                            {t('crm.actions.lost', 'Lost')}
                           </Button>
                         )}
                       </div>
@@ -663,7 +667,7 @@ export default function CRM() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Ticket className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No tickets found</p>
+                  <p className="text-muted-foreground">{t('crm.noTicketsFound', 'No tickets found')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -676,13 +680,13 @@ export default function CRM() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs text-muted-foreground">{ticket.ticket_id}</span>
                             <Badge className={cn("text-xs", TICKET_STATUS_COLORS[ticket.status])}>
-                              {ticket.status.replace(/_/g, " ")}
+                              {t(`crm.ticketStatus.${ticket.status}`, ticket.status.replace(/_/g, " "))}
                             </Badge>
                             <Badge className={cn("text-xs", PRIORITY_COLORS[ticket.priority])}>
-                              {ticket.priority}
+                              {t(`crm.priority.${ticket.priority}`, ticket.priority)}
                             </Badge>
                             {ticket.sla_breached && (
-                              <Badge variant="destructive" className="text-xs">SLA Breached</Badge>
+                              <Badge variant="destructive" className="text-xs">{t('crm.slaBreached', 'SLA Breached')}</Badge>
                             )}
                           </div>
                           <h3 className="font-medium">{ticket.subject}</h3>
@@ -705,7 +709,7 @@ export default function CRM() {
                         </div>
                         {ticket.escalation_level > 0 && (
                           <Badge variant="outline" className="text-orange-600 border-orange-300">
-                            Escalation L{ticket.escalation_level}
+                            {t('crm.escalationLevel', 'Escalation L')}{ticket.escalation_level}
                           </Badge>
                         )}
                       </div>
@@ -725,7 +729,7 @@ export default function CRM() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No follow-up tasks</p>
+                  <p className="text-muted-foreground">{t('crm.noFollowupTasks', 'No follow-up tasks')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -743,7 +747,7 @@ export default function CRM() {
                             <span className="text-xs text-muted-foreground">{task.task_id}</span>
                             <Badge variant="outline" className="text-xs">{task.follow_up_type}</Badge>
                             {task.is_overdue && (
-                              <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                              <Badge variant="destructive" className="text-xs">{t('crm.overdue', 'Overdue')}</Badge>
                             )}
                           </div>
                           <h3 className="font-medium">{task.subject}</h3>
@@ -756,7 +760,7 @@ export default function CRM() {
                           </div>
                         </div>
                         <Badge className={cn("text-xs", PRIORITY_COLORS[task.priority])}>
-                          {task.priority}
+                          {t(`crm.priority.${task.priority}`, task.priority)}
                         </Badge>
                       </div>
                     </CardContent>
@@ -781,7 +785,7 @@ export default function CRM() {
                         <h3 className="truncate font-semibold">{customer.name}</h3>
                         <Badge variant="outline" className="mt-1 gap-1 text-[10px]">
                           <Star className="h-2.5 w-2.5" />
-                          {customer.loyalty_points} Points
+                          {customer.loyalty_points} {t('crm.points', 'Points')}
                         </Badge>
                       </div>
                     </div>
@@ -797,7 +801,7 @@ export default function CRM() {
                       {customer.vehicles && customer.vehicles.length > 0 && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Car className="h-4 w-4" />
-                          <span>{customer.vehicles.length} vehicle(s)</span>
+                          <span>{customer.vehicles.length} {t('crm.vehicles', 'vehicle(s)')}</span>
                         </div>
                       )}
                     </div>
@@ -807,9 +811,9 @@ export default function CRM() {
               {(!customers || customers.length === 0) && (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12">
                   <Users className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                  <p className="text-sm text-muted-foreground">No customers yet</p>
+                  <p className="text-sm text-muted-foreground">{t('crm.noCustomersYet', 'No customers yet')}</p>
                   <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(true)}>
-                    Add your first customer
+                    {t('crm.addFirstCustomer', 'Add your first customer')}
                   </Button>
                 </div>
               )}
@@ -825,7 +829,7 @@ export default function CRM() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No campaigns yet</p>
+                  <p className="text-muted-foreground">{t('crm.noCampaignsYet', 'No campaigns yet')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -844,19 +848,19 @@ export default function CRM() {
                       </div>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Type</span>
+                          <span className="text-muted-foreground">{t('crm.campaignFields.type', 'Type')}</span>
                           <span>{campaign.campaign_type}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Recipients</span>
+                          <span className="text-muted-foreground">{t('crm.campaignFields.recipients', 'Recipients')}</span>
                           <span>{campaign.total_recipients}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Sent</span>
+                          <span className="text-muted-foreground">{t('crm.campaignFields.sent', 'Sent')}</span>
                           <span>{campaign.messages_sent}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Conversions</span>
+                          <span className="text-muted-foreground">{t('crm.campaignFields.conversions', 'Conversions')}</span>
                           <span className="text-green-600 font-medium">
                             {campaign.conversions} ({campaign.conversion_rate.toFixed(1)}%)
                           </span>
@@ -873,33 +877,33 @@ export default function CRM() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Customer</DialogTitle>
-              <DialogDescription>Add customer details</DialogDescription>
+              <DialogTitle>{t('crm.addNewCustomer', 'Add New Customer')}</DialogTitle>
+              <DialogDescription>{t('crm.addCustomerDetails', 'Add customer details')}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" value={formData.name} onChange={handleChange} placeholder="Customer name" required data-testid="input-customer-name" />
+                <Label htmlFor="name">{t('crm.form.name', 'Name')}</Label>
+                <Input id="name" name="name" value={formData.name} onChange={handleChange} placeholder={t('crm.form.customerName', 'Customer name')} required data-testid="input-customer-name" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="email@example.com" required data-testid="input-customer-email" />
+                  <Label htmlFor="email">{t('crm.form.email', 'Email')}</Label>
+                  <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder={t('crm.form.emailPlaceholder', 'email@example.com')} required data-testid="input-customer-email" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} placeholder="+91 98765 43210" required data-testid="input-customer-phone" />
+                  <Label htmlFor="phone">{t('crm.form.phone', 'Phone')}</Label>
+                  <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} placeholder={t('crm.form.phonePlaceholder', '+91 98765 43210')} required data-testid="input-customer-phone" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" name="address" value={formData.address} onChange={handleChange} placeholder="Street address" data-testid="input-customer-address" />
+                <Label htmlFor="address">{t('crm.form.address', 'Address')}</Label>
+                <Input id="address" name="address" value={formData.address} onChange={handleChange} placeholder={t('crm.form.streetAddress', 'Street address')} data-testid="input-customer-address" />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
                 <Button type="submit" disabled={createCustomer.isPending} data-testid="button-save-customer">
                   {createCustomer.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save
+                  {t('common.save', 'Save')}
                 </Button>
               </DialogFooter>
             </form>
@@ -909,90 +913,90 @@ export default function CRM() {
         <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Create New Lead</DialogTitle>
-              <DialogDescription>Add a new sales lead</DialogDescription>
+              <DialogTitle>{t('crm.createNewLead', 'Create New Lead')}</DialogTitle>
+              <DialogDescription>{t('crm.addSalesLead', 'Add a new sales lead')}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleLeadSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="lead_name">Name</Label>
-                <Input id="lead_name" name="name" value={leadFormData.name} onChange={handleLeadChange} placeholder="Lead name" required data-testid="input-lead-name" />
+                <Label htmlFor="lead_name">{t('crm.form.name', 'Name')}</Label>
+                <Input id="lead_name" name="name" value={leadFormData.name} onChange={handleLeadChange} placeholder={t('crm.form.leadName', 'Lead name')} required data-testid="input-lead-name" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="lead_phone">Phone</Label>
-                  <Input id="lead_phone" name="phone" value={leadFormData.phone} onChange={handleLeadChange} placeholder="+91 98765 43210" required data-testid="input-lead-phone" />
+                  <Label htmlFor="lead_phone">{t('crm.form.phone', 'Phone')}</Label>
+                  <Input id="lead_phone" name="phone" value={leadFormData.phone} onChange={handleLeadChange} placeholder={t('crm.form.phonePlaceholder', '+91 98765 43210')} required data-testid="input-lead-phone" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lead_email">Email</Label>
-                  <Input id="lead_email" name="email" type="email" value={leadFormData.email} onChange={handleLeadChange} placeholder="email@example.com" data-testid="input-lead-email" />
+                  <Label htmlFor="lead_email">{t('crm.form.email', 'Email')}</Label>
+                  <Input id="lead_email" name="email" type="email" value={leadFormData.email} onChange={handleLeadChange} placeholder={t('crm.form.emailPlaceholder', 'email@example.com')} data-testid="input-lead-email" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="lead_source">Source</Label>
+                  <Label htmlFor="lead_source">{t('crm.form.source', 'Source')}</Label>
                   <Select value={leadFormData.source} onValueChange={(v) => setLeadFormData({ ...leadFormData, source: v })}>
                     <SelectTrigger data-testid="select-lead-source">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="WALK_IN">Walk-in</SelectItem>
-                      <SelectItem value="PHONE">Phone</SelectItem>
-                      <SelectItem value="WEBSITE">Website</SelectItem>
-                      <SelectItem value="REFERRAL">Referral</SelectItem>
-                      <SelectItem value="SOCIAL_MEDIA">Social Media</SelectItem>
-                      <SelectItem value="GOOGLE_ADS">Google Ads</SelectItem>
+                      <SelectItem value="WALK_IN">{t('crm.leadSource.WALK_IN', 'Walk-in')}</SelectItem>
+                      <SelectItem value="PHONE">{t('crm.leadSource.PHONE', 'Phone')}</SelectItem>
+                      <SelectItem value="WEBSITE">{t('crm.leadSource.WEBSITE', 'Website')}</SelectItem>
+                      <SelectItem value="REFERRAL">{t('crm.leadSource.REFERRAL', 'Referral')}</SelectItem>
+                      <SelectItem value="SOCIAL_MEDIA">{t('crm.leadSource.SOCIAL_MEDIA', 'Social Media')}</SelectItem>
+                      <SelectItem value="GOOGLE_ADS">{t('crm.leadSource.GOOGLE_ADS', 'Google Ads')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lead_type">Type</Label>
+                  <Label htmlFor="lead_type">{t('crm.form.type', 'Type')}</Label>
                   <Select value={leadFormData.lead_type} onValueChange={(v) => setLeadFormData({ ...leadFormData, lead_type: v })}>
                     <SelectTrigger data-testid="select-lead-type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SERVICE">Service</SelectItem>
-                      <SelectItem value="CONTRACT">Contract</SelectItem>
-                      <SelectItem value="PARTS">Parts</SelectItem>
-                      <SelectItem value="INSURANCE">Insurance</SelectItem>
+                      <SelectItem value="SERVICE">{t('crm.leadType.SERVICE', 'Service')}</SelectItem>
+                      <SelectItem value="CONTRACT">{t('crm.leadType.CONTRACT', 'Contract')}</SelectItem>
+                      <SelectItem value="PARTS">{t('crm.leadType.PARTS', 'Parts')}</SelectItem>
+                      <SelectItem value="INSURANCE">{t('crm.leadType.INSURANCE', 'Insurance')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vehicle_make">Vehicle Make</Label>
-                  <Input id="vehicle_make" name="vehicle_make" value={leadFormData.vehicle_make} onChange={handleLeadChange} placeholder="Honda, Toyota" data-testid="input-lead-make" />
+                  <Label htmlFor="vehicle_make">{t('crm.form.vehicleMake', 'Vehicle Make')}</Label>
+                  <Input id="vehicle_make" name="vehicle_make" value={leadFormData.vehicle_make} onChange={handleLeadChange} placeholder={t('crm.form.vehicleMakePlaceholder', 'Honda, Toyota')} data-testid="input-lead-make" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="vehicle_model">Vehicle Model</Label>
-                  <Input id="vehicle_model" name="vehicle_model" value={leadFormData.vehicle_model} onChange={handleLeadChange} placeholder="Civic, Corolla" data-testid="input-lead-model" />
+                  <Label htmlFor="vehicle_model">{t('crm.form.vehicleModel', 'Vehicle Model')}</Label>
+                  <Input id="vehicle_model" name="vehicle_model" value={leadFormData.vehicle_model} onChange={handleLeadChange} placeholder={t('crm.form.vehicleModelPlaceholder', 'Civic, Corolla')} data-testid="input-lead-model" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="expected_value">Expected Value (Rs)</Label>
+                  <Label htmlFor="expected_value">{t('crm.form.expectedValue', 'Expected Value')}</Label>
                   <Input id="expected_value" name="expected_value" type="number" value={leadFormData.expected_value} onChange={handleLeadChange} placeholder="10000" data-testid="input-lead-value" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lead_priority">Priority</Label>
+                  <Label htmlFor="lead_priority">{t('crm.form.priority', 'Priority')}</Label>
                   <Select value={leadFormData.priority} onValueChange={(v) => setLeadFormData({ ...leadFormData, priority: v })}>
                     <SelectTrigger data-testid="select-lead-priority">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="LOW">Low</SelectItem>
-                      <SelectItem value="MEDIUM">Medium</SelectItem>
-                      <SelectItem value="HIGH">High</SelectItem>
+                      <SelectItem value="LOW">{t('crm.priority.LOW', 'Low')}</SelectItem>
+                      <SelectItem value="MEDIUM">{t('crm.priority.MEDIUM', 'Medium')}</SelectItem>
+                      <SelectItem value="HIGH">{t('crm.priority.HIGH', 'High')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setLeadDialogOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => setLeadDialogOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
                 <Button type="submit" disabled={createLead.isPending} data-testid="button-save-lead">
                   {createLead.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Create Lead
+                  {t('crm.createLead', 'Create Lead')}
                 </Button>
               </DialogFooter>
             </form>
