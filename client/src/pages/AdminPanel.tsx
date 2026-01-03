@@ -2044,7 +2044,7 @@ function ConfigurationManagementPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {selectedCategory.options.map((option) => (
+                {(selectedCategory.options || []).map((option) => (
                   <TableRow key={option.id} data-testid={`row-option-${option.id}`}>
                     <TableCell className="font-mono text-xs">{option.code}</TableCell>
                     <TableCell>{option.label}</TableCell>

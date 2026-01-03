@@ -5228,7 +5228,7 @@ class IntegrationViewSet(viewsets.ViewSet):
         
         inventory_metrics = {
             'low_stock_alerts': InventoryAlert.objects.filter(is_resolved=False, alert_type=AlertType.LOW_STOCK).count(),
-            'pending_pos': PurchaseOrder.objects.filter(status=PurchaseOrderStatus.PENDING).count(),
+            'pending_pos': PurchaseOrder.objects.filter(status=PurchaseOrderStatus.PENDING_APPROVAL).count(),
             'pending_grns': GoodsReceiptNote.objects.filter(status=GRNStatus.DRAFT).count()
         }
         
