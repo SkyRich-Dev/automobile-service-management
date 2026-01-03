@@ -6,20 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Car, Loader2, AlertCircle } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { t } = useTranslation();
-  const { loginAsync, registerAsync, isLoggingIn, isRegistering, loginError, registerError } = useAuth();
+  const { loginAsync, isLoggingIn, loginError } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    email: "",
-    firstName: "",
-    lastName: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,22 +26,6 @@ export default function Login() {
     e.preventDefault();
     try {
       await loginAsync({ username: formData.username, password: formData.password });
-      setLocation("/");
-    } catch (err) {
-      // Error handled by hook
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await registerAsync({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-      });
       setLocation("/");
     } catch (err) {
       // Error handled by hook
@@ -71,174 +51,67 @@ export default function Login() {
         </div>
 
         <Card className="border-border/50 shadow-xl">
-          <Tabs defaultValue="login" className="w-full">
-            <CardHeader className="pb-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login" data-testid="tab-login">
-                  {t('auth.signIn', 'Sign In')}
-                </TabsTrigger>
-                <TabsTrigger value="register" data-testid="tab-register">
-                  {t('auth.register', 'Register')}
-                </TabsTrigger>
-              </TabsList>
-            </CardHeader>
+          <CardHeader className="pb-4 text-center">
+            <CardTitle>{t('auth.welcomeBack', 'Welcome Back')}</CardTitle>
+            <CardDescription>{t('auth.signInToContinue', 'Sign in to your account to continue')}</CardDescription>
+          </CardHeader>
 
-            <CardContent>
-              <TabsContent value="login" className="mt-0">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  {loginError && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{loginError.message}</AlertDescription>
-                    </Alert>
-                  )}
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              {loginError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{loginError.message}</AlertDescription>
+                </Alert>
+              )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="username">{t('auth.username', 'Username')}</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      placeholder={t('auth.enterUsername', 'Enter your username')}
-                      required
-                      autoComplete="username"
-                      data-testid="input-username"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">{t('auth.username', 'Username')}</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  placeholder={t('auth.enterUsername', 'Enter your username')}
+                  required
+                  autoComplete="username"
+                  data-testid="input-username"
+                />
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">{t('auth.password', 'Password')}</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder={t('auth.enterPassword', 'Enter your password')}
-                      required
-                      autoComplete="current-password"
-                      data-testid="input-password"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">{t('auth.password', 'Password')}</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder={t('auth.enterPassword', 'Enter your password')}
+                  required
+                  autoComplete="current-password"
+                  data-testid="input-password"
+                />
+              </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={isLoggingIn}
-                    data-testid="button-login"
-                  >
-                    {isLoggingIn ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t('auth.signingIn', 'Signing in...')}
-                      </>
-                    ) : (
-                      t('auth.signIn', 'Sign In')
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="register" className="mt-0">
-                <form onSubmit={handleRegister} className="space-y-4">
-                  {registerError && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{registerError.message}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-username">{t('auth.username', 'Username')}</Label>
-                    <Input
-                      id="reg-username"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      placeholder={t('auth.chooseUsername', 'Choose a username')}
-                      required
-                      data-testid="input-register-username"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-email">{t('auth.email', 'Email')}</Label>
-                    <Input
-                      id="reg-email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder={t('auth.enterEmail', 'Enter your email')}
-                      required
-                      data-testid="input-register-email"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">{t('auth.firstName', 'First Name')}</Label>
-                      <Input
-                        id="firstName"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleChange}
-                        placeholder={t('auth.first', 'First')}
-                        data-testid="input-register-firstname"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">{t('auth.lastName', 'Last Name')}</Label>
-                      <Input
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleChange}
-                        placeholder={t('auth.last', 'Last')}
-                        data-testid="input-register-lastname"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-password">{t('auth.password', 'Password')}</Label>
-                    <Input
-                      id="reg-password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder={t('auth.createPassword', 'Create a password')}
-                      required
-                      data-testid="input-register-password"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {t('auth.minChars', 'Minimum 6 characters')}
-                    </p>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={isRegistering}
-                    data-testid="button-register"
-                  >
-                    {isRegistering ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t('auth.creatingAccount', 'Creating account...')}
-                      </>
-                    ) : (
-                      t('auth.createAccount', 'Create Account')
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isLoggingIn}
+                data-testid="button-login"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('auth.signingIn', 'Signing in...')}
+                  </>
+                ) : (
+                  t('auth.signIn', 'Sign In')
+                )}
+              </Button>
+            </form>
+          </CardContent>
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
