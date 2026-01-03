@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useLocalization } from "@/lib/currency-context";
 import { format, addYears } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -139,6 +141,8 @@ const CONTRACT_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function Contracts() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -214,10 +218,10 @@ export default function Contracts() {
       queryClient.invalidateQueries({ queryKey: ["contracts"] });
       setIsDialogOpen(false);
       resetForm();
-      toast({ title: "Contract created successfully" });
+      toast({ title: t('contracts.createSuccess', 'Contract created successfully') });
     },
     onError: (error) => {
-      toast({ title: "Failed to create contract", description: error.message, variant: "destructive" });
+      toast({ title: t('contracts.createError', 'Failed to create contract'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -241,7 +245,7 @@ export default function Contracts() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customer) {
-      toast({ title: "Please select a customer", variant: "destructive" });
+      toast({ title: t('contracts.selectCustomerRequired', 'Please select a customer'), variant: "destructive" });
       return;
     }
     createMutation.mutate(formData);
@@ -298,12 +302,12 @@ export default function Contracts() {
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Contracts & Warranties</h1>
-              <p className="text-muted-foreground">Manage warranties, AMC, and service contracts</p>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('contracts.title', 'Contracts & Warranties')}</h1>
+              <p className="text-muted-foreground">{t('contracts.subtitle', 'Manage warranties, AMC, and service contracts')}</p>
             </div>
             <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-contract">
               <Plus className="h-4 w-4 mr-2" />
-              New Contract
+              {t('contracts.newContract', 'New Contract')}
             </Button>
           </div>
 
@@ -312,7 +316,7 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Active</p>
+                    <p className="text-sm text-muted-foreground">{t('contracts.totalActive', 'Total Active')}</p>
                     <p className="text-2xl font-bold" data-testid="text-total-active">{dashboardStats?.total_active ?? 0}</p>
                   </div>
                   <Shield className="h-8 w-8 text-primary opacity-50" />
@@ -323,9 +327,9 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Contract Value</p>
+                    <p className="text-sm text-muted-foreground">{t('contracts.contractValue', 'Contract Value')}</p>
                     <p className="text-2xl font-bold text-green-600">
-                      {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(dashboardStats?.total_contract_value ?? 0)}
+                      {formatCurrency(dashboardStats?.total_contract_value ?? 0)}
                     </p>
                   </div>
                   <FileText className="h-8 w-8 text-green-500 opacity-50" />
@@ -336,7 +340,7 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Avg Utilization</p>
+                    <p className="text-sm text-muted-foreground">{t('contracts.avgUtilization', 'Avg Utilization')}</p>
                     <p className="text-2xl font-bold text-blue-600">{dashboardStats?.average_utilization ?? 0}%</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-blue-500 opacity-50" />
@@ -347,7 +351,7 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Approval</p>
+                    <p className="text-sm text-muted-foreground">{t('contracts.pendingApproval', 'Pending Approval')}</p>
                     <p className="text-2xl font-bold text-yellow-600">{dashboardStats?.pending_approvals ?? 0}</p>
                   </div>
                   <Calendar className="h-8 w-8 text-yellow-500 opacity-50" />
@@ -358,7 +362,7 @@ export default function Contracts() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Expiring Soon</p>
+                    <p className="text-sm text-muted-foreground">{t('contracts.expiringSoon', 'Expiring Soon')}</p>
                     <p className="text-2xl font-bold text-orange-600" data-testid="text-expiring-count">
                       {dashboardStats?.expiring_soon ?? 0}
                     </p>
@@ -373,7 +377,7 @@ export default function Contracts() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search contracts..."
+                placeholder={t('contracts.searchPlaceholder', 'Search contracts...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -383,31 +387,31 @@ export default function Contracts() {
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-48" data-testid="select-type-filter">
                 <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Contract Type" />
+                <SelectValue placeholder={t('contracts.contractType', 'Contract Type')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="WARRANTY">Warranty</SelectItem>
-                <SelectItem value="EXTENDED_WARRANTY">Extended Warranty</SelectItem>
-                <SelectItem value="AMC">AMC</SelectItem>
-                <SelectItem value="SERVICE_PACKAGE">Service Package</SelectItem>
-                <SelectItem value="INSURANCE">Insurance</SelectItem>
-                <SelectItem value="FLEET">Fleet Contract</SelectItem>
-                <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-                <SelectItem value="CORPORATE">Corporate</SelectItem>
+                <SelectItem value="all">{t('contracts.allTypes', 'All Types')}</SelectItem>
+                <SelectItem value="WARRANTY">{t('contracts.types.WARRANTY', 'Warranty')}</SelectItem>
+                <SelectItem value="EXTENDED_WARRANTY">{t('contracts.types.EXTENDED_WARRANTY', 'Extended Warranty')}</SelectItem>
+                <SelectItem value="AMC">{t('contracts.types.AMC', 'AMC')}</SelectItem>
+                <SelectItem value="SERVICE_PACKAGE">{t('contracts.types.SERVICE_PACKAGE', 'Service Package')}</SelectItem>
+                <SelectItem value="INSURANCE">{t('contracts.types.INSURANCE', 'Insurance')}</SelectItem>
+                <SelectItem value="FLEET">{t('contracts.types.FLEET', 'Fleet Contract')}</SelectItem>
+                <SelectItem value="SUBSCRIPTION">{t('contracts.types.SUBSCRIPTION', 'Subscription')}</SelectItem>
+                <SelectItem value="CORPORATE">{t('contracts.types.CORPORATE', 'Corporate')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40" data-testid="select-status-filter">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t('common.status', 'Status')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="DRAFT">Draft</SelectItem>
-                <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                <SelectItem value="EXPIRED">Expired</SelectItem>
+                <SelectItem value="all">{t('contracts.allStatus', 'All Status')}</SelectItem>
+                <SelectItem value="DRAFT">{t('contracts.status.DRAFT', 'Draft')}</SelectItem>
+                <SelectItem value="PENDING_APPROVAL">{t('contracts.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
+                <SelectItem value="ACTIVE">{t('contracts.status.ACTIVE', 'Active')}</SelectItem>
+                <SelectItem value="SUSPENDED">{t('contracts.status.SUSPENDED', 'Suspended')}</SelectItem>
+                <SelectItem value="EXPIRED">{t('contracts.status.EXPIRED', 'Expired')}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -416,7 +420,7 @@ export default function Contracts() {
               data-testid="button-show-expiring"
             >
               <AlertTriangle className="h-4 w-4 mr-2" />
-              Expiring Soon
+              {t('contracts.expiringSoon', 'Expiring Soon')}
             </Button>
           </div>
 
@@ -428,7 +432,7 @@ export default function Contracts() {
             <Card>
               <CardContent className="py-12 text-center">
                 <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No contracts found</p>
+                <p className="text-muted-foreground">{t('contracts.noContractsFound', 'No contracts found')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -484,13 +488,13 @@ export default function Contracts() {
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Days Remaining</span>
+                        <span className="text-muted-foreground">{t('contracts.daysRemaining', 'Days Remaining')}</span>
                         <span className={cn(
                           "font-medium",
                           contract.is_expired && "text-red-600",
                           contract.days_remaining <= 30 && !contract.is_expired && "text-orange-600"
                         )}>
-                          {contract.is_expired ? "Expired" : `${contract.days_remaining} days`}
+                          {contract.is_expired ? t('contracts.expired', 'Expired') : `${contract.days_remaining} ${t('contracts.days', 'days')}`}
                         </span>
                       </div>
                       {!contract.is_expired && (
@@ -507,7 +511,7 @@ export default function Contracts() {
                     {contract.max_services && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Services Used</span>
+                          <span className="text-muted-foreground">{t('contracts.servicesUsed', 'Services Used')}</span>
                           <span className="font-medium">
                             {contract.services_used} / {contract.max_services}
                           </span>
@@ -522,7 +526,7 @@ export default function Contracts() {
                     {contract.utilization_percent !== undefined && contract.utilization_percent > 0 && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Utilization</span>
+                          <span className="text-muted-foreground">{t('contracts.utilization', 'Utilization')}</span>
                           <span className="font-medium">{Math.round(contract.utilization_percent)}%</span>
                         </div>
                         <Progress value={contract.utilization_percent} className="h-1.5" />
@@ -532,9 +536,9 @@ export default function Contracts() {
                     {parseFloat(contract.contract_value) > 0 && (
                       <div className="pt-2 border-t">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Contract Value</span>
+                          <span className="text-muted-foreground">{t('contracts.contractValue', 'Contract Value')}</span>
                           <span className="font-medium">
-                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(contract.contract_value))}
+                            {formatCurrency(parseFloat(contract.contract_value))}
                           </span>
                         </div>
                       </div>
@@ -550,11 +554,11 @@ export default function Contracts() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Create New Contract</DialogTitle>
+            <DialogTitle>{t('contracts.createContract', 'Create New Contract')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="customer">Customer</Label>
+              <Label htmlFor="customer">{t('contracts.customer', 'Customer')}</Label>
               <Select
                 value={formData.customer}
                 onValueChange={(value) => {
@@ -563,7 +567,7 @@ export default function Contracts() {
                 }}
               >
                 <SelectTrigger data-testid="select-contract-customer">
-                  <SelectValue placeholder="Select customer" />
+                  <SelectValue placeholder={t('contracts.selectCustomer', 'Select customer')} />
                 </SelectTrigger>
                 <SelectContent>
                   {customers.map((customer) => (
@@ -576,14 +580,14 @@ export default function Contracts() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="vehicle">Vehicle (optional)</Label>
+              <Label htmlFor="vehicle">{t('contracts.vehicleOptional', 'Vehicle (optional)')}</Label>
               <Select
                 value={formData.vehicle}
                 onValueChange={(value) => setFormData({ ...formData, vehicle: value })}
                 disabled={!selectedCustomerId}
               >
                 <SelectTrigger data-testid="select-contract-vehicle">
-                  <SelectValue placeholder="Select vehicle" />
+                  <SelectValue placeholder={t('contracts.selectVehicle', 'Select vehicle')} />
                 </SelectTrigger>
                 <SelectContent>
                   {vehicles.map((vehicle) => (
@@ -597,7 +601,7 @@ export default function Contracts() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contract_type">Contract Type</Label>
+                <Label htmlFor="contract_type">{t('contracts.contractType', 'Contract Type')}</Label>
                 <Select
                   value={formData.contract_type}
                   onValueChange={(value) => setFormData({ ...formData, contract_type: value })}
@@ -606,19 +610,19 @@ export default function Contracts() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="WARRANTY">Warranty</SelectItem>
-                    <SelectItem value="EXTENDED_WARRANTY">Extended Warranty</SelectItem>
-                    <SelectItem value="AMC">AMC</SelectItem>
-                    <SelectItem value="SERVICE_PACKAGE">Service Package</SelectItem>
-                    <SelectItem value="INSURANCE">Insurance</SelectItem>
-                    <SelectItem value="FLEET">Fleet Contract</SelectItem>
-                    <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-                    <SelectItem value="CORPORATE">Corporate</SelectItem>
+                    <SelectItem value="WARRANTY">{t('contracts.types.WARRANTY', 'Warranty')}</SelectItem>
+                    <SelectItem value="EXTENDED_WARRANTY">{t('contracts.types.EXTENDED_WARRANTY', 'Extended Warranty')}</SelectItem>
+                    <SelectItem value="AMC">{t('contracts.types.AMC', 'AMC')}</SelectItem>
+                    <SelectItem value="SERVICE_PACKAGE">{t('contracts.types.SERVICE_PACKAGE', 'Service Package')}</SelectItem>
+                    <SelectItem value="INSURANCE">{t('contracts.types.INSURANCE', 'Insurance')}</SelectItem>
+                    <SelectItem value="FLEET">{t('contracts.types.FLEET', 'Fleet Contract')}</SelectItem>
+                    <SelectItem value="SUBSCRIPTION">{t('contracts.types.SUBSCRIPTION', 'Subscription')}</SelectItem>
+                    <SelectItem value="CORPORATE">{t('contracts.types.CORPORATE', 'Corporate')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="billing_model">Billing Model</Label>
+                <Label htmlFor="billing_model">{t('contracts.billingModel', 'Billing Model')}</Label>
                 <Select
                   value={formData.billing_model}
                   onValueChange={(value) => setFormData({ ...formData, billing_model: value })}
@@ -627,10 +631,10 @@ export default function Contracts() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ONE_TIME">One Time</SelectItem>
-                    <SelectItem value="MONTHLY">Monthly</SelectItem>
-                    <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                    <SelectItem value="YEARLY">Yearly</SelectItem>
+                    <SelectItem value="ONE_TIME">{t('contracts.billing.ONE_TIME', 'One Time')}</SelectItem>
+                    <SelectItem value="MONTHLY">{t('contracts.billing.MONTHLY', 'Monthly')}</SelectItem>
+                    <SelectItem value="QUARTERLY">{t('contracts.billing.QUARTERLY', 'Quarterly')}</SelectItem>
+                    <SelectItem value="YEARLY">{t('contracts.billing.YEARLY', 'Yearly')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -638,28 +642,28 @@ export default function Contracts() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="provider">Provider</Label>
+                <Label htmlFor="provider">{t('contracts.provider', 'Provider')}</Label>
                 <Input
                   id="provider"
                   value={formData.provider}
                   onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
-                  placeholder="e.g., OEM, Insurance Co."
+                  placeholder={t('contracts.providerPlaceholder', 'e.g., OEM, Insurance Co.')}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="policy_number">Policy Number</Label>
+                <Label htmlFor="policy_number">{t('contracts.policyNumber', 'Policy Number')}</Label>
                 <Input
                   id="policy_number"
                   value={formData.policy_number}
                   onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
-                  placeholder="Policy/Contract ID"
+                  placeholder={t('contracts.policyNumberPlaceholder', 'Policy/Contract ID')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="start_date">Start Date</Label>
+                <Label htmlFor="start_date">{t('contracts.startDate', 'Start Date')}</Label>
                 <Input
                   id="start_date"
                   type="date"
@@ -668,7 +672,7 @@ export default function Contracts() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end_date">End Date</Label>
+                <Label htmlFor="end_date">{t('contracts.endDate', 'End Date')}</Label>
                 <Input
                   id="end_date"
                   type="date"
@@ -680,7 +684,7 @@ export default function Contracts() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contract_value">Contract Value</Label>
+                <Label htmlFor="contract_value">{t('contracts.contractValue', 'Contract Value')}</Label>
                 <Input
                   id="contract_value"
                   type="number"
@@ -690,24 +694,24 @@ export default function Contracts() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="max_services">Max Services</Label>
+                <Label htmlFor="max_services">{t('contracts.maxServices', 'Max Services')}</Label>
                 <Input
                   id="max_services"
                   type="number"
                   value={formData.max_services}
                   onChange={(e) => setFormData({ ...formData, max_services: e.target.value })}
-                  placeholder="Leave empty for unlimited"
+                  placeholder={t('contracts.maxServicesPlaceholder', 'Leave empty for unlimited')}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">{t('contracts.notes', 'Notes')}</Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes..."
+                placeholder={t('contracts.notesPlaceholder', 'Additional notes...')}
                 rows={2}
               />
             </div>
