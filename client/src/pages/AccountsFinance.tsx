@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -248,10 +249,11 @@ function AgingChart({ data, title }: { data: Record<string, number>; title: stri
 }
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-8">
           <div className="skeleton mb-2 h-8 w-64" />
           <div className="skeleton h-4 w-96" />
@@ -399,10 +401,12 @@ export default function AccountsFinance() {
     return statusMap[status] || status.replace(/_/g, " ");
   };
 
+  const { isCollapsed } = useSidebar();
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>

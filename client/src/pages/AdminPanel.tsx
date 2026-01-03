@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
+import { useSidebar } from "@/lib/sidebar-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2571,10 +2572,11 @@ function TallySyncPanel() {
 }
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-8">
           <div className="skeleton mb-2 h-8 w-48" />
           <div className="skeleton h-4 w-72" />
@@ -2626,6 +2628,8 @@ export default function AdminPanel() {
     },
   });
 
+  const { isCollapsed } = useSidebar();
+
   if (licenseLoading || settingsLoading || integrationsLoading) {
     return <LoadingSkeleton />;
   }
@@ -2633,7 +2637,7 @@ export default function AdminPanel() {
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight">{t('admin.title', 'Admin Control Panel')}</h1>
           <p className="mt-1 text-muted-foreground">

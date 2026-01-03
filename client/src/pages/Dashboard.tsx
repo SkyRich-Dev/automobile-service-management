@@ -3,6 +3,7 @@ import { useJobCards } from "@/hooks/use-job-cards";
 import { useUnifiedDashboard } from "@/hooks/use-integration";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -91,10 +92,11 @@ function StatCard({
 }
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-8">
           <div className="skeleton mb-2 h-8 w-48" />
           <div className="skeleton h-4 w-72" />
@@ -164,10 +166,12 @@ export default function Dashboard() {
     },
   ];
 
+  const { isCollapsed } = useSidebar();
+
   return (
     <div className="flex min-h-screen bg-background gradient-mesh" data-testid="page-dashboard">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <header className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
             Dashboard

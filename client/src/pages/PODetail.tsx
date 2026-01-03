@@ -1,5 +1,6 @@
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { cn } from "@/lib/utils";
 import {
@@ -76,6 +77,7 @@ const PO_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PODetail() {
+  const { isCollapsed } = useSidebar();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
 
@@ -119,7 +121,10 @@ export default function PODetail() {
     return (
       <div className="flex min-h-screen bg-background">
         <AppSidebar />
-        <main className="ml-64 flex-1 overflow-auto">
+        <main className={cn(
+          "flex-1 overflow-auto transition-all duration-300",
+          isCollapsed ? "ml-16" : "ml-64"
+        )}>
           <div className="flex items-center justify-center py-24">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
@@ -132,7 +137,10 @@ export default function PODetail() {
     return (
       <div className="flex min-h-screen bg-background">
         <AppSidebar />
-        <main className="ml-64 flex-1 overflow-auto">
+        <main className={cn(
+          "flex-1 overflow-auto transition-all duration-300",
+          isCollapsed ? "ml-16" : "ml-64"
+        )}>
           <div className="p-6">
             <Link href="/suppliers">
               <Button variant="ghost" data-testid="button-back">
@@ -157,7 +165,10 @@ export default function PODetail() {
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 overflow-auto">
+      <main className={cn(
+        "flex-1 overflow-auto transition-all duration-300",
+        isCollapsed ? "ml-16" : "ml-64"
+      )}>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">

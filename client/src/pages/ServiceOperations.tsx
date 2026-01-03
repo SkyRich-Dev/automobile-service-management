@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { useJobCards, useTransitionJobCard, useCreateJobCard, useServiceEvents } from "@/hooks/use-job-cards";
 import { useCustomers, useVehicles } from "@/hooks/use-crm";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
 import {
@@ -108,10 +109,11 @@ const WORKFLOW_COLUMNS = WORKFLOW_STAGES;
 
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-6">
           <div className="skeleton mb-2 h-8 w-48" />
           <div className="skeleton h-4 w-96" />
@@ -1313,6 +1315,7 @@ function ServiceHistoryView() {
 export default function ServiceOperations() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
+  const { isCollapsed } = useSidebar();
   const { data: jobCards, isLoading, refetch } = useJobCards();
   const transitionMutation = useTransitionJobCard();
   const { toast } = useToast();
@@ -1347,7 +1350,7 @@ export default function ServiceOperations() {
   return (
     <div className="flex min-h-screen bg-background" data-testid="page-service">
       <AppSidebar />
-      <main className="ml-64 flex-1 overflow-x-auto p-6">
+      <main className={cn("flex-1 overflow-x-auto p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('serviceOps.title', 'Service Operations')}</h1>

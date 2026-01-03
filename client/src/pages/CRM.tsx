@@ -5,6 +5,7 @@ import { useCustomers, useCreateCustomer, useCreateVehicle } from "@/hooks/use-c
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,10 +159,11 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-6">
           <div className="skeleton mb-2 h-8 w-32" />
           <div className="skeleton h-4 w-64" />
@@ -179,6 +181,7 @@ function LoadingSkeleton() {
 export default function CRM() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
+  const { isCollapsed } = useSidebar();
   const [activeTab, setActiveTab] = useState("overview");
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const createCustomer = useCreateCustomer();
@@ -325,7 +328,7 @@ export default function CRM() {
   return (
     <div className="flex min-h-screen bg-background" data-testid="page-crm">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('crm.title', 'CRM')}</h1>

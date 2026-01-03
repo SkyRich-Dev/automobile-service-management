@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { LocalizationProvider } from "@/lib/currency-context";
+import { SidebarProvider } from "@/lib/sidebar-context";
 import '@/lib/i18n';
 
 import Login from "@/pages/Login";
@@ -129,10 +130,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LocalizationProvider>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
+        <SidebarProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </SidebarProvider>
       </LocalizationProvider>
     </QueryClientProvider>
   );

@@ -3,6 +3,7 @@ import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -356,10 +357,12 @@ export default function HRMS() {
     return levelConfig?.color || "bg-gray-100 text-gray-800";
   };
 
+  const { isCollapsed } = useSidebar();
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-6">
           <div className="flex items-center justify-between gap-4">
             <div>

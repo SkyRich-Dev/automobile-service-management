@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { 
   useJobCard, 
@@ -83,10 +84,14 @@ import {
 } from "@/config";
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn(
+        "flex-1 p-6 transition-all duration-300",
+        isCollapsed ? "ml-16" : "ml-64"
+      )}>
         <div className="mb-6">
           <div className="skeleton mb-2 h-8 w-48" />
           <div className="skeleton h-4 w-72" />
@@ -147,6 +152,7 @@ function SLACountdown({ deadline }: { deadline: string | null | undefined }) {
 }
 
 export default function JobCardDetail() {
+  const { isCollapsed } = useSidebar();
   const { id } = useParams<{ id: string }>();
   const { data: job, isLoading, refetch } = useJobCard(Number(id));
   const { data: transitions } = useAllowedTransitions(Number(id));
@@ -339,7 +345,10 @@ export default function JobCardDetail() {
   return (
     <div className="flex min-h-screen bg-background" data-testid="page-job-detail">
       <AppSidebar />
-      <main className="ml-64 flex-1 overflow-auto">
+      <main className={cn(
+        "flex-1 overflow-auto transition-all duration-300",
+        isCollapsed ? "ml-16" : "ml-64"
+      )}>
         {/* Sticky Header */}
         <header className={cn(
           "sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4",

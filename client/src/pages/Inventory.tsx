@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { 
   useParts, 
   useCreatePart, 
@@ -44,10 +45,11 @@ import { cn } from "@/lib/utils";
 import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X } from "lucide-react";
 
 function LoadingSkeleton() {
+  const { isCollapsed } = useSidebar();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <div className="mb-6">
           <div className="skeleton mb-2 h-8 w-32" />
           <div className="skeleton h-4 w-64" />
@@ -778,6 +780,7 @@ function AlertsTab() {
 
 export default function Inventory() {
   const { t } = useTranslation();
+  const { isCollapsed } = useSidebar();
   const { data: alerts } = useInventoryAlerts();
   const { data: reservations } = usePartReservations();
   
@@ -787,7 +790,7 @@ export default function Inventory() {
   return (
     <div className="flex min-h-screen bg-background" data-testid="page-inventory">
       <AppSidebar />
-      <main className="ml-64 flex-1 p-6">
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">{t('inventory.title', 'Inventory Management')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
