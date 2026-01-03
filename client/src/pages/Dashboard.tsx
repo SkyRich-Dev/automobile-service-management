@@ -374,7 +374,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Pending Amount</span>
-                      <Badge variant="secondary" className="text-xs">{BUSINESS_RULES.CURRENCY_SYMBOL}{Number(unifiedMetrics.finance.pending_payments || 0).toLocaleString()}</Badge>
+                      <Badge variant="secondary" className="text-xs">{formatCurrency(Number(unifiedMetrics.finance.pending_payments || 0))}</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Pending Expenses</span>
