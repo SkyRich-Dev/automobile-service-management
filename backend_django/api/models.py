@@ -3991,3 +3991,64 @@ class FeatureFlag(models.Model):
         return f"{self.name} ({status})"
 
 
+class Currency(models.Model):
+    """Supported currencies for the system"""
+    code = models.CharField(max_length=3, unique=True)
+    name = models.CharField(max_length=100)
+    symbol = models.CharField(max_length=10)
+    decimal_places = models.IntegerField(default=2)
+    exchange_rate = models.DecimalField(max_digits=12, decimal_places=6, default=1.000000)
+    is_base_currency = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Currencies"
+        ordering = ['display_order', 'code']
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Language(models.Model):
+    """Supported languages for the system"""
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    native_name = models.CharField(max_length=100)
+    direction = models.CharField(max_length=3, choices=[('ltr', 'Left to Right'), ('rtl', 'Right to Left')], default='ltr')
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class SystemPreference(models.Model):
+    """System-wide preferences for currency and language"""
+    PREFERENCE_TYPES = [
+        ('CURRENCY', 'Currency'),
+        ('LANGUAGE', 'Language'),
+        ('TIMEZONE', 'Timezone'),
+        ('DATE_FORMAT', 'Date Format'),
+        ('NUMBER_FORMAT', 'Number Format'),
+    ]
+    
+    key = models.CharField(max_length=50, unique=True)
+    preference_type = models.CharField(max_length=20, choices=PREFERENCE_TYPES)
+    value = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key}: {self.value}"
+
+

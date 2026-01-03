@@ -38,7 +38,8 @@ from .models import (
     ConfigCategory, ConfigOption,
     SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
     NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
-    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag
+    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
+    Currency, Language, SystemPreference
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow, IsAdminConfig
@@ -86,7 +87,8 @@ from .serializers import (
     ApprovalRuleSerializer, NotificationTemplateSerializer, NotificationRuleSerializer,
     AutomationRuleSerializer, DelegationRuleSerializer, BranchHolidayCalendarSerializer,
     OperatingHoursSerializer, SLAConfigSerializer, ConfigAuditLogSerializer,
-    MenuConfigSerializer, FeatureFlagSerializer
+    MenuConfigSerializer, FeatureFlagSerializer,
+    CurrencySerializer, LanguageSerializer, SystemPreferenceSerializer
 )
 
 
@@ -5784,3 +5786,206 @@ class AdminConfigDashboardViewSet(viewsets.ViewSet):
                 {'code': 'AUTOMATION', 'name': 'Automation', 'icon': 'cpu'},
             ]
         })
+
+
+class CurrencyViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing currencies"""
+    queryset = Currency.objects.all()
+    serializer_class = CurrencySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Currency.objects.all()
+        if self.request.query_params.get('active_only'):
+            queryset = queryset.filter(is_active=True)
+        return queryset.order_by('display_order', 'code')
+    
+    @action(detail=False, methods=['post'])
+    def seed_defaults(self, request):
+        """Seed default currencies"""
+        default_currencies = [
+            {'code': 'USD', 'name': 'US Dollar', 'symbol': '$', 'decimal_places': 2, 'exchange_rate': 1.0, 'display_order': 1},
+            {'code': 'AUD', 'name': 'Australian Dollar', 'symbol': 'A$', 'decimal_places': 2, 'exchange_rate': 1.53, 'display_order': 2},
+            {'code': 'SSP', 'name': 'South Sudanese Pound', 'symbol': '£', 'decimal_places': 2, 'exchange_rate': 130.0, 'display_order': 3},
+            {'code': 'INR', 'name': 'Indian Rupee', 'symbol': '₹', 'decimal_places': 2, 'exchange_rate': 83.0, 'is_base_currency': True, 'display_order': 4},
+            {'code': 'THB', 'name': 'Thai Baht', 'symbol': '฿', 'decimal_places': 2, 'exchange_rate': 35.0, 'display_order': 5},
+            {'code': 'MYR', 'name': 'Malaysian Ringgit', 'symbol': 'RM', 'decimal_places': 2, 'exchange_rate': 4.7, 'display_order': 6},
+            {'code': 'SAR', 'name': 'Saudi Riyal', 'symbol': '﷼', 'decimal_places': 2, 'exchange_rate': 3.75, 'display_order': 7},
+        ]
+        created_count = 0
+        for curr_data in default_currencies:
+            currency, created = Currency.objects.get_or_create(
+                code=curr_data['code'],
+                defaults=curr_data
+            )
+            if created:
+                created_count += 1
+        return Response({'message': f'Created {created_count} currencies', 'total': len(default_currencies)})
+    
+    @action(detail=True, methods=['post'])
+    def set_as_base(self, request, pk=None):
+        """Set a currency as the base currency"""
+        currency = self.get_object()
+        Currency.objects.filter(is_base_currency=True).update(is_base_currency=False)
+        currency.is_base_currency = True
+        currency.save()
+        return Response({'message': f'{currency.code} set as base currency'})
+
+
+class LanguageViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing languages"""
+    queryset = Language.objects.all()
+    serializer_class = LanguageSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Language.objects.all()
+        if self.request.query_params.get('active_only'):
+            queryset = queryset.filter(is_active=True)
+        return queryset.order_by('display_order', 'name')
+    
+    @action(detail=False, methods=['post'])
+    def seed_defaults(self, request):
+        """Seed default languages"""
+        default_languages = [
+            {'code': 'en', 'name': 'English', 'native_name': 'English', 'direction': 'ltr', 'is_default': True, 'display_order': 1},
+            {'code': 'hi', 'name': 'Hindi', 'native_name': 'हिन्दी', 'direction': 'ltr', 'display_order': 2},
+            {'code': 'ta', 'name': 'Tamil', 'native_name': 'தமிழ்', 'direction': 'ltr', 'display_order': 3},
+            {'code': 'te', 'name': 'Telugu', 'native_name': 'తెలుగు', 'direction': 'ltr', 'display_order': 4},
+            {'code': 'kn', 'name': 'Kannada', 'native_name': 'ಕನ್ನಡ', 'direction': 'ltr', 'display_order': 5},
+            {'code': 'ml', 'name': 'Malayalam', 'native_name': 'മലയാളം', 'direction': 'ltr', 'display_order': 6},
+            {'code': 'mr', 'name': 'Marathi', 'native_name': 'मराठी', 'direction': 'ltr', 'display_order': 7},
+            {'code': 'gu', 'name': 'Gujarati', 'native_name': 'ગુજરાતી', 'direction': 'ltr', 'display_order': 8},
+            {'code': 'bn', 'name': 'Bengali', 'native_name': 'বাংলা', 'direction': 'ltr', 'display_order': 9},
+            {'code': 'ar', 'name': 'Arabic', 'native_name': 'العربية', 'direction': 'rtl', 'display_order': 10},
+            {'code': 'th', 'name': 'Thai', 'native_name': 'ไทย', 'direction': 'ltr', 'display_order': 11},
+            {'code': 'ms', 'name': 'Malay', 'native_name': 'Bahasa Melayu', 'direction': 'ltr', 'display_order': 12},
+        ]
+        created_count = 0
+        for lang_data in default_languages:
+            language, created = Language.objects.get_or_create(
+                code=lang_data['code'],
+                defaults=lang_data
+            )
+            if created:
+                created_count += 1
+        return Response({'message': f'Created {created_count} languages', 'total': len(default_languages)})
+    
+    @action(detail=True, methods=['post'])
+    def set_as_default(self, request, pk=None):
+        """Set a language as the default language"""
+        language = self.get_object()
+        Language.objects.filter(is_default=True).update(is_default=False)
+        language.is_default = True
+        language.save()
+        return Response({'message': f'{language.name} set as default language'})
+
+
+class SystemPreferenceViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing system preferences"""
+    queryset = SystemPreference.objects.all()
+    serializer_class = SystemPreferenceSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        serializer.save(updated_by=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """Get current system preferences for currency and language"""
+        currency_pref = SystemPreference.objects.filter(key='DEFAULT_CURRENCY').first()
+        language_pref = SystemPreference.objects.filter(key='DEFAULT_LANGUAGE').first()
+        
+        current_currency = None
+        current_language = None
+        
+        if currency_pref:
+            current_currency = Currency.objects.filter(code=currency_pref.value, is_active=True).first()
+        if not current_currency:
+            current_currency = Currency.objects.filter(is_base_currency=True, is_active=True).first()
+        if not current_currency:
+            current_currency = Currency.objects.filter(is_active=True).first()
+            
+        if language_pref:
+            current_language = Language.objects.filter(code=language_pref.value, is_active=True).first()
+        if not current_language:
+            current_language = Language.objects.filter(is_default=True, is_active=True).first()
+        if not current_language:
+            current_language = Language.objects.filter(is_active=True).first()
+        
+        return Response({
+            'currency': CurrencySerializer(current_currency).data if current_currency else None,
+            'language': LanguageSerializer(current_language).data if current_language else None,
+        })
+    
+    @action(detail=False, methods=['post'])
+    def set_currency(self, request):
+        """Set the system default currency"""
+        currency_code = request.data.get('currency_code')
+        if not currency_code:
+            return Response({'error': 'currency_code is required'}, status=400)
+        
+        currency = Currency.objects.filter(code=currency_code, is_active=True).first()
+        if not currency:
+            return Response({'error': 'Currency not found or inactive'}, status=404)
+        
+        pref, created = SystemPreference.objects.update_or_create(
+            key='DEFAULT_CURRENCY',
+            defaults={
+                'preference_type': 'CURRENCY',
+                'value': currency_code,
+                'description': f'System default currency: {currency.name}',
+                'updated_by': request.user
+            }
+        )
+        return Response({
+            'message': f'System currency set to {currency.name} ({currency.code})',
+            'currency': CurrencySerializer(currency).data
+        })
+    
+    @action(detail=False, methods=['post'])
+    def set_language(self, request):
+        """Set the system default language"""
+        language_code = request.data.get('language_code')
+        if not language_code:
+            return Response({'error': 'language_code is required'}, status=400)
+        
+        language = Language.objects.filter(code=language_code, is_active=True).first()
+        if not language:
+            return Response({'error': 'Language not found or inactive'}, status=404)
+        
+        pref, created = SystemPreference.objects.update_or_create(
+            key='DEFAULT_LANGUAGE',
+            defaults={
+                'preference_type': 'LANGUAGE',
+                'value': language_code,
+                'description': f'System default language: {language.name}',
+                'updated_by': request.user
+            }
+        )
+        return Response({
+            'message': f'System language set to {language.name}',
+            'language': LanguageSerializer(language).data
+        })
+    
+    @action(detail=False, methods=['post'])
+    def seed_defaults(self, request):
+        """Seed default system preferences"""
+        defaults = [
+            {'key': 'DEFAULT_CURRENCY', 'preference_type': 'CURRENCY', 'value': 'INR', 'description': 'System default currency'},
+            {'key': 'DEFAULT_LANGUAGE', 'preference_type': 'LANGUAGE', 'value': 'en', 'description': 'System default language'},
+            {'key': 'DATE_FORMAT', 'preference_type': 'DATE_FORMAT', 'value': 'DD/MM/YYYY', 'description': 'System date format'},
+            {'key': 'NUMBER_FORMAT', 'preference_type': 'NUMBER_FORMAT', 'value': 'en-IN', 'description': 'System number format locale'},
+        ]
+        created_count = 0
+        for pref_data in defaults:
+            pref, created = SystemPreference.objects.update_or_create(
+                key=pref_data['key'],
+                defaults={**pref_data, 'updated_by': request.user}
+            )
+            if created:
+                created_count += 1
+        return Response({'message': f'Created/updated {len(defaults)} preferences'})

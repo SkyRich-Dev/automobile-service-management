@@ -118,6 +118,11 @@ router.register(r'admin-config/menus', views.MenuConfigViewSet, basename='menu-c
 router.register(r'admin-config/feature-flags', views.FeatureFlagViewSet, basename='feature-flags')
 router.register(r'admin-config/dashboard', views.AdminConfigDashboardViewSet, basename='admin-config-dashboard')
 
+# Localization & Currency Routes
+router.register(r'currencies', views.CurrencyViewSet, basename='currencies')
+router.register(r'languages', views.LanguageViewSet, basename='languages')
+router.register(r'system-preferences', views.SystemPreferenceViewSet, basename='system-preferences')
+
 # Cross-Module Integration Routes
 router.register(r'integration', views.IntegrationViewSet, basename='integration')
 

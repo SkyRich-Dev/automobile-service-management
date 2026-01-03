@@ -31,7 +31,8 @@ from .models import (
     ConfigCategory, ConfigOption,
     SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
     NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
-    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag
+    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
+    Currency, Language, SystemPreference
 )
 
 
@@ -2073,3 +2074,29 @@ class AdminDashboardSerializer(serializers.Serializer):
     pending_delegations = serializers.IntegerField()
     recent_config_changes = serializers.ListField()
     system_health = serializers.DictField()
+
+
+class CurrencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Currency
+        fields = ['id', 'code', 'name', 'symbol', 'decimal_places', 'exchange_rate', 
+                  'is_base_currency', 'is_active', 'display_order', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class LanguageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Language
+        fields = ['id', 'code', 'name', 'native_name', 'direction', 'is_default', 
+                  'is_active', 'display_order', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SystemPreferenceSerializer(serializers.ModelSerializer):
+    updated_by_name = serializers.CharField(source='updated_by.username', read_only=True)
+    
+    class Meta:
+        model = SystemPreference
+        fields = ['id', 'key', 'preference_type', 'value', 'description', 
+                  'updated_by', 'updated_by_name', 'updated_at']
+        read_only_fields = ['id', 'updated_at']
