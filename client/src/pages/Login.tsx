@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Car, Loader2, AlertCircle } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const { t } = useTranslation();
   const { loginAsync, registerAsync, isLoggingIn, isRegistering, loginError, registerError } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
@@ -64,7 +66,7 @@ export default function Login() {
             AutoServ
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Enterprise Automotive Management
+            {t('auth.tagline', 'Enterprise Automotive Management')}
           </p>
         </div>
 
@@ -73,10 +75,10 @@ export default function Login() {
             <CardHeader className="pb-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login" data-testid="tab-login">
-                  Sign In
+                  {t('auth.signIn', 'Sign In')}
                 </TabsTrigger>
                 <TabsTrigger value="register" data-testid="tab-register">
-                  Register
+                  {t('auth.register', 'Register')}
                 </TabsTrigger>
               </TabsList>
             </CardHeader>
@@ -92,13 +94,13 @@ export default function Login() {
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="username">{t('auth.username', 'Username')}</Label>
                     <Input
                       id="username"
                       name="username"
                       value={formData.username}
                       onChange={handleChange}
-                      placeholder="Enter your username"
+                      placeholder={t('auth.enterUsername', 'Enter your username')}
                       required
                       autoComplete="username"
                       data-testid="input-username"
@@ -106,14 +108,14 @@ export default function Login() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t('auth.password', 'Password')}</Label>
                     <Input
                       id="password"
                       name="password"
                       type="password"
                       value={formData.password}
                       onChange={handleChange}
-                      placeholder="Enter your password"
+                      placeholder={t('auth.enterPassword', 'Enter your password')}
                       required
                       autoComplete="current-password"
                       data-testid="input-password"
@@ -130,10 +132,10 @@ export default function Login() {
                     {isLoggingIn ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
+                        {t('auth.signingIn', 'Signing in...')}
                       </>
                     ) : (
-                      "Sign In"
+                      t('auth.signIn', 'Sign In')
                     )}
                   </Button>
 
@@ -155,27 +157,27 @@ export default function Login() {
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="reg-username">Username</Label>
+                    <Label htmlFor="reg-username">{t('auth.username', 'Username')}</Label>
                     <Input
                       id="reg-username"
                       name="username"
                       value={formData.username}
                       onChange={handleChange}
-                      placeholder="Choose a username"
+                      placeholder={t('auth.chooseUsername', 'Choose a username')}
                       required
                       data-testid="input-register-username"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="reg-email">Email</Label>
+                    <Label htmlFor="reg-email">{t('auth.email', 'Email')}</Label>
                     <Input
                       id="reg-email"
                       name="email"
                       type="email"
                       value={formData.email}
                       onChange={handleChange}
-                      placeholder="Enter your email"
+                      placeholder={t('auth.enterEmail', 'Enter your email')}
                       required
                       data-testid="input-register-email"
                     />
@@ -183,43 +185,43 @@ export default function Login() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
+                      <Label htmlFor="firstName">{t('auth.firstName', 'First Name')}</Label>
                       <Input
                         id="firstName"
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleChange}
-                        placeholder="First"
+                        placeholder={t('auth.first', 'First')}
                         data-testid="input-register-firstname"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
+                      <Label htmlFor="lastName">{t('auth.lastName', 'Last Name')}</Label>
                       <Input
                         id="lastName"
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleChange}
-                        placeholder="Last"
+                        placeholder={t('auth.last', 'Last')}
                         data-testid="input-register-lastname"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="reg-password">Password</Label>
+                    <Label htmlFor="reg-password">{t('auth.password', 'Password')}</Label>
                     <Input
                       id="reg-password"
                       name="password"
                       type="password"
                       value={formData.password}
                       onChange={handleChange}
-                      placeholder="Create a password"
+                      placeholder={t('auth.createPassword', 'Create a password')}
                       required
                       data-testid="input-register-password"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Minimum 6 characters
+                      {t('auth.minChars', 'Minimum 6 characters')}
                     </p>
                   </div>
 
@@ -233,10 +235,10 @@ export default function Login() {
                     {isRegistering ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
+                        {t('auth.creatingAccount', 'Creating account...')}
                       </>
                     ) : (
-                      "Create Account"
+                      t('auth.createAccount', 'Create Account')
                     )}
                   </Button>
                 </form>
