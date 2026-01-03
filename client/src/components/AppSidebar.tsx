@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -175,9 +176,15 @@ const menuItems: MenuItem[] = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, profile, logout } = useAuth();
+  const { t } = useTranslation();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(["Accounts & Finance"]);
 
   const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
+  
+  const getTranslatedLabel = (text: string): string => {
+    const key = text.toLowerCase().replace(/\s+/g, '').replace(/&/g, '');
+    return t(`nav.${key}`, text);
+  };
   
   const filteredMenuItems = menuItems.filter(item => 
     item.allowedRoles.includes(userRole)
@@ -216,7 +223,7 @@ export function AppSidebar() {
         {operationsItems.length > 0 && (
           <>
             <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              Operations
+              {t('nav.operations', 'Operations')}
             </div>
             {operationsItems.map((item) => {
               const isActive = location === item.path;
@@ -238,7 +245,7 @@ export function AppSidebar() {
                       "flex-1 transition-colors",
                       !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                     )}>
-                      {item.text}
+                      {getTranslatedLabel(item.text)}
                     </span>
                     {isActive && (
                       <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
@@ -253,7 +260,7 @@ export function AppSidebar() {
         {managementItems.length > 0 && (
           <>
             <div className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              Management
+              {t('nav.management', 'Management')}
             </div>
             {managementItems.map((item) => {
               const basePath = item.path.split('?')[0];
@@ -281,7 +288,7 @@ export function AppSidebar() {
                         "flex-1 transition-colors",
                         !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                       )}>
-                        {item.text}
+                        {getTranslatedLabel(item.text)}
                       </span>
                       <ChevronDown className={cn(
                         "h-4 w-4 transition-transform",
@@ -311,7 +318,7 @@ export function AppSidebar() {
                                 data-testid={`nav-sub-${subItem.text.toLowerCase().replace(/\s+/g, '-')}`}
                               >
                                 <SubIcon className="h-3.5 w-3.5" />
-                                <span>{subItem.text}</span>
+                                <span>{getTranslatedLabel(subItem.text)}</span>
                               </div>
                             </Link>
                           );
@@ -339,7 +346,7 @@ export function AppSidebar() {
                       "flex-1 transition-colors",
                       !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                     )}>
-                      {item.text}
+                      {getTranslatedLabel(item.text)}
                     </span>
                     {isActive && (
                       <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
