@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
 import { 
@@ -62,6 +63,7 @@ function LoadingSkeleton() {
 }
 
 function PartsTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { formatCurrency } = useLocalization();
   const { data: parts, isLoading } = useParts();
@@ -90,7 +92,7 @@ function PartsTab() {
     e.preventDefault();
     createPart.mutate(formData as any, {
       onSuccess: () => {
-        toast({ title: "Part created successfully" });
+        toast({ title: t('inventory.messages.partCreated', 'Part created successfully') });
         setOpen(false);
         setFormData({
           name: "",
@@ -104,7 +106,7 @@ function PartsTab() {
         });
       },
       onError: (error) => {
-        toast({ title: "Failed to create part", description: error.message, variant: "destructive" });
+        toast({ title: t('inventory.messages.partCreateError', 'Failed to create part'), description: error.message, variant: "destructive" });
       },
     });
   };
@@ -122,13 +124,13 @@ function PartsTab() {
           {lowStockCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
-              {lowStockCount} Low Stock
+              {lowStockCount} {t('inventory.lowStock', 'Low Stock')}
             </Badge>
           )}
         </div>
         <Button onClick={() => setOpen(true)} className="gap-2" data-testid="button-add-part">
           <Plus className="h-4 w-4" />
-          Add Part
+          {t('inventory.addPart', 'Add Part')}
         </Button>
       </div>
 
@@ -167,7 +169,7 @@ function PartsTab() {
 
                 <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Stock Level</span>
+                    <span className="text-muted-foreground">{t('inventory.stockLevel', 'Stock Level')}</span>
                     <span
                       className={cn(
                         "flex items-center gap-1 font-semibold",
@@ -185,8 +187,8 @@ function PartsTab() {
                 </div>
 
                 <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-                  <span>Min: {part.min_stock}</span>
-                  <span>Reserved: {part.reserved}</span>
+                  <span>{t('inventory.min', 'Min')}: {part.min_stock}</span>
+                  <span>{t('inventory.reserved', 'Reserved')}: {part.reserved}</span>
                 </div>
               </CardContent>
             </Card>
@@ -196,14 +198,14 @@ function PartsTab() {
         {(!parts || parts.length === 0) && (
           <div className="col-span-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12">
             <Package className="mb-3 h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">No parts in inventory</p>
+            <p className="text-sm text-muted-foreground">{t('inventory.noPartsInInventory', 'No parts in inventory')}</p>
             <Button
               variant="outline"
               size="sm"
               className="mt-3"
               onClick={() => setOpen(true)}
             >
-              Add your first part
+              {t('inventory.addFirstPart', 'Add your first part')}
             </Button>
           </div>
         )}
@@ -212,17 +214,17 @@ function PartsTab() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Part</DialogTitle>
+            <DialogTitle>{t('inventory.addNewPart', 'Add New Part')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Part Name</Label>
+              <Label htmlFor="name">{t('inventory.partName', 'Part Name')}</Label>
               <Input
                 id="name"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                placeholder="Enter part name"
+                placeholder={t('inventory.enterPartName', 'Enter part name')}
                 required
                 data-testid="input-part-name"
               />
@@ -230,25 +232,25 @@ function PartsTab() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="sku">SKU</Label>
+                <Label htmlFor="sku">{t('inventory.sku', 'SKU')}</Label>
                 <Input
                   id="sku"
                   name="sku"
                   value={formData.sku}
                   onChange={handleChange}
-                  placeholder="SKU-001"
+                  placeholder={t('inventory.skuPlaceholder', 'SKU-001')}
                   required
                   data-testid="input-part-sku"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="category">{t('inventory.category', 'Category')}</Label>
                 <Input
                   id="category"
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  placeholder="e.g., Filters"
+                  placeholder={t('inventory.categoryPlaceholder', 'e.g., Filters')}
                   required
                   data-testid="input-part-category"
                 />
@@ -257,7 +259,7 @@ function PartsTab() {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="stock">Stock</Label>
+                <Label htmlFor="stock">{t('inventory.stock', 'Stock')}</Label>
                 <Input
                   id="stock"
                   name="stock"
@@ -268,7 +270,7 @@ function PartsTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="min_stock">Min Stock</Label>
+                <Label htmlFor="min_stock">{t('inventory.minStock', 'Min Stock')}</Label>
                 <Input
                   id="min_stock"
                   name="min_stock"
@@ -279,7 +281,7 @@ function PartsTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price ($)</Label>
+                <Label htmlFor="price">{t('inventory.price', 'Price ($)')}</Label>
                 <Input
                   id="price"
                   name="price"
@@ -292,16 +294,16 @@ function PartsTab() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)} data-testid="button-cancel-part">
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button type="submit" disabled={createPart.isPending} data-testid="button-save-part">
                 {createPart.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {t('inventory.messages.saving', 'Saving...')}
                   </>
                 ) : (
-                  "Save Part"
+                  t('inventory.messages.savePart', 'Save Part')
                 )}
               </Button>
             </DialogFooter>
@@ -313,6 +315,7 @@ function PartsTab() {
 }
 
 function ReservationsTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { data: reservations, isLoading } = usePartReservations();
   const issueReservation = useIssueReservation();
@@ -320,15 +323,15 @@ function ReservationsTab() {
 
   const handleIssue = (id: number) => {
     issueReservation.mutate({ id }, {
-      onSuccess: () => toast({ title: "Reservation issued successfully" }),
-      onError: (error) => toast({ title: "Failed to issue reservation", description: error.message, variant: "destructive" }),
+      onSuccess: () => toast({ title: t('inventory.messages.reservationIssued', 'Reservation issued successfully') }),
+      onError: (error) => toast({ title: t('inventory.messages.reservationIssueError', 'Failed to issue reservation'), description: error.message, variant: "destructive" }),
     });
   };
 
   const handleRelease = (id: number) => {
     releaseReservation.mutate(id, {
-      onSuccess: () => toast({ title: "Reservation released successfully" }),
-      onError: (error) => toast({ title: "Failed to release reservation", description: error.message, variant: "destructive" }),
+      onSuccess: () => toast({ title: t('inventory.messages.reservationReleased', 'Reservation released successfully') }),
+      onError: (error) => toast({ title: t('inventory.messages.reservationReleaseError', 'Failed to release reservation'), description: error.message, variant: "destructive" }),
     });
   };
 
@@ -347,13 +350,13 @@ function ReservationsTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Reservation #</TableHead>
-            <TableHead>Job Card</TableHead>
-            <TableHead>Part</TableHead>
-            <TableHead>Quantity</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Reserved At</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead>{t('inventory.reservations.reservationNumber', 'Reservation #')}</TableHead>
+            <TableHead>{t('inventory.reservations.jobCard', 'Job Card')}</TableHead>
+            <TableHead>{t('inventory.reservations.part', 'Part')}</TableHead>
+            <TableHead>{t('inventory.reservations.quantity', 'Quantity')}</TableHead>
+            <TableHead>{t('inventory.reservations.status', 'Status')}</TableHead>
+            <TableHead>{t('inventory.reservations.reservedAt', 'Reserved At')}</TableHead>
+            <TableHead>{t('inventory.reservations.actions', 'Actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -365,7 +368,7 @@ function ReservationsTab() {
               <TableCell>{reservation.quantity}</TableCell>
               <TableCell>
                 <Badge className={statusColors[reservation.status] || ""}>
-                  {reservation.status}
+                  {t(`inventory.status.${reservation.status}`, reservation.status)}
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
@@ -381,7 +384,7 @@ function ReservationsTab() {
                       data-testid={`button-issue-${reservation.id}`}
                     >
                       <Check className="mr-1 h-3 w-3" />
-                      Issue
+                      {t('inventory.reservations.issue', 'Issue')}
                     </Button>
                     <Button
                       size="sm"
@@ -391,7 +394,7 @@ function ReservationsTab() {
                       data-testid={`button-release-${reservation.id}`}
                     >
                       <X className="mr-1 h-3 w-3" />
-                      Release
+                      {t('inventory.reservations.release', 'Release')}
                     </Button>
                   </div>
                 )}
@@ -402,7 +405,7 @@ function ReservationsTab() {
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <BookmarkCheck className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No part reservations found
+                {t('inventory.reservations.noReservations', 'No part reservations found')}
               </TableCell>
             </TableRow>
           )}
@@ -413,6 +416,7 @@ function ReservationsTab() {
 }
 
 function GRNsTab() {
+  const { t } = useTranslation();
   const { data: grns, isLoading } = useGRNs();
 
   if (isLoading) {
@@ -433,14 +437,14 @@ function GRNsTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>GRN #</TableHead>
-            <TableHead>PO #</TableHead>
-            <TableHead>Branch</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Received</TableHead>
-            <TableHead>Accepted</TableHead>
-            <TableHead>Rejected</TableHead>
-            <TableHead>Date</TableHead>
+            <TableHead>{t('inventory.grns.grnNumber', 'GRN #')}</TableHead>
+            <TableHead>{t('inventory.grns.poNumber', 'PO #')}</TableHead>
+            <TableHead>{t('inventory.grns.branch', 'Branch')}</TableHead>
+            <TableHead>{t('inventory.grns.status', 'Status')}</TableHead>
+            <TableHead>{t('inventory.grns.received', 'Received')}</TableHead>
+            <TableHead>{t('inventory.grns.accepted', 'Accepted')}</TableHead>
+            <TableHead>{t('inventory.grns.rejected', 'Rejected')}</TableHead>
+            <TableHead>{t('inventory.grns.date', 'Date')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -451,7 +455,7 @@ function GRNsTab() {
               <TableCell>{grn.branch_name}</TableCell>
               <TableCell>
                 <Badge className={statusColors[grn.status] || ""}>
-                  {grn.status.replace("_", " ")}
+                  {t(`inventory.status.${grn.status}`, grn.status.replace("_", " "))}
                 </Badge>
               </TableCell>
               <TableCell>{grn.total_received_qty}</TableCell>
@@ -466,7 +470,7 @@ function GRNsTab() {
             <TableRow>
               <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No GRNs found
+                {t('inventory.grns.noGRNs', 'No GRNs found')}
               </TableCell>
             </TableRow>
           )}
@@ -477,6 +481,7 @@ function GRNsTab() {
 }
 
 function StockTransfersTab() {
+  const { t } = useTranslation();
   const { data: transfers, isLoading } = useStockTransfers();
 
   if (isLoading) {
@@ -497,13 +502,13 @@ function StockTransfersTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Transfer #</TableHead>
-            <TableHead>From Branch</TableHead>
-            <TableHead>To Branch</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Items</TableHead>
-            <TableHead>Vehicle</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead>{t('inventory.transfers.transferNumber', 'Transfer #')}</TableHead>
+            <TableHead>{t('inventory.transfers.fromBranch', 'From Branch')}</TableHead>
+            <TableHead>{t('inventory.transfers.toBranch', 'To Branch')}</TableHead>
+            <TableHead>{t('inventory.transfers.status', 'Status')}</TableHead>
+            <TableHead>{t('inventory.transfers.items', 'Items')}</TableHead>
+            <TableHead>{t('inventory.transfers.vehicle', 'Vehicle')}</TableHead>
+            <TableHead>{t('inventory.transfers.created', 'Created')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -514,7 +519,7 @@ function StockTransfersTab() {
               <TableCell>{transfer.to_branch_name}</TableCell>
               <TableCell>
                 <Badge className={statusColors[transfer.status] || ""}>
-                  {transfer.status.replace("_", " ")}
+                  {t(`inventory.status.${transfer.status}`, transfer.status.replace("_", " "))}
                 </Badge>
               </TableCell>
               <TableCell>{transfer.lines?.length || 0}</TableCell>
@@ -530,7 +535,7 @@ function StockTransfersTab() {
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <ArrowRightLeft className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No stock transfers found
+                {t('inventory.transfers.noTransfers', 'No stock transfers found')}
               </TableCell>
             </TableRow>
           )}
@@ -541,6 +546,7 @@ function StockTransfersTab() {
 }
 
 function PurchaseRequisitionsTab() {
+  const { t } = useTranslation();
   const { data: prs, isLoading } = usePurchaseRequisitions();
 
   if (isLoading) {
@@ -567,13 +573,13 @@ function PurchaseRequisitionsTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>PR #</TableHead>
-            <TableHead>Branch</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Priority</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Items</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead>{t('inventory.requisitions.prNumber', 'PR #')}</TableHead>
+            <TableHead>{t('inventory.requisitions.branch', 'Branch')}</TableHead>
+            <TableHead>{t('inventory.requisitions.status', 'Status')}</TableHead>
+            <TableHead>{t('inventory.requisitions.priority', 'Priority')}</TableHead>
+            <TableHead>{t('inventory.requisitions.source', 'Source')}</TableHead>
+            <TableHead>{t('inventory.requisitions.items', 'Items')}</TableHead>
+            <TableHead>{t('inventory.requisitions.created', 'Created')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -583,12 +589,12 @@ function PurchaseRequisitionsTab() {
               <TableCell>{pr.branch_name}</TableCell>
               <TableCell>
                 <Badge className={statusColors[pr.status] || ""}>
-                  {pr.status.replace("_", " ")}
+                  {t(`inventory.status.${pr.status}`, pr.status.replace("_", " "))}
                 </Badge>
               </TableCell>
               <TableCell>
                 <Badge className={priorityColors[pr.priority] || ""}>
-                  {pr.priority}
+                  {t(`inventory.priority.${pr.priority}`, pr.priority)}
                 </Badge>
               </TableCell>
               <TableCell className="text-sm">{pr.source.replace("_", " ")}</TableCell>
@@ -602,7 +608,7 @@ function PurchaseRequisitionsTab() {
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <ClipboardList className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No purchase requisitions found
+                {t('inventory.requisitions.noRequisitions', 'No purchase requisitions found')}
               </TableCell>
             </TableRow>
           )}
@@ -613,6 +619,7 @@ function PurchaseRequisitionsTab() {
 }
 
 function AlertsTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { profile } = useAuth();
   const { data: alerts, isLoading } = useInventoryAlerts();
@@ -622,26 +629,26 @@ function AlertsTab() {
 
   const handleAcknowledge = (id: number) => {
     acknowledgeAlert.mutate(id, {
-      onSuccess: () => toast({ title: "Alert acknowledged" }),
-      onError: (error) => toast({ title: "Failed to acknowledge alert", description: error.message, variant: "destructive" }),
+      onSuccess: () => toast({ title: t('inventory.messages.alertAcknowledged', 'Alert acknowledged') }),
+      onError: (error) => toast({ title: t('inventory.messages.alertAcknowledgeError', 'Failed to acknowledge alert'), description: error.message, variant: "destructive" }),
     });
   };
 
   const handleResolve = (id: number) => {
     resolveAlert.mutate({ id }, {
-      onSuccess: () => toast({ title: "Alert resolved successfully" }),
-      onError: (error) => toast({ title: "Failed to resolve alert", description: error.message, variant: "destructive" }),
+      onSuccess: () => toast({ title: t('inventory.messages.alertResolved', 'Alert resolved successfully') }),
+      onError: (error) => toast({ title: t('inventory.messages.alertResolveError', 'Failed to resolve alert'), description: error.message, variant: "destructive" }),
     });
   };
 
   const handleGenerateAlerts = () => {
     if (!profile?.branch) {
-      toast({ title: "Cannot generate alerts", description: "Branch information not available", variant: "destructive" });
+      toast({ title: t('inventory.messages.cannotGenerateAlerts', 'Cannot generate alerts'), description: t('inventory.messages.branchNotAvailable', 'Branch information not available'), variant: "destructive" });
       return;
     }
     generateAlerts.mutate(profile.branch, {
-      onSuccess: (data) => toast({ title: "Alert scan complete", description: `Generated ${data.created || 0} new alerts` }),
-      onError: (error) => toast({ title: "Failed to generate alerts", description: error.message, variant: "destructive" }),
+      onSuccess: (data) => toast({ title: t('inventory.messages.alertScanComplete', 'Alert scan complete'), description: t('inventory.messages.alertsGenerated', 'Generated {{count}} new alerts', { count: data.created || 0 }) }),
+      onError: (error) => toast({ title: t('inventory.messages.alertGenerateError', 'Failed to generate alerts'), description: error.message, variant: "destructive" }),
     });
   };
 
@@ -673,7 +680,7 @@ function AlertsTab() {
           {unresolvedCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <Bell className="h-3 w-3" />
-              {unresolvedCount} Unresolved
+              {unresolvedCount} {t('inventory.alerts.unresolved', 'Unresolved').replace('{{count}} ', '')}
             </Badge>
           )}
         </div>
@@ -687,20 +694,20 @@ function AlertsTab() {
           ) : (
             <Bell className="mr-2 h-4 w-4" />
           )}
-          Scan for Alerts
+          {t('inventory.alerts.scanForAlerts', 'Scan for Alerts')}
         </Button>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Alert #</TableHead>
-            <TableHead>Part</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Severity</TableHead>
-            <TableHead>Message</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead>{t('inventory.alerts.alertNumber', 'Alert #')}</TableHead>
+            <TableHead>{t('inventory.alerts.part', 'Part')}</TableHead>
+            <TableHead>{t('inventory.alerts.type', 'Type')}</TableHead>
+            <TableHead>{t('inventory.alerts.severity', 'Severity')}</TableHead>
+            <TableHead>{t('inventory.alerts.message', 'Message')}</TableHead>
+            <TableHead>{t('inventory.alerts.status', 'Status')}</TableHead>
+            <TableHead>{t('inventory.alerts.actions', 'Actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -710,22 +717,22 @@ function AlertsTab() {
               <TableCell>{alert.part_name}</TableCell>
               <TableCell>
                 <Badge className={typeColors[alert.alert_type] || ""}>
-                  {alert.alert_type.replace("_", " ")}
+                  {t(`inventory.alertTypes.${alert.alert_type}`, alert.alert_type.replace("_", " "))}
                 </Badge>
               </TableCell>
               <TableCell>
                 <Badge className={severityColors[alert.severity] || ""}>
-                  {alert.severity}
+                  {t(`inventory.priority.${alert.severity}`, alert.severity)}
                 </Badge>
               </TableCell>
               <TableCell className="max-w-xs truncate text-sm">{alert.message}</TableCell>
               <TableCell>
                 {alert.is_resolved ? (
-                  <Badge variant="secondary">Resolved</Badge>
+                  <Badge variant="secondary">{t('inventory.alerts.resolved', 'Resolved')}</Badge>
                 ) : alert.is_read ? (
-                  <Badge variant="outline">Read</Badge>
+                  <Badge variant="outline">{t('inventory.alerts.read', 'Read')}</Badge>
                 ) : (
-                  <Badge variant="destructive">New</Badge>
+                  <Badge variant="destructive">{t('inventory.alerts.new', 'New')}</Badge>
                 )}
               </TableCell>
               <TableCell>
@@ -739,7 +746,7 @@ function AlertsTab() {
                         disabled={acknowledgeAlert.isPending}
                         data-testid={`button-acknowledge-${alert.id}`}
                       >
-                        Mark Read
+                        {t('inventory.alerts.markRead', 'Mark Read')}
                       </Button>
                     )}
                     <Button
@@ -748,7 +755,7 @@ function AlertsTab() {
                       disabled={resolveAlert.isPending}
                       data-testid={`button-resolve-${alert.id}`}
                     >
-                      Resolve
+                      {t('inventory.alerts.resolve', 'Resolve')}
                     </Button>
                   </div>
                 )}
@@ -759,7 +766,7 @@ function AlertsTab() {
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <Bell className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No inventory alerts found
+                {t('inventory.alerts.noAlerts', 'No inventory alerts found')}
               </TableCell>
             </TableRow>
           )}
@@ -770,6 +777,7 @@ function AlertsTab() {
 }
 
 export default function Inventory() {
+  const { t } = useTranslation();
   const { data: alerts } = useInventoryAlerts();
   const { data: reservations } = usePartReservations();
   
@@ -781,51 +789,51 @@ export default function Inventory() {
       <AppSidebar />
       <main className="ml-64 flex-1 p-6">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Inventory Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('inventory.title', 'Inventory Management')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage parts, reservations, receiving, transfers, and alerts
+            {t('inventory.subtitle', 'Manage parts, reservations, receiving, transfers, and alerts')}
           </p>
         </header>
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium">Parts</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('inventory.tabs.parts', 'Parts')}</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{useParts().data?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Total items in inventory</p>
+              <p className="text-xs text-muted-foreground">{t('inventory.totalItemsInInventory', 'Total items in inventory')}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium">Reservations</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('inventory.tabs.reservations', 'Reservations')}</CardTitle>
               <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeReservations}</div>
-              <p className="text-xs text-muted-foreground">Active reservations</p>
+              <p className="text-xs text-muted-foreground">{t('inventory.reservations.activeReservations', 'Active reservations')}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium">Pending GRNs</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('inventory.grns.pendingGRNs', 'Pending GRNs')}</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{useGRNs().data?.filter(g => g.status !== "ACCEPTED").length || 0}</div>
-              <p className="text-xs text-muted-foreground">Awaiting acceptance</p>
+              <p className="text-xs text-muted-foreground">{t('inventory.grns.awaitingAcceptance', 'Awaiting acceptance')}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium">Alerts</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('inventory.tabs.alerts', 'Alerts')}</CardTitle>
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{unresolvedAlerts}</div>
-              <p className="text-xs text-muted-foreground">Unresolved alerts</p>
+              <p className="text-xs text-muted-foreground">{t('inventory.alerts.unresolvedAlerts', 'Unresolved alerts')}</p>
             </CardContent>
           </Card>
         </div>
@@ -834,30 +842,30 @@ export default function Inventory() {
           <TabsList className="mb-4">
             <TabsTrigger value="parts" className="gap-2" data-testid="tab-parts">
               <Package className="h-4 w-4" />
-              Parts
+              {t('inventory.tabs.parts', 'Parts')}
             </TabsTrigger>
             <TabsTrigger value="reservations" className="gap-2" data-testid="tab-reservations">
               <BookmarkCheck className="h-4 w-4" />
-              Reservations
+              {t('inventory.tabs.reservations', 'Reservations')}
               {activeReservations > 0 && (
                 <Badge variant="secondary" className="ml-1">{activeReservations}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="grns" className="gap-2" data-testid="tab-grns">
               <FileText className="h-4 w-4" />
-              GRNs
+              {t('inventory.tabs.grns', 'GRNs')}
             </TabsTrigger>
             <TabsTrigger value="transfers" className="gap-2" data-testid="tab-transfers">
               <ArrowRightLeft className="h-4 w-4" />
-              Transfers
+              {t('inventory.tabs.transfers', 'Transfers')}
             </TabsTrigger>
             <TabsTrigger value="requisitions" className="gap-2" data-testid="tab-requisitions">
               <ClipboardList className="h-4 w-4" />
-              Requisitions
+              {t('inventory.tabs.requisitions', 'Requisitions')}
             </TabsTrigger>
             <TabsTrigger value="alerts" className="gap-2" data-testid="tab-alerts">
               <Bell className="h-4 w-4" />
-              Alerts
+              {t('inventory.tabs.alerts', 'Alerts')}
               {unresolvedAlerts > 0 && (
                 <Badge variant="destructive" className="ml-1">{unresolvedAlerts}</Badge>
               )}

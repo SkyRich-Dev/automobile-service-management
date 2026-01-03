@@ -1,4 +1,40 @@
 {
+  "sidebar": {
+    "dashboard": "لوحة التحكم",
+    "serviceOperations": "عمليات الخدمة",
+    "appointments": "المواعيد",
+    "inventory": "المخزون",
+    "suppliers": "الموردون",
+    "crm": "إدارة العملاء",
+    "contracts": "العقود",
+    "analytics": "التحليلات",
+    "accountsFinance": "الحسابات والمالية",
+    "hrms": "إدارة الموارد البشرية",
+    "adminPanel": "لوحة الإدارة",
+    "configCenter": "مركز التكوين",
+    "operations": "العمليات",
+    "management": "الإدارة",
+    "logout": "تسجيل الخروج",
+    "logoutTooltip": "تسجيل الخروج من حسابك",
+    "settings": "الإعدادات",
+    "teamMember": "عضو الفريق",
+    "finance": {
+      "dashboard": "لوحة التحكم",
+      "invoices": "الفواتير",
+      "payments": "المدفوعات",
+      "expenses": "المصروفات",
+      "receivables": "المستحقات",
+      "chartOfAccounts": "دليل الحسابات"
+    },
+    "hrms": {
+      "overview": "نظرة عامة",
+      "skills": "المهارات",
+      "employees": "الموظفون",
+      "training": "التدريب",
+      "leaveManagement": "إدارة الإجازات",
+      "skillMatrix": "مصفوفة المهارات"
+    }
+  },
   "common": {
     "save": "حفظ",
     "cancel": "إلغاء",
@@ -370,6 +406,90 @@
       "title": "إدارة المستخدمين",
       "addUser": "إضافة مستخدم",
       "createSuccess": "تم إنشاء المستخدم بنجاح"
+    }
+  },
+  "suppliers": {
+    "title": "الموردون والمشتريات",
+    "subtitle": "إدارة البائعين وأوامر الشراء",
+    "addSupplier": "إضافة مورد",
+    "createPO": "أمر شراء جديد",
+    "createSupplier": "إنشاء مورد",
+    "createPOButton": "إنشاء أمر شراء",
+    "creating": "جاري الإنشاء...",
+    "searchSuppliers": "البحث عن موردين...",
+    "searchOrders": "البحث عن الطلبات...",
+    "noSuppliersFound": "لم يتم العثور على موردين",
+    "noOrdersFound": "لم يتم العثور على أوامر شراء",
+    "noPerformanceData": "لا توجد بيانات أداء متاحة",
+    "outstanding": "المستحق",
+    "expected": "المتوقع",
+    "estimatedSubtotal": "المجموع الفرعي المقدر",
+    "tabs": {
+      "suppliers": "الموردون",
+      "orders": "أوامر الشراء",
+      "performance": "الأداء"
+    },
+    "metrics": {
+      "activeSuppliers": "الموردون النشطون",
+      "pendingOrders": "الطلبات المعلقة",
+      "outstandingBalance": "الرصيد المستحق",
+      "totalOrders": "إجمالي الطلبات"
+    },
+    "status": {
+      "all": "جميع الحالات",
+      "DRAFT": "مسودة",
+      "PENDING_APPROVAL": "في انتظار الموافقة",
+      "APPROVED": "موافق عليه",
+      "ORDERED": "تم الطلب",
+      "PARTIALLY_RECEIVED": "مستلم جزئياً",
+      "RECEIVED": "مستلم",
+      "CANCELLED": "ملغي"
+    },
+    "performance": {
+      "onTimeRate": "معدل التسليم في الوقت",
+      "qualityRate": "معدل الجودة",
+      "priceVariance": "تباين السعر",
+      "orders": "الطلبات",
+      "onTime": "في الوقت",
+      "rejected": "مرفوض"
+    },
+    "paymentTerms": {
+      "IMMEDIATE": "فوري",
+      "NET_15": "صافي 15",
+      "NET_30": "صافي 30",
+      "NET_45": "صافي 45",
+      "NET_60": "صافي 60"
+    },
+    "dialog": {
+      "addSupplier": "إضافة مورد جديد",
+      "createPO": "إنشاء أمر شراء"
+    },
+    "form": {
+      "companyName": "اسم الشركة",
+      "contactPerson": "جهة الاتصال",
+      "phone": "الهاتف",
+      "email": "البريد الإلكتروني",
+      "address": "العنوان",
+      "city": "المدينة",
+      "state": "الولاية",
+      "gstNumber": "رقم الضريبة",
+      "panNumber": "رقم السجل",
+      "paymentTerms": "شروط الدفع",
+      "creditLimit": "حد الائتمان",
+      "categories": "فئات العناصر",
+      "supplier": "المورد",
+      "selectSupplier": "اختر المورد",
+      "expectedDelivery": "التسليم المتوقع",
+      "lineItems": "بنود الطلب",
+      "addItem": "إضافة بند",
+      "selectPart": "اختر القطعة",
+      "notes": "ملاحظات"
+    },
+    "messages": {
+      "supplierCreated": "تم إنشاء المورد بنجاح",
+      "supplierCreateError": "فشل في إنشاء المورد",
+      "poCreated": "تم إنشاء أمر الشراء بنجاح",
+      "poCreateError": "فشل في إنشاء أمر الشراء"
     }
   }
 }

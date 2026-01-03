@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -195,6 +196,7 @@ function StatCard({
 }
 
 function AgingChart({ data, title }: { data: Record<string, number>; title: string }) {
+  const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const chartData = Object.entries(data).map(([bucket, amount], index) => ({
     name: bucket,
@@ -209,7 +211,7 @@ function AgingChart({ data, title }: { data: Record<string, number>; title: stri
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent className="flex h-48 items-center justify-center">
-          <p className="text-muted-foreground">No data available</p>
+          <p className="text-muted-foreground">{t('common.noData', 'No data available')}</p>
         </CardContent>
       </Card>
     );
@@ -265,6 +267,7 @@ function LoadingSkeleton() {
 }
 
 export default function AccountsFinance() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { formatCurrency } = useLocalization();
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
@@ -318,7 +321,7 @@ export default function AccountsFinance() {
     mutationFn: () => apiRequest("POST", "/api/finance/accounts/seed_default/"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/accounts/"] });
-      toast({ title: "Success", description: "Default accounts seeded successfully" });
+      toast({ title: t('common.success', 'Success'), description: t('finance.messages.accountsSeeded', 'Default accounts seeded successfully') });
     },
   });
 
@@ -326,7 +329,7 @@ export default function AccountsFinance() {
     mutationFn: () => apiRequest("POST", "/api/finance/tax-rates/seed_default/"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/tax-rates/"] });
-      toast({ title: "Success", description: "Default tax rates seeded successfully" });
+      toast({ title: t('common.success', 'Success'), description: t('finance.messages.taxRatesSeeded', 'Default tax rates seeded successfully') });
     },
   });
 
@@ -335,7 +338,7 @@ export default function AccountsFinance() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/enhanced-invoices/"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/dashboard/"] });
-      toast({ title: "Success", description: "Invoice approved" });
+      toast({ title: t('common.success', 'Success'), description: t('finance.messages.invoiceApproved', 'Invoice approved') });
     },
   });
 
@@ -345,7 +348,7 @@ export default function AccountsFinance() {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/enhanced-invoices/"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/dashboard/"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/receivables/"] });
-      toast({ title: "Success", description: "Invoice issued" });
+      toast({ title: t('common.success', 'Success'), description: t('finance.messages.invoiceIssued', 'Invoice issued') });
     },
   });
 
@@ -353,7 +356,7 @@ export default function AccountsFinance() {
     mutationFn: (id: number) => apiRequest("POST", `/api/finance/expenses/${id}/approve/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finance/expenses/"] });
-      toast({ title: "Success", description: "Expense approved" });
+      toast({ title: t('common.success', 'Success'), description: t('finance.messages.expenseApproved', 'Expense approved') });
     },
   });
 
@@ -369,6 +372,33 @@ export default function AccountsFinance() {
     expenseStatusFilter === "all" ? true : exp.status === expenseStatusFilter
   ) || [];
 
+  const getInvoiceStatusLabel = (status: string) => {
+    const statusMap: Record<string, string> = {
+      DRAFT: t('finance.status.DRAFT', 'Draft'),
+      PENDING_APPROVAL: t('finance.status.PENDING_APPROVAL', 'Pending Approval'),
+      APPROVED: t('finance.status.APPROVED', 'Approved'),
+      ISSUED: t('finance.status.ISSUED', 'Issued'),
+      PARTIALLY_PAID: t('finance.status.PARTIALLY_PAID', 'Partially Paid'),
+      PAID: t('finance.status.PAID', 'Paid'),
+      OVERDUE: t('finance.status.OVERDUE', 'Overdue'),
+      CANCELLED: t('finance.status.CANCELLED', 'Cancelled'),
+      CLOSED: t('finance.status.CLOSED', 'Closed'),
+    };
+    return statusMap[status] || status.replace(/_/g, " ");
+  };
+
+  const getExpenseStatusLabel = (status: string) => {
+    const statusMap: Record<string, string> = {
+      DRAFT: t('finance.status.DRAFT', 'Draft'),
+      SUBMITTED: t('finance.status.SUBMITTED', 'Submitted'),
+      PENDING_APPROVAL: t('finance.status.PENDING_APPROVAL', 'Pending Approval'),
+      APPROVED: t('finance.status.APPROVED', 'Approved'),
+      REJECTED: t('finance.status.REJECTED', 'Rejected'),
+      PAID: t('finance.status.PAID', 'Paid'),
+    };
+    return statusMap[status] || status.replace(/_/g, " ");
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
@@ -377,10 +407,10 @@ export default function AccountsFinance() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-                Accounts & Finance
+                {t('finance.title', 'Accounts & Finance')}
               </h1>
               <p className="text-muted-foreground">
-                Enterprise financial management, billing, receivables, and reporting
+                {t('finance.subtitle', 'Enterprise financial management, billing, receivables, and reporting')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -391,7 +421,7 @@ export default function AccountsFinance() {
                 data-testid="button-seed-accounts"
               >
                 <BookOpen className="mr-2 h-4 w-4" />
-                Seed Accounts
+                {t('finance.seedAccounts', 'Seed Accounts')}
               </Button>
               <Button
                 variant="outline"
@@ -400,7 +430,7 @@ export default function AccountsFinance() {
                 data-testid="button-seed-taxes"
               >
                 <Calculator className="mr-2 h-4 w-4" />
-                Seed Tax Rates
+                {t('finance.seedTaxRates', 'Seed Tax Rates')}
               </Button>
             </div>
           </div>
@@ -410,57 +440,57 @@ export default function AccountsFinance() {
           <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:grid-cols-none lg:gap-2" data-testid="tabs-finance">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <PieChart className="mr-2 h-4 w-4" />
-              Dashboard
+              {t('finance.tabs.dashboard', 'Dashboard')}
             </TabsTrigger>
             <TabsTrigger value="invoices" data-testid="tab-invoices">
               <FileText className="mr-2 h-4 w-4" />
-              Invoices
+              {t('finance.tabs.invoices', 'Invoices')}
             </TabsTrigger>
             <TabsTrigger value="payments" data-testid="tab-payments">
               <CreditCard className="mr-2 h-4 w-4" />
-              Payments
+              {t('finance.tabs.payments', 'Payments')}
             </TabsTrigger>
             <TabsTrigger value="expenses" data-testid="tab-expenses">
               <Receipt className="mr-2 h-4 w-4" />
-              Expenses
+              {t('finance.tabs.expenses', 'Expenses')}
             </TabsTrigger>
             <TabsTrigger value="receivables" data-testid="tab-receivables">
               <Coins className="mr-2 h-4 w-4" />
-              Receivables
+              {t('finance.tabs.receivables', 'Receivables')}
             </TabsTrigger>
             <TabsTrigger value="accounts" data-testid="tab-accounts">
               <LandmarkIcon className="mr-2 h-4 w-4" />
-              Chart of Accounts
+              {t('finance.tabs.accounts', 'Chart of Accounts')}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                title="Total Revenue"
+                title={t('finance.metrics.totalRevenue', 'Total Revenue')}
                 value={formatCurrency(dashboard?.total_revenue || 0)}
-                subtitle="From paid invoices"
+                subtitle={t('finance.metrics.fromPaidInvoices', 'From paid invoices')}
                 icon={TrendingUp}
                 color="bg-gradient-to-br from-emerald-500 to-emerald-600"
               />
               <StatCard
-                title="Outstanding Receivables"
+                title={t('finance.metrics.outstandingReceivables', 'Outstanding Receivables')}
                 value={formatCurrency(dashboard?.total_receivables || 0)}
-                subtitle={`${dashboard?.outstanding_invoices || 0} outstanding invoices`}
+                subtitle={t('finance.metrics.outstandingInvoicesCount', '{{count}} outstanding invoices', { count: dashboard?.outstanding_invoices || 0 })}
                 icon={Wallet}
                 color="bg-gradient-to-br from-blue-500 to-blue-600"
               />
               <StatCard
-                title="Total Payables"
+                title={t('finance.metrics.totalPayables', 'Total Payables')}
                 value={formatCurrency(dashboard?.total_payables || 0)}
-                subtitle="Due to vendors"
+                subtitle={t('finance.metrics.dueToVendors', 'Due to vendors')}
                 icon={Building2}
                 color="bg-gradient-to-br from-amber-500 to-amber-600"
               />
               <StatCard
-                title="Total Expenses"
+                title={t('finance.metrics.totalExpenses', 'Total Expenses')}
                 value={formatCurrency(dashboard?.total_expenses || 0)}
-                subtitle="Paid expenses"
+                subtitle={t('finance.metrics.paidExpenses', 'Paid expenses')}
                 icon={Receipt}
                 color="bg-gradient-to-br from-purple-500 to-purple-600"
               />
@@ -470,8 +500,8 @@ export default function AccountsFinance() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                   <div>
-                    <CardTitle className="text-lg">Cash & Bank Balances</CardTitle>
-                    <CardDescription>Current liquidity position</CardDescription>
+                    <CardTitle className="text-lg">{t('finance.cashBankBalances', 'Cash & Bank Balances')}</CardTitle>
+                    <CardDescription>{t('finance.currentLiquidityPosition', 'Current liquidity position')}</CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -481,8 +511,8 @@ export default function AccountsFinance() {
                         <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <div>
-                        <p className="font-medium">Cash Balance</p>
-                        <p className="text-sm text-muted-foreground">Petty cash and cash in hand</p>
+                        <p className="font-medium">{t('finance.metrics.cashBalance', 'Cash Balance')}</p>
+                        <p className="text-sm text-muted-foreground">{t('finance.metrics.pettyCashAndCashInHand', 'Petty cash and cash in hand')}</p>
                       </div>
                     </div>
                     <span className="text-xl font-bold">{formatCurrency(dashboard?.cash_balance || 0)}</span>
@@ -493,8 +523,8 @@ export default function AccountsFinance() {
                         <LandmarkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div>
-                        <p className="font-medium">Bank Balance</p>
-                        <p className="text-sm text-muted-foreground">All bank accounts</p>
+                        <p className="font-medium">{t('finance.metrics.bankBalance', 'Bank Balance')}</p>
+                        <p className="text-sm text-muted-foreground">{t('finance.metrics.allBankAccounts', 'All bank accounts')}</p>
                       </div>
                     </div>
                     <span className="text-xl font-bold">{formatCurrency(dashboard?.bank_balance || 0)}</span>
@@ -505,36 +535,36 @@ export default function AccountsFinance() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                   <div>
-                    <CardTitle className="text-lg">Quick Stats</CardTitle>
-                    <CardDescription>Action items requiring attention</CardDescription>
+                    <CardTitle className="text-lg">{t('finance.quickStats', 'Quick Stats')}</CardTitle>
+                    <CardDescription>{t('finance.actionItemsRequiringAttention', 'Action items requiring attention')}</CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <AlertCircle className="h-5 w-5 text-red-500" />
-                      <span>Overdue Invoices</span>
+                      <span>{t('finance.overdueInvoices', 'Overdue Invoices')}</span>
                     </div>
                     <Badge variant="destructive">{dashboard?.overdue_invoices || 0}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Clock className="h-5 w-5 text-amber-500" />
-                      <span>Pending Payments</span>
+                      <span>{t('finance.pendingPayments', 'Pending Payments')}</span>
                     </div>
                     <Badge className="bg-amber-100 text-amber-700">{dashboard?.pending_payments || 0}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-blue-500" />
-                      <span>Outstanding Invoices</span>
+                      <span>{t('finance.outstandingInvoices', 'Outstanding Invoices')}</span>
                     </div>
                     <Badge className="bg-blue-100 text-blue-700">{dashboard?.outstanding_invoices || 0}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Receipt className="h-5 w-5 text-purple-500" />
-                      <span>Pending Expense Approvals</span>
+                      <span>{t('finance.pendingExpenseApprovals', 'Pending Expense Approvals')}</span>
                     </div>
                     <Badge className="bg-purple-100 text-purple-700">{dashboard?.pending_expenses || 0}</Badge>
                   </div>
@@ -545,11 +575,11 @@ export default function AccountsFinance() {
             <div className="grid gap-4 lg:grid-cols-2">
               <AgingChart
                 data={dashboard?.receivables_aging || {}}
-                title="Receivables Aging"
+                title={t('finance.receivablesAging', 'Receivables Aging')}
               />
               <AgingChart
                 data={dashboard?.payables_aging || {}}
-                title="Payables Aging"
+                title={t('finance.payablesAging', 'Payables Aging')}
               />
             </div>
           </TabsContent>
@@ -558,28 +588,28 @@ export default function AccountsFinance() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle>Enhanced Invoices</CardTitle>
-                  <CardDescription>Service, sales, and contract invoices with GST compliance</CardDescription>
+                  <CardTitle>{t('finance.enhancedInvoices', 'Enhanced Invoices')}</CardTitle>
+                  <CardDescription>{t('finance.invoicesDescription', 'Service, sales, and contract invoices with GST compliance')}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
                     <SelectTrigger className="w-40" data-testid="select-invoice-status">
-                      <SelectValue placeholder="Filter by status" />
+                      <SelectValue placeholder={t('finance.filterByStatus', 'Filter by status')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="DRAFT">Draft</SelectItem>
-                      <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
-                      <SelectItem value="APPROVED">Approved</SelectItem>
-                      <SelectItem value="ISSUED">Issued</SelectItem>
-                      <SelectItem value="PARTIALLY_PAID">Partially Paid</SelectItem>
-                      <SelectItem value="PAID">Paid</SelectItem>
-                      <SelectItem value="OVERDUE">Overdue</SelectItem>
+                      <SelectItem value="all">{t('finance.allStatuses', 'All Statuses')}</SelectItem>
+                      <SelectItem value="DRAFT">{t('finance.status.DRAFT', 'Draft')}</SelectItem>
+                      <SelectItem value="PENDING_APPROVAL">{t('finance.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
+                      <SelectItem value="APPROVED">{t('finance.status.APPROVED', 'Approved')}</SelectItem>
+                      <SelectItem value="ISSUED">{t('finance.status.ISSUED', 'Issued')}</SelectItem>
+                      <SelectItem value="PARTIALLY_PAID">{t('finance.status.PARTIALLY_PAID', 'Partially Paid')}</SelectItem>
+                      <SelectItem value="PAID">{t('finance.status.PAID', 'Paid')}</SelectItem>
+                      <SelectItem value="OVERDUE">{t('finance.status.OVERDUE', 'Overdue')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button data-testid="button-new-invoice">
                     <Plus className="mr-2 h-4 w-4" />
-                    New Invoice
+                    {t('finance.newInvoice', 'New Invoice')}
                   </Button>
                 </div>
               </CardHeader>
@@ -591,21 +621,21 @@ export default function AccountsFinance() {
                 ) : filteredInvoices.length === 0 ? (
                   <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
                     <FileText className="mb-2 h-12 w-12 opacity-50" />
-                    <p>No invoices found</p>
+                    <p>{t('finance.noInvoicesFound', 'No invoices found')}</p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>{t('finance.tableHeaders.invoiceNumber', 'Invoice #')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.type', 'Type')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.customer', 'Customer')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.date', 'Date')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.dueDate', 'Due Date')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.total', 'Total')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.balance', 'Balance')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.status', 'Status')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.actions', 'Actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -620,7 +650,7 @@ export default function AccountsFinance() {
                           <TableCell className="text-right">{formatCurrency(invoice.balance_due)}</TableCell>
                           <TableCell>
                             <Badge className={INVOICE_STATUS_COLORS[invoice.status] || ""}>
-                              {invoice.status.replace(/_/g, " ")}
+                              {getInvoiceStatusLabel(invoice.status)}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -663,19 +693,19 @@ export default function AccountsFinance() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle>Payment Collections</CardTitle>
-                  <CardDescription>Track all payment receipts and collections</CardDescription>
+                  <CardTitle>{t('finance.paymentCollections', 'Payment Collections')}</CardTitle>
+                  <CardDescription>{t('finance.paymentsDescription', 'Track all payment receipts and collections')}</CardDescription>
                 </div>
                 <Button data-testid="button-record-payment">
                   <Plus className="mr-2 h-4 w-4" />
-                  Record Payment
+                  {t('finance.recordPayment', 'Record Payment')}
                 </Button>
               </CardHeader>
               <CardContent>
                 <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
                   <CreditCard className="mb-2 h-12 w-12 opacity-50" />
-                  <p>Payment collection functionality coming soon</p>
-                  <p className="text-sm">Payments are automatically created when invoices are paid</p>
+                  <p>{t('finance.paymentFunctionalityComingSoon', 'Payment collection functionality coming soon')}</p>
+                  <p className="text-sm">{t('finance.paymentsAutoCreated', 'Payments are automatically created when invoices are paid')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -685,27 +715,27 @@ export default function AccountsFinance() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle>Expense Management</CardTitle>
-                  <CardDescription>Track and approve operational expenses</CardDescription>
+                  <CardTitle>{t('finance.expenseManagement', 'Expense Management')}</CardTitle>
+                  <CardDescription>{t('finance.expensesDescription', 'Track and approve operational expenses')}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Select value={expenseStatusFilter} onValueChange={setExpenseStatusFilter}>
                     <SelectTrigger className="w-40" data-testid="select-expense-status">
-                      <SelectValue placeholder="Filter by status" />
+                      <SelectValue placeholder={t('finance.filterByStatus', 'Filter by status')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="DRAFT">Draft</SelectItem>
-                      <SelectItem value="SUBMITTED">Submitted</SelectItem>
-                      <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
-                      <SelectItem value="APPROVED">Approved</SelectItem>
-                      <SelectItem value="REJECTED">Rejected</SelectItem>
-                      <SelectItem value="PAID">Paid</SelectItem>
+                      <SelectItem value="all">{t('finance.allStatuses', 'All Statuses')}</SelectItem>
+                      <SelectItem value="DRAFT">{t('finance.status.DRAFT', 'Draft')}</SelectItem>
+                      <SelectItem value="SUBMITTED">{t('finance.status.SUBMITTED', 'Submitted')}</SelectItem>
+                      <SelectItem value="PENDING_APPROVAL">{t('finance.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
+                      <SelectItem value="APPROVED">{t('finance.status.APPROVED', 'Approved')}</SelectItem>
+                      <SelectItem value="REJECTED">{t('finance.status.REJECTED', 'Rejected')}</SelectItem>
+                      <SelectItem value="PAID">{t('finance.status.PAID', 'Paid')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button data-testid="button-new-expense">
                     <Plus className="mr-2 h-4 w-4" />
-                    New Expense
+                    {t('finance.newExpense', 'New Expense')}
                   </Button>
                 </div>
               </CardHeader>
@@ -717,19 +747,19 @@ export default function AccountsFinance() {
                 ) : filteredExpenses.length === 0 ? (
                   <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
                     <Receipt className="mb-2 h-12 w-12 opacity-50" />
-                    <p>No expenses found</p>
+                    <p>{t('finance.noExpensesFound', 'No expenses found')}</p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Expense #</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>{t('finance.tableHeaders.expenseNumber', 'Expense #')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.category', 'Category')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.description', 'Description')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.date', 'Date')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.amount', 'Amount')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.status', 'Status')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.actions', 'Actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -742,7 +772,7 @@ export default function AccountsFinance() {
                           <TableCell className="text-right">{formatCurrency(expense.total_amount)}</TableCell>
                           <TableCell>
                             <Badge className={EXPENSE_STATUS_COLORS[expense.status] || ""}>
-                              {expense.status.replace(/_/g, " ")}
+                              {getExpenseStatusLabel(expense.status)}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -774,26 +804,26 @@ export default function AccountsFinance() {
           <TabsContent value="receivables" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Customer Receivables</CardTitle>
-                <CardDescription>Outstanding amounts and aging analysis</CardDescription>
+                <CardTitle>{t('finance.customerReceivables', 'Customer Receivables')}</CardTitle>
+                <CardDescription>{t('finance.receivablesDescription', 'Outstanding amounts and aging analysis')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {!receivables || receivables.length === 0 ? (
                   <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
                     <Coins className="mb-2 h-12 w-12 opacity-50" />
-                    <p>No outstanding receivables</p>
+                    <p>{t('finance.noOutstandingReceivables', 'No outstanding receivables')}</p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead className="text-right">Original Amount</TableHead>
-                        <TableHead className="text-right">Outstanding</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead>Days Overdue</TableHead>
-                        <TableHead>Aging Bucket</TableHead>
+                        <TableHead>{t('finance.tableHeaders.customer', 'Customer')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.invoiceNumber', 'Invoice #')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.originalAmount', 'Original Amount')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.outstanding', 'Outstanding')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.dueDate', 'Due Date')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.daysOverdue', 'Days Overdue')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.agingBucket', 'Aging Bucket')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -806,9 +836,9 @@ export default function AccountsFinance() {
                           <TableCell>{rec.due_date}</TableCell>
                           <TableCell>
                             {rec.days_overdue > 0 ? (
-                              <span className="text-red-600">{rec.days_overdue} days</span>
+                              <span className="text-red-600">{t('finance.daysCount', '{{count}} days', { count: rec.days_overdue })}</span>
                             ) : (
-                              <span className="text-emerald-600">Current</span>
+                              <span className="text-emerald-600">{t('finance.current', 'Current')}</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -837,31 +867,31 @@ export default function AccountsFinance() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle>Chart of Accounts</CardTitle>
-                  <CardDescription>Configurable account structure for double-entry bookkeeping</CardDescription>
+                  <CardTitle>{t('finance.chartOfAccounts', 'Chart of Accounts')}</CardTitle>
+                  <CardDescription>{t('finance.chartOfAccountsDescription', 'Configurable account structure for double-entry bookkeeping')}</CardDescription>
                 </div>
                 <Button data-testid="button-new-account">
                   <Plus className="mr-2 h-4 w-4" />
-                  New Account
+                  {t('finance.newAccount', 'New Account')}
                 </Button>
               </CardHeader>
               <CardContent>
                 {!accounts || accounts.length === 0 ? (
                   <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
                     <LandmarkIcon className="mb-2 h-12 w-12 opacity-50" />
-                    <p>No accounts configured</p>
-                    <p className="text-sm">Click "Seed Accounts" to create default chart of accounts</p>
+                    <p>{t('finance.noAccountsConfigured', 'No accounts configured')}</p>
+                    <p className="text-sm">{t('finance.clickSeedAccounts', 'Click "Seed Accounts" to create default chart of accounts')}</p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Account Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Current Balance</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>{t('finance.tableHeaders.code', 'Code')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.accountName', 'Account Name')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.category', 'Category')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.type', 'Type')}</TableHead>
+                        <TableHead className="text-right">{t('finance.tableHeaders.currentBalance', 'Current Balance')}</TableHead>
+                        <TableHead>{t('finance.tableHeaders.status', 'Status')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -878,9 +908,9 @@ export default function AccountsFinance() {
                           </TableCell>
                           <TableCell>
                             {account.is_active ? (
-                              <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
+                              <Badge className="bg-emerald-100 text-emerald-700">{t('common.active', 'Active')}</Badge>
                             ) : (
-                              <Badge className="bg-gray-100 text-gray-700">Inactive</Badge>
+                              <Badge className="bg-gray-100 text-gray-700">{t('common.inactive', 'Inactive')}</Badge>
                             )}
                           </TableCell>
                         </TableRow>

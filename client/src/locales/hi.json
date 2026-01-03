@@ -1,4 +1,40 @@
 {
+  "sidebar": {
+    "dashboard": "डैशबोर्ड",
+    "serviceOperations": "सेवा संचालन",
+    "appointments": "अपॉइंटमेंट",
+    "inventory": "इन्वेंटरी",
+    "suppliers": "आपूर्तिकर्ता",
+    "crm": "सीआरएम",
+    "contracts": "अनुबंध",
+    "analytics": "विश्लेषण",
+    "accountsFinance": "खाते और वित्त",
+    "hrms": "मानव संसाधन प्रबंधन",
+    "adminPanel": "एडमिन पैनल",
+    "configCenter": "कॉन्फ़िग सेंटर",
+    "operations": "संचालन",
+    "management": "प्रबंधन",
+    "logout": "लॉग आउट",
+    "logoutTooltip": "अपने खाते से लॉग आउट करें",
+    "settings": "सेटिंग्स",
+    "teamMember": "टीम सदस्य",
+    "finance": {
+      "dashboard": "डैशबोर्ड",
+      "invoices": "इनवॉइस",
+      "payments": "भुगतान",
+      "expenses": "खर्च",
+      "receivables": "प्राप्य",
+      "chartOfAccounts": "खातों का चार्ट"
+    },
+    "hrms": {
+      "overview": "अवलोकन",
+      "skills": "कौशल",
+      "employees": "कर्मचारी",
+      "training": "प्रशिक्षण",
+      "leaveManagement": "छुट्टी प्रबंधन",
+      "skillMatrix": "कौशल मैट्रिक्स"
+    }
+  },
   "common": {
     "save": "सहेजें",
     "cancel": "रद्द करें",
@@ -370,6 +406,90 @@
       "title": "उपयोगकर्ता प्रबंधन",
       "addUser": "उपयोगकर्ता जोड़ें",
       "createSuccess": "उपयोगकर्ता सफलतापूर्वक बनाया गया"
+    }
+  },
+  "suppliers": {
+    "title": "आपूर्तिकर्ता और खरीद",
+    "subtitle": "विक्रेताओं और खरीद आदेशों का प्रबंधन करें",
+    "addSupplier": "आपूर्तिकर्ता जोड़ें",
+    "createPO": "नया खरीद आदेश",
+    "createSupplier": "आपूर्तिकर्ता बनाएं",
+    "createPOButton": "पीओ बनाएं",
+    "creating": "बना रहा है...",
+    "searchSuppliers": "आपूर्तिकर्ता खोजें...",
+    "searchOrders": "आदेश खोजें...",
+    "noSuppliersFound": "कोई आपूर्तिकर्ता नहीं मिला",
+    "noOrdersFound": "कोई खरीद आदेश नहीं मिला",
+    "noPerformanceData": "कोई प्रदर्शन डेटा उपलब्ध नहीं",
+    "outstanding": "बकाया",
+    "expected": "अपेक्षित",
+    "estimatedSubtotal": "अनुमानित उप-योग",
+    "tabs": {
+      "suppliers": "आपूर्तिकर्ता",
+      "orders": "खरीद आदेश",
+      "performance": "प्रदर्शन"
+    },
+    "metrics": {
+      "activeSuppliers": "सक्रिय आपूर्तिकर्ता",
+      "pendingOrders": "लंबित आदेश",
+      "outstandingBalance": "बकाया राशि",
+      "totalOrders": "कुल आदेश"
+    },
+    "status": {
+      "all": "सभी स्थिति",
+      "DRAFT": "ड्राफ्ट",
+      "PENDING_APPROVAL": "स्वीकृति लंबित",
+      "APPROVED": "स्वीकृत",
+      "ORDERED": "ऑर्डर किया",
+      "PARTIALLY_RECEIVED": "आंशिक प्राप्त",
+      "RECEIVED": "प्राप्त",
+      "CANCELLED": "रद्द"
+    },
+    "performance": {
+      "onTimeRate": "समय पर दर",
+      "qualityRate": "गुणवत्ता दर",
+      "priceVariance": "मूल्य भिन्नता",
+      "orders": "आदेश",
+      "onTime": "समय पर",
+      "rejected": "अस्वीकृत"
+    },
+    "paymentTerms": {
+      "IMMEDIATE": "तत्काल",
+      "NET_15": "नेट 15",
+      "NET_30": "नेट 30",
+      "NET_45": "नेट 45",
+      "NET_60": "नेट 60"
+    },
+    "dialog": {
+      "addSupplier": "नया आपूर्तिकर्ता जोड़ें",
+      "createPO": "खरीद आदेश बनाएं"
+    },
+    "form": {
+      "companyName": "कंपनी का नाम",
+      "contactPerson": "संपर्क व्यक्ति",
+      "phone": "फोन",
+      "email": "ईमेल",
+      "address": "पता",
+      "city": "शहर",
+      "state": "राज्य",
+      "gstNumber": "जीएसटी नंबर",
+      "panNumber": "पैन नंबर",
+      "paymentTerms": "भुगतान की शर्तें",
+      "creditLimit": "क्रेडिट सीमा",
+      "categories": "आइटम श्रेणियां",
+      "supplier": "आपूर्तिकर्ता",
+      "selectSupplier": "आपूर्तिकर्ता चुनें",
+      "expectedDelivery": "अपेक्षित डिलीवरी",
+      "lineItems": "लाइन आइटम",
+      "addItem": "आइटम जोड़ें",
+      "selectPart": "पार्ट चुनें",
+      "notes": "नोट्स"
+    },
+    "messages": {
+      "supplierCreated": "आपूर्तिकर्ता सफलतापूर्वक बनाया गया",
+      "supplierCreateError": "आपूर्तिकर्ता बनाने में विफल",
+      "poCreated": "खरीद आदेश सफलतापूर्वक बनाया गया",
+      "poCreateError": "पीओ बनाने में विफल"
     }
   }
 }

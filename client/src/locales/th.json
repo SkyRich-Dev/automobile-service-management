@@ -1,4 +1,40 @@
 {
+  "sidebar": {
+    "dashboard": "แดชบอร์ด",
+    "serviceOperations": "การดำเนินงานบริการ",
+    "appointments": "การนัดหมาย",
+    "inventory": "คลังสินค้า",
+    "suppliers": "ผู้จัดจำหน่าย",
+    "crm": "CRM",
+    "contracts": "สัญญา",
+    "analytics": "การวิเคราะห์",
+    "accountsFinance": "บัญชีและการเงิน",
+    "hrms": "การจัดการ HR",
+    "adminPanel": "แผงผู้ดูแล",
+    "configCenter": "ศูนย์การตั้งค่า",
+    "operations": "การดำเนินงาน",
+    "management": "การจัดการ",
+    "logout": "ออกจากระบบ",
+    "logoutTooltip": "ออกจากระบบของคุณ",
+    "settings": "การตั้งค่า",
+    "teamMember": "สมาชิกทีม",
+    "finance": {
+      "dashboard": "แดชบอร์ด",
+      "invoices": "ใบแจ้งหนี้",
+      "payments": "การชำระเงิน",
+      "expenses": "ค่าใช้จ่าย",
+      "receivables": "ลูกหนี้",
+      "chartOfAccounts": "ผังบัญชี"
+    },
+    "hrms": {
+      "overview": "ภาพรวม",
+      "skills": "ทักษะ",
+      "employees": "พนักงาน",
+      "training": "การฝึกอบรม",
+      "leaveManagement": "การจัดการลา",
+      "skillMatrix": "เมทริกซ์ทักษะ"
+    }
+  },
   "common": {
     "save": "บันทึก",
     "cancel": "ยกเลิก",

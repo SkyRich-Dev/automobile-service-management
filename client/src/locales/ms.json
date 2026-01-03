@@ -1,4 +1,40 @@
 {
+  "sidebar": {
+    "dashboard": "Papan Pemuka",
+    "serviceOperations": "Operasi Perkhidmatan",
+    "appointments": "Temujanji",
+    "inventory": "Inventori",
+    "suppliers": "Pembekal",
+    "crm": "CRM",
+    "contracts": "Kontrak",
+    "analytics": "Analitik",
+    "accountsFinance": "Akaun & Kewangan",
+    "hrms": "Pengurusan HR",
+    "adminPanel": "Panel Admin",
+    "configCenter": "Pusat Konfigurasi",
+    "operations": "Operasi",
+    "management": "Pengurusan",
+    "logout": "Log Keluar",
+    "logoutTooltip": "Log keluar dari akaun anda",
+    "settings": "Tetapan",
+    "teamMember": "Ahli Pasukan",
+    "finance": {
+      "dashboard": "Papan Pemuka",
+      "invoices": "Invois",
+      "payments": "Pembayaran",
+      "expenses": "Perbelanjaan",
+      "receivables": "Penghutang",
+      "chartOfAccounts": "Carta Akaun"
+    },
+    "hrms": {
+      "overview": "Gambaran Keseluruhan",
+      "skills": "Kemahiran",
+      "employees": "Pekerja",
+      "training": "Latihan",
+      "leaveManagement": "Pengurusan Cuti",
+      "skillMatrix": "Matriks Kemahiran"
+    }
+  },
   "common": {
     "save": "Simpan",
     "cancel": "Batal",

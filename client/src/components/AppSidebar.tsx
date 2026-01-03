@@ -81,92 +81,100 @@ interface MenuItem {
   subItems?: SubMenuItem[];
 }
 
-const menuItems: MenuItem[] = [
+interface MenuItemConfig {
+  key: string;
+  icon: any;
+  path: string;
+  allowedRoles: UserRole[];
+  subItems?: { key: string; icon: any; path: string }[];
+}
+
+const menuItemsConfig: MenuItemConfig[] = [
   { 
-    text: "Dashboard", 
+    key: "dashboard",
     icon: LayoutDashboard, 
     path: "/",
     allowedRoles: [...MANAGER_ROLES, 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'SALES_EXECUTIVE', 
                    'ACCOUNTANT', 'INVENTORY_MANAGER', 'TECHNICIAN', 'CRM_EXECUTIVE', 'HR_MANAGER']
   },
   { 
-    text: "Service Operations", 
+    key: "serviceOperations",
     icon: Wrench, 
     path: "/service",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 
-    text: "Appointments", 
+    key: "appointments",
     icon: Calendar, 
     path: "/appointments",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'CRM_EXECUTIVE']
   },
   { 
-    text: "Inventory", 
+    key: "inventory",
     icon: Package, 
     path: "/inventory",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'INVENTORY_MANAGER', 'SUPERVISOR']
   },
   { 
-    text: "Suppliers", 
+    key: "suppliers",
     icon: Truck, 
     path: "/suppliers",
     allowedRoles: [...ADMIN_ROLES, 'INVENTORY_MANAGER']
   },
   { 
-    text: "CRM", 
+    key: "crm",
     icon: Users, 
     path: "/crm",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'SERVICE_ADVISOR', 'SALES_EXECUTIVE', 'CRM_EXECUTIVE']
   },
   { 
-    text: "Contracts", 
+    key: "contracts",
     icon: Shield, 
     path: "/contracts",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT']
   },
   { 
-    text: "Analytics", 
+    key: "analytics",
     icon: BarChart3, 
     path: "/analytics",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER']
   },
   { 
-    text: "Accounts & Finance", 
+    key: "accountsFinance",
     icon: DollarSign, 
     path: "/accounts-finance",
     allowedRoles: ACCOUNTS_ROLES,
     subItems: [
-      { text: "Dashboard", icon: PieChart, path: "/accounts-finance?tab=dashboard" },
-      { text: "Invoices", icon: Receipt, path: "/accounts-finance?tab=invoices" },
-      { text: "Payments", icon: CreditCard, path: "/accounts-finance?tab=payments" },
-      { text: "Expenses", icon: FileText, path: "/accounts-finance?tab=expenses" },
-      { text: "Receivables", icon: Wallet, path: "/accounts-finance?tab=receivables" },
-      { text: "Chart of Accounts", icon: BookOpen, path: "/accounts-finance?tab=accounts" },
+      { key: "finance.dashboard", icon: PieChart, path: "/accounts-finance?tab=dashboard" },
+      { key: "finance.invoices", icon: Receipt, path: "/accounts-finance?tab=invoices" },
+      { key: "finance.payments", icon: CreditCard, path: "/accounts-finance?tab=payments" },
+      { key: "finance.expenses", icon: FileText, path: "/accounts-finance?tab=expenses" },
+      { key: "finance.receivables", icon: Wallet, path: "/accounts-finance?tab=receivables" },
+      { key: "finance.chartOfAccounts", icon: BookOpen, path: "/accounts-finance?tab=accounts" },
     ]
   },
   { 
-    text: "HRMS", 
+    key: "hrms",
     icon: UserCheck, 
     path: "/hrms",
     allowedRoles: [...ADMIN_ROLES, 'HR_MANAGER'],
     subItems: [
-      { text: "Overview", icon: PieChart, path: "/hrms?tab=overview" },
-      { text: "Skills", icon: Award, path: "/hrms?tab=skills" },
-      { text: "Employees", icon: Users, path: "/hrms?tab=employees" },
-      { text: "Training", icon: GraduationCap, path: "/hrms?tab=training" },
-      { text: "Leave Management", icon: CalendarDays, path: "/hrms?tab=leave" },
-      { text: "Skill Matrix", icon: Target, path: "/hrms?tab=matrix" },
+      { key: "hrms.overview", icon: PieChart, path: "/hrms?tab=overview" },
+      { key: "hrms.skills", icon: Award, path: "/hrms?tab=skills" },
+      { key: "hrms.employees", icon: Users, path: "/hrms?tab=employees" },
+      { key: "hrms.training", icon: GraduationCap, path: "/hrms?tab=training" },
+      { key: "hrms.leaveManagement", icon: CalendarDays, path: "/hrms?tab=leave" },
+      { key: "hrms.skillMatrix", icon: Target, path: "/hrms?tab=matrix" },
     ]
   },
   { 
-    text: "Admin Panel", 
+    key: "adminPanel",
     icon: ShieldCheck, 
     path: "/admin",
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
   { 
-    text: "Config Center", 
+    key: "configCenter",
     icon: Sliders, 
     path: "/admin-config",
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER']
@@ -177,17 +185,28 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user, profile, logout } = useAuth();
   const { t } = useTranslation();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(["Accounts & Finance"]);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(["accountsFinance"]);
 
   const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
   
-  const getTranslatedLabel = (text: string): string => {
-    const key = text.toLowerCase().replace(/\s+/g, '').replace(/&/g, '');
-    return t(`nav.${key}`, text);
+  const getLocalizedMenuItems = (): MenuItem[] => {
+    return menuItemsConfig.map(item => ({
+      text: t(`sidebar.${item.key}`, item.key),
+      icon: item.icon,
+      path: item.path,
+      allowedRoles: item.allowedRoles,
+      subItems: item.subItems?.map(sub => ({
+        text: t(`sidebar.${sub.key}`, sub.key),
+        icon: sub.icon,
+        path: sub.path,
+      })),
+    }));
   };
+
+  const menuItems = getLocalizedMenuItems();
   
-  const filteredMenuItems = menuItems.filter(item => 
-    item.allowedRoles.includes(userRole)
+  const filteredMenuItems = menuItems.filter((item, idx) => 
+    menuItemsConfig[idx].allowedRoles.includes(userRole)
   );
   
   const operationsItems = filteredMenuItems.filter((_, idx) => 
@@ -197,11 +216,16 @@ export function AppSidebar() {
     menuItems.indexOf(filteredMenuItems[idx]) >= 4
   );
 
-  const toggleExpanded = (menuText: string) => {
+  const getMenuKey = (item: MenuItem): string => {
+    const idx = menuItems.indexOf(item);
+    return menuItemsConfig[idx]?.key || item.text;
+  };
+
+  const toggleExpanded = (menuKey: string) => {
     setExpandedMenus(prev => 
-      prev.includes(menuText) 
-        ? prev.filter(m => m !== menuText)
-        : [...prev, menuText]
+      prev.includes(menuKey) 
+        ? prev.filter(m => m !== menuKey)
+        : [...prev, menuKey]
     );
   };
 
@@ -223,19 +247,20 @@ export function AppSidebar() {
         {operationsItems.length > 0 && (
           <>
             <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              {t('nav.operations', 'Operations')}
+              {t('sidebar.operations', 'Operations')}
             </div>
             {operationsItems.map((item) => {
+              const menuKey = getMenuKey(item);
               const isActive = location === item.path;
               const Icon = item.icon;
               return (
-                <Link key={item.text} href={item.path}>
+                <Link key={menuKey} href={item.path}>
                   <div
                     className={cn(
                       "sidebar-item group cursor-pointer",
                       isActive && "active"
                     )}
-                    data-testid={`nav-${item.text.toLowerCase().replace(/\s+/g, '-')}`}
+                    data-testid={`nav-${menuKey}`}
                   >
                     <Icon className={cn(
                       "h-4.5 w-4.5 transition-colors",
@@ -245,7 +270,7 @@ export function AppSidebar() {
                       "flex-1 transition-colors",
                       !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                     )}>
-                      {getTranslatedLabel(item.text)}
+                      {item.text}
                     </span>
                     {isActive && (
                       <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
@@ -260,25 +285,26 @@ export function AppSidebar() {
         {managementItems.length > 0 && (
           <>
             <div className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              {t('nav.management', 'Management')}
+              {t('sidebar.management', 'Management')}
             </div>
             {managementItems.map((item) => {
+              const menuKey = getMenuKey(item);
               const basePath = item.path.split('?')[0];
               const isActive = location === basePath || location.startsWith(basePath + "/") || location.startsWith(basePath + "?");
               const Icon = item.icon;
               const hasSubItems = item.subItems && item.subItems.length > 0;
-              const isExpanded = expandedMenus.includes(item.text);
+              const isExpanded = expandedMenus.includes(menuKey);
 
               if (hasSubItems) {
                 return (
-                  <div key={item.text}>
+                  <div key={menuKey}>
                     <div
                       className={cn(
                         "sidebar-item group cursor-pointer",
                         isActive && "active"
                       )}
-                      onClick={() => toggleExpanded(item.text)}
-                      data-testid={`nav-${item.text.toLowerCase().replace(/\s+/g, '-')}`}
+                      onClick={() => toggleExpanded(menuKey)}
+                      data-testid={`nav-${menuKey}`}
                     >
                       <Icon className={cn(
                         "h-4.5 w-4.5 transition-colors",
@@ -288,7 +314,7 @@ export function AppSidebar() {
                         "flex-1 transition-colors",
                         !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                       )}>
-                        {getTranslatedLabel(item.text)}
+                        {item.text}
                       </span>
                       <ChevronDown className={cn(
                         "h-4 w-4 transition-transform",
@@ -298,14 +324,14 @@ export function AppSidebar() {
                     </div>
                     {isExpanded && (
                       <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border pl-3">
-                        {item.subItems!.map((subItem) => {
+                        {item.subItems!.map((subItem, subIdx) => {
                           const SubIcon = subItem.icon;
                           const isSubActive = location === subItem.path || 
                             (location.includes(subItem.path.split('?')[0]) && 
                              location.includes(subItem.path.split('?')[1]?.replace('tab=', '') || ''));
                           return (
                             <Link 
-                              key={subItem.text} 
+                              key={subItem.path} 
                               href={subItem.path}
                             >
                               <div
@@ -315,10 +341,10 @@ export function AppSidebar() {
                                     ? "bg-sidebar-accent text-sidebar-foreground font-medium" 
                                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                                 )}
-                                data-testid={`nav-sub-${subItem.text.toLowerCase().replace(/\s+/g, '-')}`}
+                                data-testid={`nav-sub-${menuKey}-${subIdx}`}
                               >
                                 <SubIcon className="h-3.5 w-3.5" />
-                                <span>{getTranslatedLabel(subItem.text)}</span>
+                                <span>{subItem.text}</span>
                               </div>
                             </Link>
                           );
@@ -330,13 +356,13 @@ export function AppSidebar() {
               }
 
               return (
-                <Link key={item.text} href={item.path}>
+                <Link key={menuKey} href={item.path}>
                   <div
                     className={cn(
                       "sidebar-item group cursor-pointer",
                       isActive && "active"
                     )}
-                    data-testid={`nav-${item.text.toLowerCase().replace(/\s+/g, '-')}`}
+                    data-testid={`nav-${menuKey}`}
                   >
                     <Icon className={cn(
                       "h-4.5 w-4.5 transition-colors",
@@ -346,7 +372,7 @@ export function AppSidebar() {
                       "flex-1 transition-colors",
                       !isActive && "text-sidebar-foreground/80 group-hover:text-sidebar-foreground"
                     )}>
-                      {getTranslatedLabel(item.text)}
+                      {item.text}
                     </span>
                     {isActive && (
                       <ChevronRight className="h-4 w-4 text-sidebar-primary-foreground/60" />
@@ -371,7 +397,7 @@ export function AppSidebar() {
               {user?.first_name || user?.username || "User"}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/50">
-              {profile?.role?.replace(/_/g, " ") || "Team Member"}
+              {profile?.role?.replace(/_/g, " ") || t('sidebar.teamMember', 'Team Member')}
             </p>
           </div>
         </div>
@@ -385,11 +411,11 @@ export function AppSidebar() {
               data-testid="button-logout"
             >
               <LogOut className="h-4 w-4" />
-              Sign Out
+              {t('sidebar.logout', 'Sign Out')}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            Sign out of your account
+            {t('sidebar.logoutTooltip', 'Sign out of your account')}
           </TooltipContent>
         </Tooltip>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useSupplierPerformance, useParts } from "@/hooks/use-inventory";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocalization } from "@/lib/currency-context";
 import {
   Truck,
   Package,
@@ -92,6 +94,8 @@ const PO_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function Suppliers() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
   const { toast } = useToast();
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<"suppliers" | "orders" | "performance">("suppliers");
@@ -163,17 +167,17 @@ export default function Suppliers() {
         credit_limit: "",
         categories: "",
       });
-      toast({ title: "Supplier created successfully" });
+      toast({ title: t('suppliers.messages.supplierCreated', 'Supplier created successfully') });
     },
     onError: (error) => {
-      toast({ title: "Failed to create supplier", description: error.message, variant: "destructive" });
+      toast({ title: t('suppliers.messages.supplierCreateError', 'Failed to create supplier'), description: error.message, variant: "destructive" });
     },
   });
 
   const createPO = useMutation({
     mutationFn: async (data: { form: typeof poForm; lines: POLineItem[] }) => {
       if (!profile?.branch) {
-        throw new Error("No branch assigned to your profile");
+        throw new Error(t('suppliers.messages.noBranchAssigned', 'No branch assigned to your profile'));
       }
       const lines_data = data.lines
         .filter((line) => line.part && line.quantity_ordered)
@@ -197,17 +201,17 @@ export default function Suppliers() {
       setPoDialogOpen(false);
       setPoForm({ supplier: "", expected_delivery: "", notes: "" });
       setPoLineItems([{ part: "", quantity_ordered: "", unit_price: "" }]);
-      toast({ title: "Purchase order created successfully" });
+      toast({ title: t('suppliers.messages.poCreated', 'Purchase order created successfully') });
     },
     onError: (error) => {
-      toast({ title: "Failed to create PO", description: error.message, variant: "destructive" });
+      toast({ title: t('suppliers.messages.poCreateError', 'Failed to create PO'), description: error.message, variant: "destructive" });
     },
   });
 
   const handleSupplierSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!supplierForm.name || !supplierForm.phone) {
-      toast({ title: "Name and phone are required", variant: "destructive" });
+      toast({ title: t('suppliers.messages.namePhoneRequired', 'Name and phone are required'), variant: "destructive" });
       return;
     }
     createSupplier.mutate(supplierForm);
@@ -216,13 +220,13 @@ export default function Suppliers() {
   const handlePOSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!poForm.supplier) {
-      toast({ title: "Please select a supplier", variant: "destructive" });
+      toast({ title: t('suppliers.messages.selectSupplier', 'Please select a supplier'), variant: "destructive" });
       return;
     }
     const validLines = poLineItems.filter((line) => line.part && line.quantity_ordered);
     for (const line of validLines) {
       if (!line.unit_price || parseFloat(line.unit_price) <= 0) {
-        toast({ title: "Please enter a valid unit price for all items", variant: "destructive" });
+        toast({ title: t('suppliers.messages.validUnitPrice', 'Please enter a valid unit price for all items'), variant: "destructive" });
         return;
       }
     }
@@ -309,17 +313,17 @@ export default function Suppliers() {
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Suppliers & Procurement</h1>
-              <p className="text-muted-foreground">Manage vendors and purchase orders</p>
+              <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('suppliers.title', 'Suppliers & Procurement')}</h1>
+              <p className="text-muted-foreground">{t('suppliers.subtitle', 'Manage vendors and purchase orders')}</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setSupplierDialogOpen(true)} data-testid="button-new-supplier">
                 <Building className="h-4 w-4 mr-2" />
-                Add Supplier
+                {t('suppliers.addSupplier', 'Add Supplier')}
               </Button>
               <Button onClick={() => setPoDialogOpen(true)} data-testid="button-new-po">
                 <Package className="h-4 w-4 mr-2" />
-                New Purchase Order
+                {t('suppliers.createPO', 'New Purchase Order')}
               </Button>
             </div>
           </div>
@@ -329,7 +333,7 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Active Suppliers</p>
+                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.activeSuppliers', 'Active Suppliers')}</p>
                     <p className="text-2xl font-bold" data-testid="text-total-suppliers">{activeSuppliers.length}</p>
                   </div>
                   <Truck className="h-8 w-8 text-primary opacity-50" />
@@ -340,7 +344,7 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Orders</p>
+                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.pendingOrders', 'Pending Orders')}</p>
                     <p className="text-2xl font-bold text-blue-600">{pendingOrders.length}</p>
                   </div>
                   <Package className="h-8 w-8 text-blue-500 opacity-50" />
@@ -351,9 +355,9 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Outstanding Balance</p>
+                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.outstandingBalance', 'Outstanding Balance')}</p>
                     <p className="text-2xl font-bold text-orange-600">
-                      ${totalOutstanding.toLocaleString()}
+                      {formatCurrency(totalOutstanding)}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-orange-500 opacity-50" />
@@ -364,7 +368,7 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Orders</p>
+                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.totalOrders', 'Total Orders')}</p>
                     <p className="text-2xl font-bold">{purchaseOrders.length}</p>
                   </div>
                   <Package className="h-8 w-8 text-muted-foreground opacity-50" />
@@ -380,7 +384,7 @@ export default function Suppliers() {
               data-testid="tab-suppliers"
             >
               <Building className="h-4 w-4 mr-2" />
-              Suppliers
+              {t('suppliers.tabs.suppliers', 'Suppliers')}
             </Button>
             <Button
               variant={activeTab === "orders" ? "default" : "ghost"}
@@ -388,7 +392,7 @@ export default function Suppliers() {
               data-testid="tab-orders"
             >
               <Package className="h-4 w-4 mr-2" />
-              Purchase Orders
+              {t('suppliers.tabs.orders', 'Purchase Orders')}
             </Button>
             <Button
               variant={activeTab === "performance" ? "default" : "ghost"}
@@ -396,7 +400,7 @@ export default function Suppliers() {
               data-testid="tab-performance"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
-              Performance
+              {t('suppliers.tabs.performance', 'Performance')}
             </Button>
           </div>
 
@@ -404,7 +408,7 @@ export default function Suppliers() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={activeTab === "suppliers" ? "Search suppliers..." : "Search orders..."}
+                placeholder={activeTab === "suppliers" ? t('suppliers.searchSuppliers', 'Search suppliers...') : t('suppliers.searchOrders', 'Search orders...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -415,16 +419,16 @@ export default function Suppliers() {
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-48" data-testid="select-status-filter">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder={t('common.status', 'Status')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                  <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
-                  <SelectItem value="APPROVED">Approved</SelectItem>
-                  <SelectItem value="ORDERED">Ordered</SelectItem>
-                  <SelectItem value="PARTIALLY_RECEIVED">Partially Received</SelectItem>
-                  <SelectItem value="RECEIVED">Received</SelectItem>
+                  <SelectItem value="all">{t('suppliers.status.all', 'All Status')}</SelectItem>
+                  <SelectItem value="DRAFT">{t('suppliers.status.DRAFT', 'Draft')}</SelectItem>
+                  <SelectItem value="PENDING_APPROVAL">{t('suppliers.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
+                  <SelectItem value="APPROVED">{t('suppliers.status.APPROVED', 'Approved')}</SelectItem>
+                  <SelectItem value="ORDERED">{t('suppliers.status.ORDERED', 'Ordered')}</SelectItem>
+                  <SelectItem value="PARTIALLY_RECEIVED">{t('suppliers.status.PARTIALLY_RECEIVED', 'Partially Received')}</SelectItem>
+                  <SelectItem value="RECEIVED">{t('suppliers.status.RECEIVED', 'Received')}</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -439,7 +443,7 @@ export default function Suppliers() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No suppliers found</p>
+                  <p className="text-muted-foreground">{t('suppliers.noSuppliersFound', 'No suppliers found')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -458,7 +462,7 @@ export default function Suppliers() {
                         </div>
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                          <span className="text-sm font-medium">{supplier.rating || "N/A"}</span>
+                          <span className="text-sm font-medium">{supplier.rating || t('common.na', 'N/A')}</span>
                         </div>
                       </div>
                     </CardHeader>
@@ -490,12 +494,12 @@ export default function Suppliers() {
                         </div>
                       )}
                       <div className="pt-2 border-t flex justify-between text-sm">
-                        <span className="text-muted-foreground">Outstanding</span>
+                        <span className="text-muted-foreground">{t('suppliers.outstanding', 'Outstanding')}</span>
                         <span className={cn(
                           "font-medium",
                           parseFloat(supplier.outstanding_balance) > 0 && "text-orange-600"
                         )}>
-                          ${parseFloat(supplier.outstanding_balance || "0").toLocaleString()}
+                          {formatCurrency(parseFloat(supplier.outstanding_balance || "0"))}
                         </span>
                       </div>
                     </CardContent>
@@ -512,7 +516,7 @@ export default function Suppliers() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No purchase orders found</p>
+                  <p className="text-muted-foreground">{t('suppliers.noOrdersFound', 'No purchase orders found')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -536,21 +540,21 @@ export default function Suppliers() {
                         </div>
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Total</p>
-                            <p className="font-medium">${parseFloat(po.grand_total).toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">{t('common.total', 'Total')}</p>
+                            <p className="font-medium">{formatCurrency(parseFloat(po.grand_total))}</p>
                           </div>
                           {po.expected_delivery && (
                             <div className="text-right">
-                              <p className="text-sm text-muted-foreground">Expected</p>
+                              <p className="text-sm text-muted-foreground">{t('suppliers.expected', 'Expected')}</p>
                               <p className="text-sm">{po.expected_delivery}</p>
                             </div>
                           )}
                           <Badge className={cn("text-xs", PO_STATUS_COLORS[po.status])}>
-                            {po.status.replace(/_/g, " ")}
+                            {t(`suppliers.status.${po.status}`, po.status.replace(/_/g, " "))}
                           </Badge>
                           <Link href={`/purchase-orders/${po.id}`}>
                             <Button size="sm" variant="outline" data-testid={`button-view-po-${po.id}`}>
-                              View
+                              {t('common.view', 'View')}
                             </Button>
                           </Link>
                         </div>
@@ -571,7 +575,7 @@ export default function Suppliers() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No supplier performance data available</p>
+                  <p className="text-muted-foreground">{t('suppliers.noPerformanceData', 'No supplier performance data available')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -604,7 +608,7 @@ export default function Suppliers() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>On-Time Rate</span>
+                            <span>{t('suppliers.performance.onTimeRate', 'On-Time Rate')}</span>
                           </div>
                           <span className={cn("font-medium", getScoreColor(perf.on_time_rate))}>
                             {perf.on_time_rate}%
@@ -613,7 +617,7 @@ export default function Suppliers() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm">
                             <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                            <span>Quality Rate</span>
+                            <span>{t('suppliers.performance.qualityRate', 'Quality Rate')}</span>
                           </div>
                           <span className={cn("font-medium", getScoreColor(perf.quality_rate))}>
                             {perf.quality_rate}%
@@ -622,7 +626,7 @@ export default function Suppliers() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm">
                             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            <span>Price Variance</span>
+                            <span>{t('suppliers.performance.priceVariance', 'Price Variance')}</span>
                           </div>
                           <span className={cn("font-medium", parseFloat(perf.price_variance) > 0 ? "text-red-600" : "text-green-600")}>
                             {parseFloat(perf.price_variance) > 0 ? "+" : ""}{perf.price_variance}%
@@ -630,15 +634,15 @@ export default function Suppliers() {
                         </div>
                         <div className="pt-2 border-t grid grid-cols-3 gap-2 text-center text-xs">
                           <div>
-                            <p className="text-muted-foreground">Orders</p>
+                            <p className="text-muted-foreground">{t('suppliers.performance.orders', 'Orders')}</p>
                             <p className="font-medium">{perf.total_orders}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">On Time</p>
+                            <p className="text-muted-foreground">{t('suppliers.performance.onTime', 'On Time')}</p>
                             <p className="font-medium text-green-600">{perf.orders_on_time}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Rejected</p>
+                            <p className="text-muted-foreground">{t('suppliers.performance.rejected', 'Rejected')}</p>
                             <p className="font-medium text-red-600">{perf.items_rejected}</p>
                           </div>
                         </div>
@@ -655,110 +659,110 @@ export default function Suppliers() {
       <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add New Supplier</DialogTitle>
+            <DialogTitle>{t('suppliers.dialog.addSupplier', 'Add New Supplier')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSupplierSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Company Name</Label>
+                <Label htmlFor="name">{t('suppliers.form.companyName', 'Company Name')}</Label>
                 <Input
                   id="name"
                   value={supplierForm.name}
                   onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-                  placeholder="Company name"
+                  placeholder={t('suppliers.form.companyNamePlaceholder', 'Company name')}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contact_person">Contact Person</Label>
+                <Label htmlFor="contact_person">{t('suppliers.form.contactPerson', 'Contact Person')}</Label>
                 <Input
                   id="contact_person"
                   value={supplierForm.contact_person}
                   onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })}
-                  placeholder="Contact name"
+                  placeholder={t('suppliers.form.contactNamePlaceholder', 'Contact name')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">{t('suppliers.form.phone', 'Phone')}</Label>
                 <Input
                   id="phone"
                   value={supplierForm.phone}
                   onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-                  placeholder="Phone number"
+                  placeholder={t('suppliers.form.phonePlaceholder', 'Phone number')}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('suppliers.form.email', 'Email')}</Label>
                 <Input
                   id="email"
                   type="email"
                   value={supplierForm.email}
                   onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
-                  placeholder="Email address"
+                  placeholder={t('suppliers.form.emailPlaceholder', 'Email address')}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">{t('suppliers.form.address', 'Address')}</Label>
               <Textarea
                 id="address"
                 value={supplierForm.address}
                 onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
-                placeholder="Full address"
+                placeholder={t('suppliers.form.addressPlaceholder', 'Full address')}
                 rows={2}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
+                <Label htmlFor="city">{t('suppliers.form.city', 'City')}</Label>
                 <Input
                   id="city"
                   value={supplierForm.city}
                   onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })}
-                  placeholder="City"
+                  placeholder={t('suppliers.form.cityPlaceholder', 'City')}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">State</Label>
+                <Label htmlFor="state">{t('suppliers.form.state', 'State')}</Label>
                 <Input
                   id="state"
                   value={supplierForm.state}
                   onChange={(e) => setSupplierForm({ ...supplierForm, state: e.target.value })}
-                  placeholder="State"
+                  placeholder={t('suppliers.form.statePlaceholder', 'State')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gst_number">GST Number</Label>
+                <Label htmlFor="gst_number">{t('suppliers.form.gstNumber', 'GST Number')}</Label>
                 <Input
                   id="gst_number"
                   value={supplierForm.gst_number}
                   onChange={(e) => setSupplierForm({ ...supplierForm, gst_number: e.target.value })}
-                  placeholder="GST Number"
+                  placeholder={t('suppliers.form.gstNumberPlaceholder', 'GST Number')}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pan_number">PAN Number</Label>
+                <Label htmlFor="pan_number">{t('suppliers.form.panNumber', 'PAN Number')}</Label>
                 <Input
                   id="pan_number"
                   value={supplierForm.pan_number}
                   onChange={(e) => setSupplierForm({ ...supplierForm, pan_number: e.target.value })}
-                  placeholder="PAN Number"
+                  placeholder={t('suppliers.form.panNumberPlaceholder', 'PAN Number')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="payment_terms">Payment Terms</Label>
+                <Label htmlFor="payment_terms">{t('suppliers.form.paymentTerms', 'Payment Terms')}</Label>
                 <Select
                   value={supplierForm.payment_terms}
                   onValueChange={(value) => setSupplierForm({ ...supplierForm, payment_terms: value })}
@@ -767,16 +771,16 @@ export default function Suppliers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="IMMEDIATE">Immediate</SelectItem>
-                    <SelectItem value="NET_15">Net 15</SelectItem>
-                    <SelectItem value="NET_30">Net 30</SelectItem>
-                    <SelectItem value="NET_45">Net 45</SelectItem>
-                    <SelectItem value="NET_60">Net 60</SelectItem>
+                    <SelectItem value="IMMEDIATE">{t('suppliers.paymentTerms.IMMEDIATE', 'Immediate')}</SelectItem>
+                    <SelectItem value="NET_15">{t('suppliers.paymentTerms.NET_15', 'Net 15')}</SelectItem>
+                    <SelectItem value="NET_30">{t('suppliers.paymentTerms.NET_30', 'Net 30')}</SelectItem>
+                    <SelectItem value="NET_45">{t('suppliers.paymentTerms.NET_45', 'Net 45')}</SelectItem>
+                    <SelectItem value="NET_60">{t('suppliers.paymentTerms.NET_60', 'Net 60')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="credit_limit">Credit Limit</Label>
+                <Label htmlFor="credit_limit">{t('suppliers.form.creditLimit', 'Credit Limit')}</Label>
                 <Input
                   id="credit_limit"
                   type="number"
@@ -788,31 +792,31 @@ export default function Suppliers() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="categories">Item Categories (comma-separated)</Label>
+              <Label htmlFor="categories">{t('suppliers.form.categories', 'Item Categories (comma-separated)')}</Label>
               <Input
                 id="categories"
                 value={supplierForm.categories}
                 onChange={(e) => setSupplierForm({ ...supplierForm, categories: e.target.value })}
-                placeholder="e.g., Filters, Oil, Brakes, Tyres"
+                placeholder={t('suppliers.form.categoriesPlaceholder', 'e.g., Filters, Oil, Brakes, Tyres')}
                 data-testid="input-supplier-categories"
               />
               <p className="text-xs text-muted-foreground">
-                Enter the types of items this supplier delivers
+                {t('suppliers.form.categoriesHelp', 'Enter the types of items this supplier delivers')}
               </p>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setSupplierDialogOpen(false)}>
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button type="submit" disabled={createSupplier.isPending} data-testid="button-submit-supplier">
                 {createSupplier.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    {t('suppliers.creating', 'Creating...')}
                   </>
                 ) : (
-                  "Create Supplier"
+                  t('suppliers.createSupplier', 'Create Supplier')
                 )}
               </Button>
             </DialogFooter>
@@ -823,18 +827,18 @@ export default function Suppliers() {
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Purchase Order</DialogTitle>
+            <DialogTitle>{t('suppliers.dialog.createPO', 'Create Purchase Order')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePOSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="po_supplier">Supplier</Label>
+                <Label htmlFor="po_supplier">{t('suppliers.form.supplier', 'Supplier')}</Label>
                 <Select
                   value={poForm.supplier}
                   onValueChange={(value) => setPoForm({ ...poForm, supplier: value })}
                 >
                   <SelectTrigger data-testid="select-po-supplier">
-                    <SelectValue placeholder="Select supplier" />
+                    <SelectValue placeholder={t('suppliers.form.selectSupplier', 'Select supplier')} />
                   </SelectTrigger>
                   <SelectContent>
                     {suppliers.filter(s => s.is_active).map((supplier) => (
@@ -847,7 +851,7 @@ export default function Suppliers() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expected_delivery">Expected Delivery</Label>
+                <Label htmlFor="expected_delivery">{t('suppliers.form.expectedDelivery', 'Expected Delivery')}</Label>
                 <Input
                   id="expected_delivery"
                   type="date"
@@ -860,7 +864,7 @@ export default function Suppliers() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Line Items</Label>
+                <Label>{t('suppliers.form.lineItems', 'Line Items')}</Label>
                 <Button
                   type="button"
                   size="sm"
@@ -869,7 +873,7 @@ export default function Suppliers() {
                   data-testid="button-add-line"
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Item
+                  {t('suppliers.form.addItem', 'Add Item')}
                 </Button>
               </div>
 
@@ -888,12 +892,12 @@ export default function Suppliers() {
                         }}
                       >
                         <SelectTrigger data-testid={`select-part-${index}`}>
-                          <SelectValue placeholder="Select part" />
+                          <SelectValue placeholder={t('suppliers.form.selectPart', 'Select part')} />
                         </SelectTrigger>
                         <SelectContent>
                           {partsLoading ? (
                             <SelectItem value="" disabled>
-                              Loading...
+                              {t('common.loading', 'Loading...')}
                             </SelectItem>
                           ) : (
                             parts.map((part) => (
@@ -908,7 +912,7 @@ export default function Suppliers() {
                     <Input
                       type="number"
                       min="1"
-                      placeholder="Qty"
+                      placeholder={t('suppliers.form.qtyPlaceholder', 'Qty')}
                       className="w-20"
                       value={line.quantity_ordered}
                       onChange={(e) => updateLineItem(index, "quantity_ordered", e.target.value)}
@@ -918,7 +922,7 @@ export default function Suppliers() {
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder="Price"
+                      placeholder={t('suppliers.form.pricePlaceholder', 'Price')}
                       className="w-24"
                       value={line.unit_price}
                       onChange={(e) => updateLineItem(index, "unit_price", e.target.value)}
@@ -940,21 +944,21 @@ export default function Suppliers() {
 
               <div className="flex justify-end pt-2">
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Estimated Subtotal</p>
+                  <p className="text-sm text-muted-foreground">{t('suppliers.estimatedSubtotal', 'Estimated Subtotal')}</p>
                   <p className="text-lg font-semibold" data-testid="text-subtotal">
-                    ${calculateSubtotal().toFixed(2)}
+                    {formatCurrency(calculateSubtotal())}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="po_notes">Notes</Label>
+              <Label htmlFor="po_notes">{t('suppliers.form.notes', 'Notes')}</Label>
               <Textarea
                 id="po_notes"
                 value={poForm.notes}
                 onChange={(e) => setPoForm({ ...poForm, notes: e.target.value })}
-                placeholder="Order notes..."
+                placeholder={t('suppliers.form.notesPlaceholder', 'Order notes...')}
                 rows={2}
                 data-testid="textarea-notes"
               />
@@ -962,16 +966,16 @@ export default function Suppliers() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setPoDialogOpen(false)} data-testid="button-cancel-po">
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button type="submit" disabled={createPO.isPending} data-testid="button-submit-po">
                 {createPO.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    {t('suppliers.creating', 'Creating...')}
                   </>
                 ) : (
-                  "Create PO"
+                  t('suppliers.createPOButton', 'Create PO')
                 )}
               </Button>
             </DialogFooter>
