@@ -28,7 +28,10 @@ from .models import (
     Skill, EmployeeSkill, Employee, TrainingProgram, TrainingEnrollment,
     IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
     Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance,
-    ConfigCategory, ConfigOption
+    ConfigCategory, ConfigOption,
+    SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
+    NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
+    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag
 )
 
 
@@ -1901,3 +1904,172 @@ class ConfigCategoryListSerializer(serializers.ModelSerializer):
         model = ConfigCategory
         fields = ['id', 'code', 'name', 'description', 'module', 'display_order',
                   'is_system', 'is_active', 'options_count']
+
+
+class SystemConfigSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    updated_by_name = serializers.CharField(source='updated_by.username', read_only=True)
+    
+    class Meta:
+        model = SystemConfig
+        fields = ['id', 'key', 'value', 'value_type', 'module', 'category', 'branch', 'branch_name',
+                  'description', 'is_sensitive', 'is_branch_overridable', 'is_active', 'version',
+                  'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'version', 'created_at', 'updated_at']
+
+
+class SystemConfigHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.CharField(source='changed_by.username', read_only=True)
+    
+    class Meta:
+        model = SystemConfigHistory
+        fields = ['id', 'config', 'old_value', 'new_value', 'version', 'changed_by', 'changed_by_name', 'change_reason', 'changed_at']
+        read_only_fields = ['id', 'changed_at']
+
+
+class WorkflowConfigSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    
+    class Meta:
+        model = WorkflowConfig
+        fields = ['id', 'code', 'name', 'workflow_type', 'description', 'stages', 'transitions',
+                  'stage_permissions', 'mandatory_fields', 'sla_config', 'branch', 'branch_name',
+                  'is_active', 'version', 'created_by', 'created_by_name', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'version', 'created_at', 'updated_at']
+
+
+class ApprovalRuleSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    escalation_to_name = serializers.CharField(source='escalation_to.username', read_only=True)
+    
+    class Meta:
+        model = ApprovalRule
+        fields = ['id', 'code', 'name', 'module', 'entity_type', 'approval_type', 'levels', 'conditions',
+                  'auto_approve_threshold', 'escalation_hours', 'escalation_to', 'escalation_to_name',
+                  'branch', 'branch_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationTemplate
+        fields = ['id', 'code', 'name', 'channel', 'subject', 'body', 'variables', 'language', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationRuleSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source='template.name', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = NotificationRule
+        fields = ['id', 'code', 'name', 'event_type', 'module', 'template', 'template_name',
+                  'recipient_roles', 'conditions', 'delay_minutes', 'is_escalation',
+                  'branch', 'branch_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AutomationRuleSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = AutomationRule
+        fields = ['id', 'code', 'name', 'description', 'module', 'trigger_type', 'trigger_event',
+                  'trigger_schedule', 'conditions', 'action_type', 'action_config', 'priority',
+                  'branch', 'branch_name', 'is_active', 'last_triggered', 'trigger_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'last_triggered', 'trigger_count', 'created_at', 'updated_at']
+
+
+class DelegationRuleSerializer(serializers.ModelSerializer):
+    delegator_name = serializers.CharField(source='delegator.username', read_only=True)
+    delegate_name = serializers.CharField(source='delegate.username', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.username', read_only=True)
+    
+    class Meta:
+        model = DelegationRule
+        fields = ['id', 'delegator', 'delegator_name', 'delegate', 'delegate_name', 'roles', 'permissions',
+                  'start_date', 'end_date', 'reason', 'is_active', 'approved_by', 'approved_by_name', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class BranchHolidayCalendarSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = BranchHolidayCalendar
+        fields = ['id', 'name', 'date', 'holiday_type', 'branch', 'branch_name', 'is_half_day', 'description', 'year', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class OperatingHoursSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = OperatingHours
+        fields = ['id', 'branch', 'branch_name', 'day', 'is_open', 'open_time', 'close_time', 'break_start', 'break_end', 'is_active']
+        read_only_fields = ['id']
+
+
+class SLAConfigSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = SLAConfig
+        fields = ['id', 'code', 'name', 'module', 'entity_type', 'priority', 'response_hours', 'resolution_hours',
+                  'escalation_levels', 'penalty_config', 'branch', 'branch_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ConfigAuditLogSerializer(serializers.ModelSerializer):
+    performed_by_name = serializers.CharField(source='performed_by.username', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    
+    class Meta:
+        model = ConfigAuditLog
+        fields = ['id', 'entity_type', 'entity_id', 'entity_name', 'action', 'old_values', 'new_values',
+                  'change_summary', 'performed_by', 'performed_by_name', 'ip_address', 'user_agent',
+                  'branch', 'branch_name', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class MenuConfigSerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(source='parent.name', read_only=True)
+    children = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MenuConfig
+        fields = ['id', 'code', 'name', 'module', 'icon', 'path', 'parent', 'parent_name',
+                  'display_order', 'required_roles', 'is_visible', 'is_active', 'children', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_children(self, obj):
+        children = obj.children.filter(is_active=True).order_by('display_order')
+        return MenuConfigSerializer(children, many=True).data
+
+
+class FeatureFlagSerializer(serializers.ModelSerializer):
+    enabled_branch_names = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FeatureFlag
+        fields = ['id', 'code', 'name', 'description', 'is_enabled', 'enabled_roles', 'enabled_branches',
+                  'enabled_branch_names', 'rollout_percentage', 'start_date', 'end_date', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_enabled_branch_names(self, obj):
+        return [b.name for b in obj.enabled_branches.all()]
+
+
+class AdminDashboardSerializer(serializers.Serializer):
+    """Serializer for admin dashboard overview"""
+    total_configs = serializers.IntegerField()
+    total_workflows = serializers.IntegerField()
+    total_approval_rules = serializers.IntegerField()
+    total_automation_rules = serializers.IntegerField()
+    total_notification_rules = serializers.IntegerField()
+    active_feature_flags = serializers.IntegerField()
+    pending_delegations = serializers.IntegerField()
+    recent_config_changes = serializers.ListField()
+    system_health = serializers.DictField()

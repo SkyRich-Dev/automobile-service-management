@@ -19,6 +19,7 @@ import Analytics from "@/pages/Analytics";
 import AdminPanel from "@/pages/AdminPanel";
 import AccountsFinance from "@/pages/AccountsFinance";
 import HRMS from "@/pages/HRMS";
+import AdminConfig from "@/pages/AdminConfig";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
@@ -53,6 +54,7 @@ const routePermissions: Record<string, UserRole[]> = {
   '/analytics': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'],
   '/accounts-finance': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'ACCOUNTS_MANAGER', 'ACCOUNTANT'],
   '/admin': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
+  '/admin-config': ['SUPER_ADMIN', 'CEO_OWNER'],
 };
 
 function LoadingScreen() {
@@ -115,6 +117,7 @@ function Router() {
       <Route path="/accounts" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={HRMS} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/admin-config" component={() => <ProtectedRoute component={AdminConfig} allowedRoles={routePermissions['/admin-config']} />} />
       <Route component={NotFound} />
     </Switch>
   );

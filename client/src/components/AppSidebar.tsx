@@ -31,6 +31,7 @@ import {
   Award,
   CalendarDays,
   Target,
+  Sliders,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,12 @@ const menuItems: MenuItem[] = [
     icon: ShieldCheck, 
     path: "/admin",
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
+  },
+  { 
+    text: "Config Center", 
+    icon: Sliders, 
+    path: "/admin-config",
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER']
   },
 ];
 

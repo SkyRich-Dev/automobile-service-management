@@ -35,10 +35,13 @@ from .models import (
     Skill, EmployeeSkill, Employee, TrainingProgram, TrainingEnrollment,
     IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
     Holiday, HRShift, EmployeeShift, SkillRequirement, SkillAuditLog, Payroll, HRAttendance,
-    ConfigCategory, ConfigOption
+    ConfigCategory, ConfigOption,
+    SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
+    NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
+    BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag
 )
 from .permissions import (
-    RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow
+    RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow, IsAdminConfig
 )
 from .serializers import (
     UserSerializer, ProfileSerializer, BranchSerializer,
@@ -78,7 +81,12 @@ from .serializers import (
     LeaveTypeSerializer, LeaveBalanceSerializer, LeaveRequestSerializer, HolidaySerializer,
     HRShiftSerializer, EmployeeShiftSerializer, HRAttendanceSerializer, PayrollSerializer,
     SkillAuditLogSerializer,
-    ConfigCategorySerializer, ConfigCategoryListSerializer, ConfigOptionSerializer
+    ConfigCategorySerializer, ConfigCategoryListSerializer, ConfigOptionSerializer,
+    SystemConfigSerializer, SystemConfigHistorySerializer, WorkflowConfigSerializer,
+    ApprovalRuleSerializer, NotificationTemplateSerializer, NotificationRuleSerializer,
+    AutomationRuleSerializer, DelegationRuleSerializer, BranchHolidayCalendarSerializer,
+    OperatingHoursSerializer, SLAConfigSerializer, ConfigAuditLogSerializer,
+    MenuConfigSerializer, FeatureFlagSerializer
 )
 
 
@@ -5243,4 +5251,536 @@ class IntegrationViewSet(viewsets.ViewSet):
             'finance': finance_metrics,
             'hrms': hrms_metrics,
             'generated_at': timezone.now().isoformat()
+        })
+
+
+def log_config_audit(request, entity_type, entity_id, entity_name, action, old_values=None, new_values=None, change_summary=''):
+    """Helper function to log configuration changes to ConfigAuditLog"""
+    try:
+        profile = getattr(request.user, 'profile', None)
+        branch = profile.branch if profile else None
+        
+        ConfigAuditLog.objects.create(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            entity_name=entity_name,
+            action=action,
+            old_values=old_values or {},
+            new_values=new_values or {},
+            change_summary=change_summary,
+            performed_by=request.user,
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500] if request.META.get('HTTP_USER_AGENT') else '',
+            branch=branch
+        )
+    except Exception:
+        pass
+
+
+class SystemConfigViewSet(viewsets.ModelViewSet):
+    """ViewSet for system configuration management"""
+    queryset = SystemConfig.objects.all()
+    serializer_class = SystemConfigSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = SystemConfig.objects.select_related('branch', 'created_by', 'updated_by').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+        branch_id = self.request.query_params.get('branch_id')
+        if branch_id:
+            queryset = queryset.filter(Q(branch_id=branch_id) | Q(branch__isnull=True))
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save(created_by=self.request.user, updated_by=self.request.user)
+        log_config_audit(self.request, 'SystemConfig', instance.id, instance.key, 'CREATE', 
+                        new_values={'key': instance.key, 'value': instance.value, 'module': instance.module})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'key': instance.key, 'value': instance.value, 'version': instance.version}
+        
+        SystemConfigHistory.objects.create(
+            config=instance,
+            old_value=instance.value,
+            new_value=serializer.validated_data.get('value', instance.value),
+            version=instance.version,
+            changed_by=self.request.user,
+            change_reason=self.request.data.get('change_reason', '')
+        )
+        instance = serializer.save(updated_by=self.request.user, version=instance.version + 1)
+        
+        log_config_audit(self.request, 'SystemConfig', instance.id, instance.key, 'UPDATE',
+                        old_values=old_values, new_values={'key': instance.key, 'value': instance.value, 'version': instance.version})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'SystemConfig', instance.id, instance.key, 'DELETE',
+                        old_values={'key': instance.key, 'value': instance.value})
+        instance.delete()
+
+
+class WorkflowConfigViewSet(viewsets.ModelViewSet):
+    """ViewSet for workflow configuration management"""
+    queryset = WorkflowConfig.objects.all()
+    serializer_class = WorkflowConfigSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = WorkflowConfig.objects.select_related('branch', 'created_by').all()
+        workflow_type = self.request.query_params.get('workflow_type')
+        if workflow_type:
+            queryset = queryset.filter(workflow_type=workflow_type)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save(created_by=self.request.user)
+        log_config_audit(self.request, 'WorkflowConfig', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'workflow_type': instance.workflow_type})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'WorkflowConfig', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'WorkflowConfig', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+
+
+class ApprovalRuleViewSet(viewsets.ModelViewSet):
+    """ViewSet for approval rule management"""
+    queryset = ApprovalRule.objects.all()
+    serializer_class = ApprovalRuleSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = ApprovalRule.objects.select_related('branch', 'escalation_to').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'ApprovalRule', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'module': instance.module})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'ApprovalRule', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'ApprovalRule', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+
+
+class NotificationTemplateViewSet(viewsets.ModelViewSet):
+    """ViewSet for notification template management"""
+    queryset = NotificationTemplate.objects.all()
+    serializer_class = NotificationTemplateSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = NotificationTemplate.objects.all()
+        channel = self.request.query_params.get('channel')
+        if channel:
+            queryset = queryset.filter(channel=channel)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'NotificationTemplate', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'channel': instance.channel})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'NotificationTemplate', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'NotificationTemplate', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+
+
+class NotificationRuleViewSet(viewsets.ModelViewSet):
+    """ViewSet for notification rule management"""
+    queryset = NotificationRule.objects.all()
+    serializer_class = NotificationRuleSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = NotificationRule.objects.select_related('template', 'branch').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        event_type = self.request.query_params.get('event_type')
+        if event_type:
+            queryset = queryset.filter(event_type=event_type)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'NotificationRule', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'event_type': instance.event_type})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'NotificationRule', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'NotificationRule', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+
+
+class AutomationRuleViewSet(viewsets.ModelViewSet):
+    """ViewSet for automation rule management"""
+    queryset = AutomationRule.objects.all()
+    serializer_class = AutomationRuleSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = AutomationRule.objects.select_related('branch').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        trigger_type = self.request.query_params.get('trigger_type')
+        if trigger_type:
+            queryset = queryset.filter(trigger_type=trigger_type)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'AutomationRule', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'trigger_type': instance.trigger_type})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'AutomationRule', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'AutomationRule', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+    
+    @action(detail=True, methods=['post'])
+    def trigger(self, request, pk=None):
+        """Manually trigger an automation rule"""
+        rule = self.get_object()
+        rule.last_triggered = timezone.now()
+        rule.trigger_count += 1
+        rule.save()
+        log_config_audit(request, 'AutomationRule', rule.id, rule.name, 'TRIGGER',
+                        new_values={'trigger_count': rule.trigger_count, 'last_triggered': str(rule.last_triggered)})
+        return Response({'status': 'triggered', 'trigger_count': rule.trigger_count})
+
+
+class DelegationRuleViewSet(viewsets.ModelViewSet):
+    """ViewSet for delegation rule management"""
+    queryset = DelegationRule.objects.all()
+    serializer_class = DelegationRuleSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = DelegationRule.objects.select_related('delegator', 'delegate', 'approved_by').all()
+        if self.request.query_params.get('active_only') == 'true':
+            now = timezone.now()
+            queryset = queryset.filter(is_active=True, start_date__lte=now, end_date__gte=now)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'DelegationRule', instance.id, f'{instance.delegator.username} -> {instance.delegate.username}', 'CREATE',
+                        new_values={'delegator': instance.delegator.username, 'delegate': instance.delegate.username, 'reason': instance.reason})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'is_active': instance.is_active, 'end_date': str(instance.end_date)}
+        instance = serializer.save()
+        log_config_audit(self.request, 'DelegationRule', instance.id, f'{instance.delegator.username} -> {instance.delegate.username}', 'UPDATE',
+                        old_values=old_values, new_values={'is_active': instance.is_active, 'end_date': str(instance.end_date)})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'DelegationRule', instance.id, f'{instance.delegator.username} -> {instance.delegate.username}', 'DELETE',
+                        old_values={'delegator': instance.delegator.username, 'delegate': instance.delegate.username})
+        instance.delete()
+
+
+class BranchHolidayCalendarViewSet(viewsets.ModelViewSet):
+    """ViewSet for branch holiday calendar management"""
+    queryset = BranchHolidayCalendar.objects.all()
+    serializer_class = BranchHolidayCalendarSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = BranchHolidayCalendar.objects.select_related('branch').all()
+        branch_id = self.request.query_params.get('branch_id')
+        if branch_id:
+            queryset = queryset.filter(Q(branch_id=branch_id) | Q(branch__isnull=True))
+        year = self.request.query_params.get('year')
+        if year:
+            queryset = queryset.filter(year=year)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'BranchHolidayCalendar', instance.id, instance.name, 'CREATE',
+                        new_values={'name': instance.name, 'date': str(instance.date), 'holiday_type': instance.holiday_type})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'name': instance.name, 'date': str(instance.date), 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'BranchHolidayCalendar', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'name': instance.name, 'date': str(instance.date), 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'BranchHolidayCalendar', instance.id, instance.name, 'DELETE',
+                        old_values={'name': instance.name, 'date': str(instance.date)})
+        instance.delete()
+
+
+class OperatingHoursViewSet(viewsets.ModelViewSet):
+    """ViewSet for branch operating hours management"""
+    queryset = OperatingHours.objects.all()
+    serializer_class = OperatingHoursSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = OperatingHours.objects.select_related('branch').all()
+        branch_id = self.request.query_params.get('branch_id')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'OperatingHours', instance.id, f'{instance.branch.name if instance.branch else "Global"} - {instance.day}', 'CREATE',
+                        new_values={'day': instance.day, 'is_open': instance.is_open, 'open_time': str(instance.open_time), 'close_time': str(instance.close_time)})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'is_open': instance.is_open, 'open_time': str(instance.open_time), 'close_time': str(instance.close_time)}
+        instance = serializer.save()
+        log_config_audit(self.request, 'OperatingHours', instance.id, f'{instance.branch.name if instance.branch else "Global"} - {instance.day}', 'UPDATE',
+                        old_values=old_values, new_values={'is_open': instance.is_open, 'open_time': str(instance.open_time), 'close_time': str(instance.close_time)})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'OperatingHours', instance.id, f'{instance.branch.name if instance.branch else "Global"} - {instance.day}', 'DELETE',
+                        old_values={'day': instance.day, 'is_open': instance.is_open})
+        instance.delete()
+
+
+class SLAConfigViewSet(viewsets.ModelViewSet):
+    """ViewSet for SLA configuration management"""
+    queryset = SLAConfig.objects.all()
+    serializer_class = SLAConfigSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = SLAConfig.objects.select_related('branch').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        priority = self.request.query_params.get('priority')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'SLAConfig', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'module': instance.module, 'priority': instance.priority})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'response_hours': instance.response_hours, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'SLAConfig', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'response_hours': instance.response_hours, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'SLAConfig', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name})
+        instance.delete()
+
+
+class ConfigAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for config audit log (read-only)"""
+    queryset = ConfigAuditLog.objects.all()
+    serializer_class = ConfigAuditLogSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = ConfigAuditLog.objects.select_related('performed_by', 'branch').order_by('-created_at')
+        entity_type = self.request.query_params.get('entity_type')
+        if entity_type:
+            queryset = queryset.filter(entity_type=entity_type)
+        entity_id = self.request.query_params.get('entity_id')
+        if entity_id:
+            queryset = queryset.filter(entity_id=entity_id)
+        return queryset[:100]
+
+
+class MenuConfigViewSet(viewsets.ModelViewSet):
+    """ViewSet for menu configuration management"""
+    queryset = MenuConfig.objects.all()
+    serializer_class = MenuConfigSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def get_queryset(self):
+        queryset = MenuConfig.objects.select_related('parent').all()
+        module = self.request.query_params.get('module')
+        if module:
+            queryset = queryset.filter(module=module)
+        if self.request.query_params.get('root_only') == 'true':
+            queryset = queryset.filter(parent__isnull=True)
+        return queryset.order_by('display_order')
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'MenuConfig', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'path': instance.path, 'module': instance.module})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_visible': instance.is_visible, 'is_active': instance.is_active}
+        instance = serializer.save()
+        log_config_audit(self.request, 'MenuConfig', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_visible': instance.is_visible, 'is_active': instance.is_active})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'MenuConfig', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name, 'path': instance.path})
+        instance.delete()
+    
+    @action(detail=False, methods=['get'])
+    def tree(self, request):
+        """Get menu structure as a tree"""
+        root_menus = MenuConfig.objects.filter(parent__isnull=True, is_active=True).order_by('display_order')
+        serializer = MenuConfigSerializer(root_menus, many=True)
+        return Response(serializer.data)
+
+
+class FeatureFlagViewSet(viewsets.ModelViewSet):
+    """ViewSet for feature flag management"""
+    queryset = FeatureFlag.objects.all()
+    serializer_class = FeatureFlagSerializer
+    permission_classes = [IsAdminConfig]
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_config_audit(self.request, 'FeatureFlag', instance.id, instance.name, 'CREATE',
+                        new_values={'code': instance.code, 'name': instance.name, 'is_enabled': instance.is_enabled})
+    
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {'code': instance.code, 'name': instance.name, 'is_enabled': instance.is_enabled}
+        instance = serializer.save()
+        log_config_audit(self.request, 'FeatureFlag', instance.id, instance.name, 'UPDATE',
+                        old_values=old_values, new_values={'code': instance.code, 'name': instance.name, 'is_enabled': instance.is_enabled})
+    
+    def perform_destroy(self, instance):
+        log_config_audit(self.request, 'FeatureFlag', instance.id, instance.name, 'DELETE',
+                        old_values={'code': instance.code, 'name': instance.name, 'is_enabled': instance.is_enabled})
+        instance.delete()
+    
+    @action(detail=True, methods=['post'])
+    def toggle(self, request, pk=None):
+        """Toggle a feature flag on/off"""
+        flag = self.get_object()
+        old_state = flag.is_enabled
+        flag.is_enabled = not flag.is_enabled
+        flag.save()
+        log_config_audit(request, 'FeatureFlag', flag.id, flag.name, 'TOGGLE',
+                        old_values={'is_enabled': old_state}, new_values={'is_enabled': flag.is_enabled})
+        return Response({'code': flag.code, 'is_enabled': flag.is_enabled})
+    
+    @action(detail=False, methods=['get'])
+    def check(self, request):
+        """Check if a feature is enabled for current user"""
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'code parameter required'}, status=400)
+        try:
+            flag = FeatureFlag.objects.get(code=code)
+            user = request.user
+            profile = getattr(user, 'profile', None)
+            
+            is_enabled = flag.is_enabled
+            if is_enabled and flag.enabled_roles:
+                is_enabled = profile and profile.role in flag.enabled_roles
+            if is_enabled and flag.enabled_branches.exists():
+                is_enabled = profile and profile.branch in flag.enabled_branches.all()
+            
+            return Response({'code': code, 'is_enabled': is_enabled})
+        except FeatureFlag.DoesNotExist:
+            return Response({'code': code, 'is_enabled': False})
+
+
+class AdminConfigDashboardViewSet(viewsets.ViewSet):
+    """ViewSet for admin configuration dashboard"""
+    permission_classes = [IsAdminConfig]
+    
+    @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """Get admin configuration dashboard overview"""
+        return Response({
+            'total_configs': SystemConfig.objects.filter(is_active=True).count(),
+            'total_workflows': WorkflowConfig.objects.filter(is_active=True).count(),
+            'total_approval_rules': ApprovalRule.objects.filter(is_active=True).count(),
+            'total_automation_rules': AutomationRule.objects.filter(is_active=True).count(),
+            'total_notification_rules': NotificationRule.objects.filter(is_active=True).count(),
+            'active_feature_flags': FeatureFlag.objects.filter(is_enabled=True).count(),
+            'pending_delegations': DelegationRule.objects.filter(
+                is_active=True,
+                start_date__lte=timezone.now(),
+                end_date__gte=timezone.now()
+            ).count(),
+            'recent_config_changes': list(ConfigAuditLog.objects.order_by('-created_at')[:10].values(
+                'entity_type', 'entity_name', 'action', 'performed_by__username', 'created_at'
+            )),
+            'system_health': {
+                'integrations_active': IntegrationConfig.objects.filter(is_active=True).count(),
+                'integrations_error': IntegrationConfig.objects.filter(status='error').count(),
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def modules(self, request):
+        """Get list of configurable modules"""
+        return Response({
+            'modules': [
+                {'code': 'SYSTEM', 'name': 'System Configuration', 'icon': 'settings'},
+                {'code': 'SERVICE', 'name': 'Service Operations', 'icon': 'wrench'},
+                {'code': 'CRM', 'name': 'CRM & Customer', 'icon': 'users'},
+                {'code': 'INVENTORY', 'name': 'Inventory & Supplier', 'icon': 'package'},
+                {'code': 'FINANCE', 'name': 'Accounts & Finance', 'icon': 'indian-rupee'},
+                {'code': 'HR', 'name': 'HR & Skills', 'icon': 'user-check'},
+                {'code': 'CONTRACT', 'name': 'Contracts', 'icon': 'file-text'},
+                {'code': 'NOTIFICATION', 'name': 'Notifications', 'icon': 'bell'},
+                {'code': 'INTEGRATION', 'name': 'Integrations', 'icon': 'plug'},
+                {'code': 'AUTOMATION', 'name': 'Automation', 'icon': 'cpu'},
+            ]
         })

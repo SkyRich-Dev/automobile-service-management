@@ -3617,3 +3617,377 @@ class ConfigOption(models.Model):
         return f"{self.category.code} - {self.label}"
 
 
+class SystemConfig(models.Model):
+    """Key-value system configuration with versioning and branch overrides"""
+    CONFIG_TYPES = [
+        ('STRING', 'String'),
+        ('NUMBER', 'Number'),
+        ('BOOLEAN', 'Boolean'),
+        ('JSON', 'JSON Object'),
+        ('LIST', 'List'),
+        ('SECRET', 'Secret/Encrypted'),
+    ]
+    
+    key = models.CharField(max_length=100)
+    value = models.TextField()
+    value_type = models.CharField(max_length=20, choices=CONFIG_TYPES, default='STRING')
+    module = models.CharField(max_length=50, default='SYSTEM')
+    category = models.CharField(max_length=50, default='GENERAL')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='configs')
+    description = models.TextField(blank=True)
+    is_sensitive = models.BooleanField(default=False)
+    is_branch_overridable = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    version = models.IntegerField(default=1)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_configs')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='updated_configs')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['key', 'branch']
+        ordering = ['module', 'category', 'key']
+
+    def __str__(self):
+        branch_str = f" ({self.branch.code})" if self.branch else " (Global)"
+        return f"{self.key}{branch_str}"
+
+
+class SystemConfigHistory(models.Model):
+    """Version history for system configurations"""
+    config = models.ForeignKey(SystemConfig, on_delete=models.CASCADE, related_name='history')
+    old_value = models.TextField()
+    new_value = models.TextField()
+    version = models.IntegerField()
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    change_reason = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+
+class WorkflowConfig(models.Model):
+    """Configurable workflow definitions"""
+    WORKFLOW_TYPES = [
+        ('SERVICE', 'Service Operations'),
+        ('APPROVAL', 'Approval Flow'),
+        ('INVENTORY', 'Inventory'),
+        ('ACCOUNTS', 'Accounts & Finance'),
+        ('HR', 'Human Resources'),
+        ('CRM', 'CRM'),
+        ('CONTRACT', 'Contracts'),
+    ]
+    
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    workflow_type = models.CharField(max_length=20, choices=WORKFLOW_TYPES)
+    description = models.TextField(blank=True)
+    stages = models.JSONField(default=list)
+    transitions = models.JSONField(default=dict)
+    stage_permissions = models.JSONField(default=dict)
+    mandatory_fields = models.JSONField(default=dict)
+    sla_config = models.JSONField(default=dict)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='workflow_configs')
+    is_active = models.BooleanField(default=True)
+    version = models.IntegerField(default=1)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_workflows')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.workflow_type})"
+
+
+class ApprovalRule(models.Model):
+    """Dynamic approval rules configuration"""
+    APPROVAL_TYPES = [
+        ('SEQUENTIAL', 'Sequential'),
+        ('PARALLEL', 'Parallel'),
+        ('ANY', 'Any Approver'),
+        ('HIERARCHY', 'Hierarchical'),
+    ]
+    
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    module = models.CharField(max_length=50)
+    entity_type = models.CharField(max_length=50)
+    approval_type = models.CharField(max_length=20, choices=APPROVAL_TYPES, default='SEQUENTIAL')
+    levels = models.JSONField(default=list)
+    conditions = models.JSONField(default=dict)
+    auto_approve_threshold = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    escalation_hours = models.IntegerField(default=24)
+    escalation_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='escalated_approvals')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='approval_rules')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.module}"
+
+
+class NotificationTemplate(models.Model):
+    """Notification message templates"""
+    CHANNELS = [
+        ('EMAIL', 'Email'),
+        ('SMS', 'SMS'),
+        ('WHATSAPP', 'WhatsApp'),
+        ('PUSH', 'Push Notification'),
+        ('IN_APP', 'In-App Notification'),
+    ]
+    
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    channel = models.CharField(max_length=20, choices=CHANNELS)
+    subject = models.CharField(max_length=255, blank=True)
+    body = models.TextField()
+    variables = models.JSONField(default=list)
+    language = models.CharField(max_length=10, default='en')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.channel})"
+
+
+class NotificationRule(models.Model):
+    """Event-based notification configuration"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    event_type = models.CharField(max_length=100)
+    module = models.CharField(max_length=50)
+    template = models.ForeignKey(NotificationTemplate, on_delete=models.CASCADE, related_name='rules')
+    recipient_roles = models.JSONField(default=list)
+    recipient_users = models.ManyToManyField(User, blank=True, related_name='notification_rules')
+    conditions = models.JSONField(default=dict)
+    delay_minutes = models.IntegerField(default=0)
+    is_escalation = models.BooleanField(default=False)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='notification_rules')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.event_type}"
+
+
+class AutomationRule(models.Model):
+    """IF-THEN automation rules engine"""
+    TRIGGER_TYPES = [
+        ('EVENT', 'Event Based'),
+        ('SCHEDULE', 'Scheduled'),
+        ('CONDITION', 'Condition Based'),
+        ('THRESHOLD', 'Threshold Based'),
+    ]
+    
+    ACTION_TYPES = [
+        ('NOTIFY', 'Send Notification'),
+        ('ASSIGN', 'Auto Assign'),
+        ('UPDATE', 'Update Field'),
+        ('CREATE', 'Create Record'),
+        ('ESCALATE', 'Escalate'),
+        ('WEBHOOK', 'Call Webhook'),
+        ('WORKFLOW', 'Trigger Workflow'),
+    ]
+    
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    module = models.CharField(max_length=50)
+    trigger_type = models.CharField(max_length=20, choices=TRIGGER_TYPES)
+    trigger_event = models.CharField(max_length=100, blank=True)
+    trigger_schedule = models.CharField(max_length=100, blank=True)
+    conditions = models.JSONField(default=list)
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPES)
+    action_config = models.JSONField(default=dict)
+    priority = models.IntegerField(default=0)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='automation_rules')
+    is_active = models.BooleanField(default=True)
+    last_triggered = models.DateTimeField(null=True, blank=True)
+    trigger_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-priority', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.trigger_type})"
+
+
+class DelegationRule(models.Model):
+    """Temporary role delegation and acting manager configuration"""
+    delegator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='delegations_given')
+    delegate = models.ForeignKey(User, on_delete=models.CASCADE, related_name='delegations_received')
+    roles = models.JSONField(default=list)
+    permissions = models.JSONField(default=list)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    reason = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegation_approvals')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.delegator.username} -> {self.delegate.username}"
+
+
+class BranchHolidayCalendar(models.Model):
+    """Branch-specific holiday calendar entries"""
+    HOLIDAY_TYPES = [
+        ('PUBLIC', 'Public Holiday'),
+        ('OPTIONAL', 'Optional Holiday'),
+        ('RESTRICTED', 'Restricted Holiday'),
+        ('COMPANY', 'Company Holiday'),
+    ]
+    
+    name = models.CharField(max_length=100)
+    date = models.DateField()
+    holiday_type = models.CharField(max_length=20, choices=HOLIDAY_TYPES, default='PUBLIC')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='holiday_calendar_entries')
+    is_half_day = models.BooleanField(default=False)
+    description = models.TextField(blank=True)
+    year = models.IntegerField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        unique_together = ['date', 'branch']
+        ordering = ['date']
+        verbose_name = "Holiday Calendar Entry"
+        verbose_name_plural = "Holiday Calendar Entries"
+
+    def __str__(self):
+        return f"{self.name} - {self.date}"
+
+
+class OperatingHours(models.Model):
+    """Branch operating hours configuration"""
+    DAYS = [
+        ('MON', 'Monday'),
+        ('TUE', 'Tuesday'),
+        ('WED', 'Wednesday'),
+        ('THU', 'Thursday'),
+        ('FRI', 'Friday'),
+        ('SAT', 'Saturday'),
+        ('SUN', 'Sunday'),
+    ]
+    
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='operating_hours')
+    day = models.CharField(max_length=3, choices=DAYS)
+    is_open = models.BooleanField(default=True)
+    open_time = models.TimeField(null=True, blank=True)
+    close_time = models.TimeField(null=True, blank=True)
+    break_start = models.TimeField(null=True, blank=True)
+    break_end = models.TimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['branch', 'day']
+        ordering = ['branch', 'day']
+
+    def __str__(self):
+        return f"{self.branch.code} - {self.day}"
+
+
+class SLAConfig(models.Model):
+    """SLA configuration for various service types"""
+    PRIORITY_LEVELS = [
+        ('LOW', 'Low'),
+        ('MEDIUM', 'Medium'),
+        ('HIGH', 'High'),
+        ('CRITICAL', 'Critical'),
+    ]
+    
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    module = models.CharField(max_length=50)
+    entity_type = models.CharField(max_length=50)
+    priority = models.CharField(max_length=20, choices=PRIORITY_LEVELS, default='MEDIUM')
+    response_hours = models.IntegerField(default=4)
+    resolution_hours = models.IntegerField(default=24)
+    escalation_levels = models.JSONField(default=list)
+    penalty_config = models.JSONField(default=dict)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='sla_configs')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.priority})"
+
+
+class ConfigAuditLog(models.Model):
+    """Immutable audit log for all configuration changes"""
+    ACTION_TYPES = [
+        ('CREATE', 'Created'),
+        ('UPDATE', 'Updated'),
+        ('DELETE', 'Deleted'),
+        ('ACTIVATE', 'Activated'),
+        ('DEACTIVATE', 'Deactivated'),
+        ('ROLLBACK', 'Rolled Back'),
+    ]
+    
+    entity_type = models.CharField(max_length=50)
+    entity_id = models.IntegerField()
+    entity_name = models.CharField(max_length=255)
+    action = models.CharField(max_length=20, choices=ACTION_TYPES)
+    old_values = models.JSONField(default=dict)
+    new_values = models.JSONField(default=dict)
+    change_summary = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action} {self.entity_type} #{self.entity_id}"
+
+
+class MenuConfig(models.Model):
+    """Menu structure configuration for dynamic navigation"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    module = models.CharField(max_length=50)
+    icon = models.CharField(max_length=50, blank=True)
+    path = models.CharField(max_length=255)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    display_order = models.IntegerField(default=0)
+    required_roles = models.JSONField(default=list)
+    is_visible = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+
+    def __str__(self):
+        return f"{self.module} - {self.name}"
+
+
+class FeatureFlag(models.Model):
+    """Feature flags for controlled rollout"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_enabled = models.BooleanField(default=False)
+    enabled_roles = models.JSONField(default=list)
+    enabled_branches = models.ManyToManyField(Branch, blank=True, related_name='feature_flags')
+    rollout_percentage = models.IntegerField(default=100)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        status = "Enabled" if self.is_enabled else "Disabled"
+        return f"{self.name} ({status})"
+
+

@@ -1,0 +1,222 @@
+MASTER PROMPT — ENTERPRISE ADMIN CONFIGURATION CENTER
+(Central Control Tower | Zero Hard-Code | Fully Configurable | Integratable)
+ROLE & OBJECTIVE
+You are a senior enterprise platform engineering team (Enterprise Architect, Product Architect, Backend Lead, Frontend Lead, DevOps Lead, QA Lead).
+Your task is to design and implement a Central Admin Panel that serves as the single configuration and governance center for ALL modules of an Automobile Car & Bike Service Management System.
+⚠️ This Admin Panel is NOT a basic settings page
+It is a system brain that controls:
+Behavior
+Workflow
+Permissions
+Automation
+Integrations
+Notifications
+Compliance
+Performance
+1. CORE ADMIN DESIGN PRINCIPLES (NON-NEGOTIABLE)
+❌ No hard-coded logic anywhere
+❌ No fixed workflows
+❌ No fixed roles or permissions
+❌ No fixed notification channels
+❌ No fixed SLAs or escalation rules
+✅ Everything must be:
+Configurable
+Version-controlled
+Auditable
+Role-secured
+Branch-aware
+Extensible
+2. ADMIN PANEL STRUCTURE (HIGH-LEVEL)
+The Admin Panel must be structured into clearly separated configuration domains:
+Organization & Structure
+Users, Roles & Access Control
+Workflow & Process Configuration
+Service Operations Configuration
+CRM & Customer Configuration
+Contract & Pricing Configuration
+Inventory & Supplier Configuration
+Accounts & Finance Configuration
+HR & Skill Configuration
+Notification & Communication Configuration
+Integration & API Configuration
+Automation, Rules & Intelligence
+Audit, Compliance & Governance
+System Health & Performance
+3. ORGANIZATION & STRUCTURE CONFIGURATION
+Company master
+Multi-branch hierarchy
+Region → Branch → Department structure
+Branch operating hours
+Branch-specific rules override
+Time zone & holiday calendars
+Data ownership (HQ vs Branch)
+4. USER, ROLE & ACCESS CONFIGURATION (RBAC++)
+Role Management
+Create unlimited roles
+Clone roles
+Role templates (Admin, Manager, Technician, etc.)
+Permission Matrix (VERY IMPORTANT)
+Menu-level access
+Action-level access (view, create, edit, approve, override)
+Data-level access (own branch / all branches / read-only)
+Delegation Rules
+Temporary role delegation
+Acting manager configuration
+Approval substitution
+5. WORKFLOW & PROCESS CONFIGURATION (CORE ENGINE)
+Workflow Builder (Visual / Rule-Based)
+Define workflows for:
+Service operations
+Job cards
+Approvals
+Inventory
+Accounts
+HR
+Configure:
+Stages
+Allowed transitions
+Role-based stage change permissions
+Mandatory fields per stage
+Approval Configuration
+Multi-level approvals
+Conditional approvals (amount, risk, SLA)
+Auto-approval thresholds
+Escalation paths
+6. SERVICE OPERATIONS CONFIGURATION
+Service stages definition
+SLA definitions per service type
+Delay tolerance thresholds
+Escalation rules
+Technician assignment rules
+Skill enforcement rules
+QC checklist templates
+Rework & RCA rules
+7. CRM & CUSTOMER CONFIGURATION
+Customer categories
+Lead stages
+Follow-up rules
+Complaint SLA rules
+Feedback scoring logic
+Loyalty & referral rules
+Customer communication preferences
+8. CONTRACT & PRICING CONFIGURATION
+Contract types (AMC, Fleet, Warranty)
+Coverage rules
+Pricing slabs
+Discount policies
+Renewal rules
+Grace periods
+Penalty clauses
+Contract approval workflows
+9. INVENTORY & SUPPLIER CONFIGURATION
+Item categories
+Reorder logic
+Stock valuation method
+Reservation rules
+Supplier rating formula
+PO approval limits
+Inter-branch transfer rules
+Warranty & return policies
+10. ACCOUNTS & FINANCE CONFIGURATION
+Chart of accounts
+Tax rules (GST / VAT)
+Invoice formats
+Payment modes
+Credit limits
+Write-off thresholds
+Goodwill service rules
+Financial approval matrix
+11. HR & SKILL CONFIGURATION
+Attendance rules
+Shift definitions
+Leave policies
+Payroll components
+Incentive formulas
+Skill master
+Certification requirements
+Skill-to-job enforcement rules
+Training & upskilling rules
+12. NOTIFICATION & COMMUNICATION CONFIGURATION
+Channel Configuration
+WhatsApp
+SMS
+Email
+Push notifications
+Message Configuration
+Template builder (dynamic variables)
+Language selection
+Event-based triggers
+Role-based recipients
+Notification Rules
+Who gets notified
+When
+Through which channel
+Escalation notifications
+13. INTEGRATION & API CONFIGURATION (PLUG-AND-PLAY)
+ERP integrations (SAP, Oracle, Tally)
+Payment gateways
+WhatsApp providers
+Email servers
+SMS gateways
+Webhooks
+API keys & secrets
+Retry & failure handling
+14. AUTOMATION, RULES & INTELLIGENCE
+Rule engine (IF-THIS-THEN-THAT)
+Auto-assignment rules
+Auto-escalation rules
+Auto-notifications
+Predictive triggers (delay risk, churn risk)
+Configurable thresholds
+15. AUDIT, COMPLIANCE & GOVERNANCE
+Immutable audit logs
+Configuration version history
+Change approval workflow
+Rollback capability
+Compliance checklists
+Data retention policies
+16. SYSTEM HEALTH & PERFORMANCE
+Background job monitoring
+Integration health
+Notification delivery status
+SLA compliance metrics
+Error logs & alerts
+17. UI / UX REQUIREMENTS (ADMIN PANEL)
+Clean, modern, enterprise UI
+Wizard-based configuration
+Tooltips & inline help
+Searchable settings
+Role-aware visibility
+Safe defaults
+Preview before apply
+Change impact warning
+18. BACKEND ARCHITECTURE REQUIREMENTS
+Configuration stored in DB (not code)
+Versioned configuration tables
+Rule engine abstraction
+Feature flags
+Branch override hierarchy
+Secure secrets management
+Key entities:
+SystemConfig
+WorkflowConfig
+ApprovalRule
+NotificationRule
+IntegrationConfig
+RolePermission
+ConfigAuditLog
+19. FINAL VALIDATION RULES
+After implementation:
+✅ No business logic hard-coded
+✅ New branch works without code change
+✅ Workflow changes without redeploy
+✅ New integrations plug-in easily
+✅ Admin controls entire system behavior
+✅ Fully auditable & rollback-safe
+20. FINAL INSTRUCTION
+Build this Admin Configuration Center as if it will:
+Control a multi-country enterprise rollout
+Be managed by non-technical admins
+Govern mission-critical operations
+Scale for years without redesign
+This is the control brain of the platform, not a settings page.

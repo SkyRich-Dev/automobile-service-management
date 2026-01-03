@@ -2,6 +2,27 @@ from rest_framework import permissions
 from .models import UserRole, RolePermission
 
 
+class IsAdminConfig(permissions.BasePermission):
+    """
+    Permission class for Admin Configuration Center.
+    Only SUPER_ADMIN and CEO_OWNER can access these endpoints.
+    """
+    ALLOWED_ROLES = [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER]
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        try:
+            profile = request.user.profile
+            return profile.role in self.ALLOWED_ROLES
+        except:
+            return False
+    
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)
+
+
 class RoleBasedPermission(permissions.BasePermission):
     """
     RBAC Permission class that checks user role against required permissions.

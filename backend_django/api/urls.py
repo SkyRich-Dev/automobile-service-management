@@ -102,6 +102,22 @@ router.register(r'finance/budgets', views.BudgetEntryViewSet, basename='budget-e
 router.register(r'config/categories', views.ConfigCategoryViewSet, basename='config-categories')
 router.register(r'config/options', views.ConfigOptionViewSet, basename='config-options')
 
+# Admin Configuration Center Routes
+router.register(r'admin-config/system-configs', views.SystemConfigViewSet, basename='system-configs')
+router.register(r'admin-config/workflows', views.WorkflowConfigViewSet, basename='workflow-configs')
+router.register(r'admin-config/approval-rules', views.ApprovalRuleViewSet, basename='approval-rules')
+router.register(r'admin-config/notification-templates', views.NotificationTemplateViewSet, basename='notification-templates')
+router.register(r'admin-config/notification-rules', views.NotificationRuleViewSet, basename='notification-rules')
+router.register(r'admin-config/automation-rules', views.AutomationRuleViewSet, basename='automation-rules')
+router.register(r'admin-config/delegations', views.DelegationRuleViewSet, basename='delegations')
+router.register(r'admin-config/holiday-calendar', views.BranchHolidayCalendarViewSet, basename='holiday-calendar')
+router.register(r'admin-config/operating-hours', views.OperatingHoursViewSet, basename='operating-hours')
+router.register(r'admin-config/sla-configs', views.SLAConfigViewSet, basename='sla-configs')
+router.register(r'admin-config/audit-logs', views.ConfigAuditLogViewSet, basename='config-audit-logs')
+router.register(r'admin-config/menus', views.MenuConfigViewSet, basename='menu-configs')
+router.register(r'admin-config/feature-flags', views.FeatureFlagViewSet, basename='feature-flags')
+router.register(r'admin-config/dashboard', views.AdminConfigDashboardViewSet, basename='admin-config-dashboard')
+
 # Cross-Module Integration Routes
 router.register(r'integration', views.IntegrationViewSet, basename='integration')
 
