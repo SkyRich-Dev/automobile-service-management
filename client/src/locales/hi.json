@@ -44,6 +44,7 @@
     "selectVehicle": "सेवा इतिहास देखने के लिए वाहन चुनें",
     "noVehicles": "कोई वाहन नहीं मिला",
     "noHistory": "कोई सेवा इतिहास नहीं मिला",
+    "noHistoryDesc": "इस वाहन का कोई सेवा रिकॉर्ड नहीं है",
     "totalServices": "कुल सेवाएं",
     "completed": "पूर्ण",
     "totalSpent": "कुल खर्च",
@@ -53,7 +54,18 @@
     "allYears": "सभी वर्ष",
     "allStages": "सभी चरण",
     "viewDetails": "विवरण देखें",
-    "invoices": "चालान"
+    "invoices": "चालान",
+    "complaint": "शिकायत",
+    "diagnosis": "निदान",
+    "serviceDetails": "सेवा विवरण",
+    "serviceAdvisor": "सेवा सलाहकार",
+    "leadTechnician": "मुख्य तकनीशियन",
+    "priority": "प्राथमिकता",
+    "financial": "वित्तीय",
+    "estimated": "अनुमानित",
+    "actual": "वास्तविक",
+    "tasks": "कार्य",
+    "activityLog": "गतिविधि लॉग"
   },
   "common": {
     "save": "सहेजें",

@@ -144,9 +144,11 @@ interface ServiceHistoryData {
 function VehicleSelector({
   onSelect,
   selectedId,
+  t,
 }: {
   onSelect: (id: number) => void;
   selectedId: number | null;
+  t: ReturnType<typeof useTranslation>['t'];
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -159,12 +161,12 @@ function VehicleSelector({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5" />
-          Select Vehicle
+          {t('serviceHistory.selectVehicle', 'Select Vehicle')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input
-          placeholder="Search by plate number, make, or model..."
+          placeholder={t('serviceHistory.searchVehicle', 'Search by plate number, make, or model...')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           data-testid="input-vehicle-search"
@@ -206,7 +208,7 @@ function VehicleSelector({
             ))}
             {vehicles?.length === 0 && (
               <div className="py-8 text-center text-muted-foreground">
-                No vehicles found
+                {t('serviceHistory.noVehicles', 'No vehicles found')}
               </div>
             )}
           </div>
@@ -216,21 +218,21 @@ function VehicleSelector({
   );
 }
 
-function SummaryCards({ summary, formatCurrency }: { summary: ServiceHistoryData["summary"]; formatCurrency: (amount: number) => string }) {
+function SummaryCards({ summary, formatCurrency, t }: { summary: ServiceHistoryData["summary"]; formatCurrency: (amount: number) => string; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Wrench className="mb-2 h-6 w-6 text-blue-500" />
           <div className="text-2xl font-bold">{summary.total_services}</div>
-          <div className="text-xs text-muted-foreground">Total Services</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.totalServices', 'Total Services')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <CheckCircle2 className="mb-2 h-6 w-6 text-green-500" />
           <div className="text-2xl font-bold">{summary.completed_services}</div>
-          <div className="text-xs text-muted-foreground">Completed</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.completed', 'Completed')}</div>
         </CardContent>
       </Card>
       <Card>
@@ -239,35 +241,35 @@ function SummaryCards({ summary, formatCurrency }: { summary: ServiceHistoryData
           <div className="text-2xl font-bold">
             {formatCurrency(summary.total_spent)}
           </div>
-          <div className="text-xs text-muted-foreground">Total Spent</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.totalSpent', 'Total Spent')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Star className="mb-2 h-6 w-6 text-yellow-500" />
           <div className="text-2xl font-bold">{summary.average_rating || "-"}</div>
-          <div className="text-xs text-muted-foreground">Avg Rating</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.avgRating', 'Avg Rating')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <Shield className="mb-2 h-6 w-6 text-purple-500" />
           <div className="text-2xl font-bold">{summary.warranty_services}</div>
-          <div className="text-xs text-muted-foreground">Warranty</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.warranty', 'Warranty')}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
           <TrendingUp className="mb-2 h-6 w-6 text-cyan-500" />
           <div className="text-2xl font-bold">{summary.amc_services}</div>
-          <div className="text-xs text-muted-foreground">AMC</div>
+          <div className="text-xs text-muted-foreground">{t('serviceHistory.amc', 'AMC')}</div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function TimelineCard({ item }: { item: TimelineItem }) {
+function TimelineCard({ item, formatCurrency, t }: { item: TimelineItem; formatCurrency: (amount: number) => string; t: ReturnType<typeof useTranslation>['t'] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const stageConfig = WORKFLOW_STAGE_DEFINITIONS[item.workflow_stage];
   const stageBadgeColor =
@@ -307,12 +309,12 @@ function TimelineCard({ item }: { item: TimelineItem }) {
                       </Badge>
                       {item.is_warranty && (
                         <Badge variant="outline" className="border-purple-500 text-purple-600">
-                          Warranty
+                          {t('serviceHistory.warranty', 'Warranty')}
                         </Badge>
                       )}
                       {item.is_amc && (
                         <Badge variant="outline" className="border-cyan-500 text-cyan-600">
-                          AMC
+                          {t('serviceHistory.amc', 'AMC')}
                         </Badge>
                       )}
                     </div>
@@ -338,8 +340,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold">
-                    {BUSINESS_RULES.CURRENCY_SYMBOL}
-                    {item.actual_amount.toLocaleString()}
+                    {formatCurrency(item.actual_amount)}
                   </div>
                   <div className="text-sm text-muted-foreground">{item.job_type}</div>
                 </div>
@@ -351,50 +352,48 @@ function TimelineCard({ item }: { item: TimelineItem }) {
             <CardContent className="space-y-4 border-t pt-4">
               {item.complaint && (
                 <div>
-                  <div className="mb-1 text-sm font-medium">Complaint</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceHistory.complaint', 'Complaint')}</div>
                   <p className="text-sm text-muted-foreground">{item.complaint}</p>
                 </div>
               )}
               {item.diagnosis && (
                 <div>
-                  <div className="mb-1 text-sm font-medium">Diagnosis</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceHistory.diagnosis', 'Diagnosis')}</div>
                   <p className="text-sm text-muted-foreground">{item.diagnosis}</p>
                 </div>
               )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-sm font-medium">Service Details</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceHistory.serviceDetails', 'Service Details')}</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Service Advisor</span>
+                      <span className="text-muted-foreground">{t('serviceHistory.serviceAdvisor', 'Service Advisor')}</span>
                       <span>{item.service_advisor || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Lead Technician</span>
+                      <span className="text-muted-foreground">{t('serviceHistory.leadTechnician', 'Lead Technician')}</span>
                       <span>{item.lead_technician || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Priority</span>
+                      <span className="text-muted-foreground">{t('serviceHistory.priority', 'Priority')}</span>
                       <span>{item.priority}</span>
                     </div>
                   </div>
                 </div>
                 <div>
-                  <div className="mb-1 text-sm font-medium">Financial</div>
+                  <div className="mb-1 text-sm font-medium">{t('serviceHistory.financial', 'Financial')}</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Estimated</span>
+                      <span className="text-muted-foreground">{t('serviceHistory.estimated', 'Estimated')}</span>
                       <span>
-                        {BUSINESS_RULES.CURRENCY_SYMBOL}
-                        {item.estimated_amount.toLocaleString()}
+                        {formatCurrency(item.estimated_amount)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Actual</span>
+                      <span className="text-muted-foreground">{t('serviceHistory.actual', 'Actual')}</span>
                       <span>
-                        {BUSINESS_RULES.CURRENCY_SYMBOL}
-                        {item.actual_amount.toLocaleString()}
+                        {formatCurrency(item.actual_amount)}
                       </span>
                     </div>
                   </div>
@@ -403,7 +402,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
 
               {item.tasks.length > 0 && (
                 <div>
-                  <div className="mb-2 text-sm font-medium">Tasks ({item.tasks.length})</div>
+                  <div className="mb-2 text-sm font-medium">{t('serviceHistory.tasks', 'Tasks')} ({item.tasks.length})</div>
                   <div className="space-y-1">
                     {item.tasks.map((task) => (
                       <div
@@ -416,8 +415,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
                             {task.status}
                           </Badge>
                           <span className="text-muted-foreground">
-                            {BUSINESS_RULES.CURRENCY_SYMBOL}
-                            {task.labor_cost}
+                            {formatCurrency(task.labor_cost)}
                           </span>
                         </div>
                       </div>
@@ -441,7 +439,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
               {item.events.length > 0 && (
                 <div>
                   <div className="mb-2 text-sm font-medium">
-                    Activity Log ({item.events.length})
+                    {t('serviceHistory.activityLog', 'Activity Log')} ({item.events.length})
                   </div>
                   <div className="max-h-40 space-y-1 overflow-y-auto">
                     {item.events.slice(0, 5).map((event) => (
@@ -468,13 +466,13 @@ function TimelineCard({ item }: { item: TimelineItem }) {
                 <Link href={`/job-cards/${item.id}`}>
                   <Button size="sm" variant="outline" data-testid={`button-view-details-${item.id}`}>
                     <FileText className="mr-1 h-3 w-3" />
-                    View Details
+                    {t('serviceHistory.viewDetails', 'View Details')}
                   </Button>
                 </Link>
                 {item.invoices.length > 0 && (
                   <Button size="sm" variant="outline">
                     <Receipt className="mr-1 h-3 w-3" />
-                    {item.invoices.length} Invoice(s)
+                    {item.invoices.length} {t('serviceHistory.invoices', 'Invoice(s)')}
                   </Button>
                 )}
               </div>
@@ -530,6 +528,7 @@ export default function ServiceHistoryTimeline() {
                 <VehicleSelector
                   onSelect={setSelectedVehicleId}
                   selectedId={selectedVehicleId}
+                  t={t}
                 />
               </div>
             ) : isLoading ? (
@@ -539,7 +538,7 @@ export default function ServiceHistoryTimeline() {
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <AlertCircle className="mb-2 h-12 w-12 text-destructive" />
-                <p className="text-muted-foreground">Failed to load service history</p>
+                <p className="text-muted-foreground">{t('common.error', 'Failed to load service history')}</p>
               </div>
             ) : data ? (
               <div className="space-y-6">
@@ -577,7 +576,7 @@ export default function ServiceHistoryTimeline() {
                   </CardContent>
                 </Card>
 
-                <SummaryCards summary={data.summary} formatCurrency={formatCurrency} />
+                <SummaryCards summary={data.summary} formatCurrency={formatCurrency} t={t} />
 
                 <div className="flex flex-wrap items-center gap-3">
                   <Filter className="h-4 w-4 text-muted-foreground" />
@@ -586,7 +585,7 @@ export default function ServiceHistoryTimeline() {
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Years</SelectItem>
+                      <SelectItem value="all">{t('serviceHistory.allYears', 'All Years')}</SelectItem>
                       {data.available_years.map((year) => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}
@@ -599,7 +598,7 @@ export default function ServiceHistoryTimeline() {
                       <SelectValue placeholder="Stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Stages</SelectItem>
+                      <SelectItem value="all">{t('serviceHistory.allStages', 'All Stages')}</SelectItem>
                       {Object.entries(WORKFLOW_STAGE_DEFINITIONS).map(([key, config]) => (
                         <SelectItem key={key} value={key}>
                           {config.label}
@@ -613,16 +612,16 @@ export default function ServiceHistoryTimeline() {
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <Wrench className="mb-4 h-12 w-12 text-muted-foreground" />
-                      <p className="text-lg font-medium">No service history found</p>
+                      <p className="text-lg font-medium">{t('serviceHistory.noHistory', 'No service history found')}</p>
                       <p className="text-sm text-muted-foreground">
-                        This vehicle has no recorded service visits yet
+                        {t('serviceHistory.noHistoryDesc', 'This vehicle has no recorded service visits yet')}
                       </p>
                     </CardContent>
                   </Card>
                 ) : (
                   <div className="relative">
                     {data.timeline.map((item) => (
-                      <TimelineCard key={item.id} item={item} />
+                      <TimelineCard key={item.id} item={item} formatCurrency={formatCurrency} t={t} />
                     ))}
                   </div>
                 )}

@@ -44,6 +44,7 @@
     "selectVehicle": "حدد مركبة لعرض سجل الخدمة",
     "noVehicles": "لم يتم العثور على مركبات",
     "noHistory": "لم يتم العثور على سجل خدمة",
+    "noHistoryDesc": "هذه المركبة ليس لديها زيارات خدمة مسجلة بعد",
     "totalServices": "إجمالي الخدمات",
     "completed": "مكتمل",
     "totalSpent": "إجمالي الإنفاق",
@@ -53,7 +54,18 @@
     "allYears": "كل السنوات",
     "allStages": "كل المراحل",
     "viewDetails": "عرض التفاصيل",
-    "invoices": "الفواتير"
+    "invoices": "الفواتير",
+    "complaint": "الشكوى",
+    "diagnosis": "التشخيص",
+    "serviceDetails": "تفاصيل الخدمة",
+    "serviceAdvisor": "مستشار الخدمة",
+    "leadTechnician": "الفني الرئيسي",
+    "priority": "الأولوية",
+    "financial": "المالية",
+    "estimated": "المقدر",
+    "actual": "الفعلي",
+    "tasks": "المهام",
+    "activityLog": "سجل النشاط"
   },
   "common": {
     "save": "حفظ",

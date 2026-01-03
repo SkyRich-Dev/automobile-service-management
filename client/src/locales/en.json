@@ -44,6 +44,7 @@
     "selectVehicle": "Select a vehicle to view service history",
     "noVehicles": "No vehicles found",
     "noHistory": "No service history found",
+    "noHistoryDesc": "This vehicle has no recorded service visits yet",
     "totalServices": "Total Services",
     "completed": "Completed",
     "totalSpent": "Total Spent",
@@ -53,7 +54,18 @@
     "allYears": "All Years",
     "allStages": "All Stages",
     "viewDetails": "View Details",
-    "invoices": "Invoices"
+    "invoices": "Invoice(s)",
+    "complaint": "Complaint",
+    "diagnosis": "Diagnosis",
+    "serviceDetails": "Service Details",
+    "serviceAdvisor": "Service Advisor",
+    "leadTechnician": "Lead Technician",
+    "priority": "Priority",
+    "financial": "Financial",
+    "estimated": "Estimated",
+    "actual": "Actual",
+    "tasks": "Tasks",
+    "activityLog": "Activity Log"
   },
   "common": {
     "save": "Save",
