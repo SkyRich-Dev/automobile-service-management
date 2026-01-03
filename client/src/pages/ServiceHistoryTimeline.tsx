@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { AppSidebar } from "@/components/AppSidebar";
-import {
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarInset,
-} from "@/components/ui/sidebar";
+import { useSidebar } from "@/lib/sidebar-context";
+import { useLocalization } from "@/lib/currency-context";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,10 +44,10 @@ import {
   Gauge,
   Shield,
   TrendingUp,
-  IndianRupee,
+  Wallet,
   History,
 } from "lucide-react";
-import { STAGE_BADGE_COLORS, WORKFLOW_STAGE_DEFINITIONS, BUSINESS_RULES } from "@/config";
+import { STAGE_BADGE_COLORS, WORKFLOW_STAGE_DEFINITIONS } from "@/config";
 
 interface Vehicle {
   id: number;
@@ -217,7 +216,7 @@ function VehicleSelector({
   );
 }
 
-function SummaryCards({ summary }: { summary: ServiceHistoryData["summary"] }) {
+function SummaryCards({ summary, formatCurrency }: { summary: ServiceHistoryData["summary"]; formatCurrency: (amount: number) => string }) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
       <Card>
@@ -236,10 +235,9 @@ function SummaryCards({ summary }: { summary: ServiceHistoryData["summary"] }) {
       </Card>
       <Card>
         <CardContent className="flex flex-col items-center p-4">
-          <IndianRupee className="mb-2 h-6 w-6 text-amber-500" />
+          <Wallet className="mb-2 h-6 w-6 text-amber-500" />
           <div className="text-2xl font-bold">
-            {BUSINESS_RULES.CURRENCY_SYMBOL}
-            {summary.total_spent.toLocaleString()}
+            {formatCurrency(summary.total_spent)}
           </div>
           <div className="text-xs text-muted-foreground">Total Spent</div>
         </CardContent>
@@ -489,7 +487,9 @@ function TimelineCard({ item }: { item: TimelineItem }) {
 }
 
 export default function ServiceHistoryTimeline() {
-  const [, setLocation] = useLocation();
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
+  const { isCollapsed } = useSidebar();
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
@@ -499,38 +499,32 @@ export default function ServiceHistoryTimeline() {
     enabled: !!selectedVehicleId,
   });
 
-  const sidebarStyle = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
   return (
-    <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <SidebarInset className="flex-1">
-          <header className="sticky top-0 z-50 flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <div className="flex items-center gap-2">
-                <History className="h-5 w-5 text-primary" />
-                <h1 className="text-lg font-semibold">Service History Timeline</h1>
-              </div>
+    <div className="flex min-h-screen bg-background" data-testid="page-service-history">
+      <AppSidebar />
+      <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
+        <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{t('serviceHistory.title', 'Service History Timeline')}</h1>
+              <p className="text-sm text-muted-foreground">{t('serviceHistory.subtitle', 'View complete service history for any vehicle')}</p>
             </div>
-            {selectedVehicleId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedVehicleId(null)}
-                data-testid="button-change-vehicle"
-              >
-                <ArrowLeft className="mr-1 h-4 w-4" />
-                Change Vehicle
-              </Button>
-            )}
-          </header>
+          </div>
+          {selectedVehicleId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedVehicleId(null)}
+              data-testid="button-change-vehicle"
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              {t('serviceHistory.changeVehicle', 'Change Vehicle')}
+            </Button>
+          )}
+        </header>
 
-          <main className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="flex-1">
             {!selectedVehicleId ? (
               <div className="mx-auto max-w-2xl">
                 <VehicleSelector
@@ -583,7 +577,7 @@ export default function ServiceHistoryTimeline() {
                   </CardContent>
                 </Card>
 
-                <SummaryCards summary={data.summary} />
+                <SummaryCards summary={data.summary} formatCurrency={formatCurrency} />
 
                 <div className="flex flex-wrap items-center gap-3">
                   <Filter className="h-4 w-4 text-muted-foreground" />
@@ -634,9 +628,8 @@ export default function ServiceHistoryTimeline() {
                 )}
               </div>
             ) : null}
-          </main>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+        </div>
+      </main>
+    </div>
   );
 }

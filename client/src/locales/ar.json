@@ -8,6 +8,7 @@
     "crm": "إدارة العملاء",
     "contracts": "العقود",
     "analytics": "التحليلات",
+    "serviceHistory": "سجل الخدمة",
     "accountsFinance": "الحسابات والمالية",
     "hrms": "إدارة الموارد البشرية",
     "adminPanel": "لوحة الإدارة",
@@ -34,6 +35,25 @@
       "leaveManagement": "إدارة الإجازات",
       "skillMatrix": "مصفوفة المهارات"
     }
+  },
+  "serviceHistory": {
+    "title": "جدول زمني لسجل الخدمة",
+    "subtitle": "عرض سجل الخدمة الكامل لأي مركبة",
+    "changeVehicle": "تغيير المركبة",
+    "searchVehicle": "البحث بالتسجيل أو الشركة أو الموديل",
+    "selectVehicle": "حدد مركبة لعرض سجل الخدمة",
+    "noVehicles": "لم يتم العثور على مركبات",
+    "noHistory": "لم يتم العثور على سجل خدمة",
+    "totalServices": "إجمالي الخدمات",
+    "completed": "مكتمل",
+    "totalSpent": "إجمالي الإنفاق",
+    "avgRating": "متوسط التقييم",
+    "warranty": "الضمان",
+    "amc": "العقد السنوي",
+    "allYears": "كل السنوات",
+    "allStages": "كل المراحل",
+    "viewDetails": "عرض التفاصيل",
+    "invoices": "الفواتير"
   },
   "common": {
     "save": "حفظ",

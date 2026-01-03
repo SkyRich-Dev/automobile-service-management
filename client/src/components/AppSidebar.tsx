@@ -33,6 +33,7 @@ import {
   Sliders,
   PanelLeftClose,
   PanelLeft,
+  History,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,12 @@ const menuItemsConfig: MenuItemConfig[] = [
     key: "serviceOperations",
     icon: Wrench, 
     path: "/service",
+    allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
+  },
+  { 
+    key: "serviceHistory",
+    icon: History, 
+    path: "/service-history",
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 

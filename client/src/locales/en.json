@@ -8,6 +8,7 @@
     "crm": "CRM",
     "contracts": "Contracts",
     "analytics": "Analytics",
+    "serviceHistory": "Service History",
     "accountsFinance": "Accounts & Finance",
     "hrms": "HRMS",
     "adminPanel": "Admin Panel",
@@ -34,6 +35,25 @@
       "leaveManagement": "Leave Management",
       "skillMatrix": "Skill Matrix"
     }
+  },
+  "serviceHistory": {
+    "title": "Service History Timeline",
+    "subtitle": "View complete service history for any vehicle",
+    "changeVehicle": "Change Vehicle",
+    "searchVehicle": "Search by registration, make, or model",
+    "selectVehicle": "Select a vehicle to view service history",
+    "noVehicles": "No vehicles found",
+    "noHistory": "No service history found",
+    "totalServices": "Total Services",
+    "completed": "Completed",
+    "totalSpent": "Total Spent",
+    "avgRating": "Avg Rating",
+    "warranty": "Warranty",
+    "amc": "AMC",
+    "allYears": "All Years",
+    "allStages": "All Stages",
+    "viewDetails": "View Details",
+    "invoices": "Invoices"
   },
   "common": {
     "save": "Save",

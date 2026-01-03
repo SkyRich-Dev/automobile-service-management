@@ -8,6 +8,7 @@
     "crm": "सीआरएम",
     "contracts": "अनुबंध",
     "analytics": "विश्लेषण",
+    "serviceHistory": "सेवा इतिहास",
     "accountsFinance": "खाते और वित्त",
     "hrms": "मानव संसाधन प्रबंधन",
     "adminPanel": "एडमिन पैनल",
@@ -34,6 +35,25 @@
       "leaveManagement": "छुट्टी प्रबंधन",
       "skillMatrix": "कौशल मैट्रिक्स"
     }
+  },
+  "serviceHistory": {
+    "title": "सेवा इतिहास टाइमलाइन",
+    "subtitle": "किसी भी वाहन का पूरा सेवा इतिहास देखें",
+    "changeVehicle": "वाहन बदलें",
+    "searchVehicle": "पंजीकरण, मेक या मॉडल से खोजें",
+    "selectVehicle": "सेवा इतिहास देखने के लिए वाहन चुनें",
+    "noVehicles": "कोई वाहन नहीं मिला",
+    "noHistory": "कोई सेवा इतिहास नहीं मिला",
+    "totalServices": "कुल सेवाएं",
+    "completed": "पूर्ण",
+    "totalSpent": "कुल खर्च",
+    "avgRating": "औसत रेटिंग",
+    "warranty": "वारंटी",
+    "amc": "एएमसी",
+    "allYears": "सभी वर्ष",
+    "allStages": "सभी चरण",
+    "viewDetails": "विवरण देखें",
+    "invoices": "चालान"
   },
   "common": {
     "save": "सहेजें",
