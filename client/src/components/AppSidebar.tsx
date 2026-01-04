@@ -178,12 +178,6 @@ const menuItemsConfig: MenuItemConfig[] = [
     path: "/admin",
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
-  { 
-    key: "configCenter",
-    icon: Sliders, 
-    path: "/admin-config",
-    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER']
-  },
 ];
 
 export function AppSidebar() {
