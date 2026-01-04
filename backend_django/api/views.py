@@ -144,9 +144,23 @@ def current_user_view(request):
 
 
 class BranchViewSet(viewsets.ModelViewSet):
-    queryset = Branch.objects.filter(is_active=True)
+    queryset = Branch.objects.all().order_by('code')
     serializer_class = BranchSerializer
-    permission_classes = [IsAuthenticated, RoleBasedPermission]
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Branch.objects.all().order_by('code')
+        active_only = self.request.query_params.get('active_only', 'false').lower() == 'true'
+        if active_only:
+            queryset = queryset.filter(is_active=True)
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def toggle_active(self, request, pk=None):
+        branch = self.get_object()
+        branch.is_active = not branch.is_active
+        branch.save()
+        return Response(BranchSerializer(branch).data)
 
 
 class ProfileViewSet(viewsets.ModelViewSet):

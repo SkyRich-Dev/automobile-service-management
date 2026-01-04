@@ -118,8 +118,16 @@ interface UserProfile {
 
 interface Branch {
   id: number;
-  name: string;
   code: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  city: string;
+  state: string;
+  country: string;
+  is_headquarters: boolean;
+  is_active: boolean;
 }
 
 interface ConfigOption {
@@ -2255,6 +2263,444 @@ function ConfigurationManagementPanel() {
   );
 }
 
+function BranchManagementPanel() {
+  const { toast } = useToast();
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [isAddingBranch, setIsAddingBranch] = useState(false);
+  const [newBranch, setNewBranch] = useState({
+    code: "",
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    city: "",
+    state: "",
+    country: "India",
+    is_headquarters: false,
+    is_active: true,
+  });
+
+  const { data: branches = [], isLoading } = useQuery<Branch[]>({
+    queryKey: ["/api/branches/"],
+  });
+
+  const createBranchMutation = useMutation({
+    mutationFn: async (data: typeof newBranch) => {
+      return apiRequest("POST", "/api/branches/", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Branch created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/branches/"] });
+      setIsAddingBranch(false);
+      setNewBranch({
+        code: "",
+        name: "",
+        address: "",
+        phone: "",
+        email: "",
+        city: "",
+        state: "",
+        country: "India",
+        is_headquarters: false,
+        is_active: true,
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to create branch", variant: "destructive" });
+    },
+  });
+
+  const updateBranchMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Branch> }) => {
+      return apiRequest("PATCH", `/api/branches/${id}/`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Branch updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/branches/"] });
+      setEditingBranch(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update branch", variant: "destructive" });
+    },
+  });
+
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/branches/${id}/`);
+    },
+    onSuccess: () => {
+      toast({ title: "Branch deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/branches/"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete branch", variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="flex items-center justify-center py-8">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/50 overflow-visible">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Building2 className="h-5 w-5 text-primary" />
+              Branch Management
+            </CardTitle>
+            <CardDescription>
+              Manage service center branches and locations
+            </CardDescription>
+          </div>
+          <Button
+            onClick={() => setIsAddingBranch(true)}
+            size="sm"
+            data-testid="button-add-branch"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Branch
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>City</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>HQ</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {branches.map((branch) => (
+                <TableRow key={branch.id} data-testid={`row-branch-${branch.id}`}>
+                  <TableCell className="font-mono text-xs">{branch.code}</TableCell>
+                  <TableCell>{branch.name}</TableCell>
+                  <TableCell>{branch.city}, {branch.state}</TableCell>
+                  <TableCell>{branch.phone}</TableCell>
+                  <TableCell>
+                    {branch.is_headquarters && (
+                      <Badge variant="secondary">
+                        <Building2 className="mr-1 h-3 w-3" />
+                        HQ
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={branch.is_active}
+                      onCheckedChange={(checked) =>
+                        updateBranchMutation.mutate({
+                          id: branch.id,
+                          data: { is_active: checked },
+                        })
+                      }
+                      data-testid={`switch-branch-active-${branch.id}`}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setEditingBranch(branch)}
+                        data-testid={`button-edit-branch-${branch.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteBranchMutation.mutate(branch.id)}
+                        className="text-destructive"
+                        data-testid={`button-delete-branch-${branch.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {branches.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    No branches found. Click "Add Branch" to create one.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={isAddingBranch} onOpenChange={setIsAddingBranch}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Branch</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="branch-code">Branch Code</Label>
+                <Input
+                  id="branch-code"
+                  value={newBranch.code}
+                  onChange={(e) => setNewBranch({ ...newBranch, code: e.target.value.toUpperCase().replace(/\s/g, "_") })}
+                  placeholder="BR001"
+                  data-testid="input-branch-code"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="branch-name">Branch Name</Label>
+                <Input
+                  id="branch-name"
+                  value={newBranch.name}
+                  onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })}
+                  placeholder="Main Service Center"
+                  data-testid="input-branch-name"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="branch-address">Address</Label>
+              <Input
+                id="branch-address"
+                value={newBranch.address}
+                onChange={(e) => setNewBranch({ ...newBranch, address: e.target.value })}
+                placeholder="123 Main Street"
+                data-testid="input-branch-address"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-2">
+                <Label htmlFor="branch-city">City</Label>
+                <Input
+                  id="branch-city"
+                  value={newBranch.city}
+                  onChange={(e) => setNewBranch({ ...newBranch, city: e.target.value })}
+                  placeholder="Mumbai"
+                  data-testid="input-branch-city"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="branch-state">State</Label>
+                <Input
+                  id="branch-state"
+                  value={newBranch.state}
+                  onChange={(e) => setNewBranch({ ...newBranch, state: e.target.value })}
+                  placeholder="Maharashtra"
+                  data-testid="input-branch-state"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="branch-country">Country</Label>
+                <Input
+                  id="branch-country"
+                  value={newBranch.country}
+                  onChange={(e) => setNewBranch({ ...newBranch, country: e.target.value })}
+                  placeholder="India"
+                  data-testid="input-branch-country"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="branch-phone">Phone</Label>
+                <Input
+                  id="branch-phone"
+                  value={newBranch.phone}
+                  onChange={(e) => setNewBranch({ ...newBranch, phone: e.target.value })}
+                  placeholder="+91 1234567890"
+                  data-testid="input-branch-phone"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="branch-email">Email</Label>
+                <Input
+                  id="branch-email"
+                  type="email"
+                  value={newBranch.email}
+                  onChange={(e) => setNewBranch({ ...newBranch, email: e.target.value })}
+                  placeholder="branch@company.com"
+                  data-testid="input-branch-email"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="branch-hq"
+                  checked={newBranch.is_headquarters}
+                  onCheckedChange={(checked) => setNewBranch({ ...newBranch, is_headquarters: checked })}
+                  data-testid="switch-branch-hq"
+                />
+                <Label htmlFor="branch-hq">Headquarters</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="branch-active"
+                  checked={newBranch.is_active}
+                  onCheckedChange={(checked) => setNewBranch({ ...newBranch, is_active: checked })}
+                  data-testid="switch-branch-active-new"
+                />
+                <Label htmlFor="branch-active">Active</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingBranch(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createBranchMutation.mutate(newBranch)}
+              disabled={createBranchMutation.isPending || !newBranch.code || !newBranch.name}
+              data-testid="button-save-branch"
+            >
+              {createBranchMutation.isPending ? "Saving..." : "Save Branch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingBranch} onOpenChange={() => setEditingBranch(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Branch</DialogTitle>
+          </DialogHeader>
+          {editingBranch && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Branch Code</Label>
+                  <Input value={editingBranch.code} disabled className="bg-muted" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-name">Branch Name</Label>
+                  <Input
+                    id="edit-branch-name"
+                    value={editingBranch.name}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                    data-testid="input-edit-branch-name"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-branch-address">Address</Label>
+                <Input
+                  id="edit-branch-address"
+                  value={editingBranch.address}
+                  onChange={(e) => setEditingBranch({ ...editingBranch, address: e.target.value })}
+                  data-testid="input-edit-branch-address"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-city">City</Label>
+                  <Input
+                    id="edit-branch-city"
+                    value={editingBranch.city}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, city: e.target.value })}
+                    data-testid="input-edit-branch-city"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-state">State</Label>
+                  <Input
+                    id="edit-branch-state"
+                    value={editingBranch.state}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, state: e.target.value })}
+                    data-testid="input-edit-branch-state"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-country">Country</Label>
+                  <Input
+                    id="edit-branch-country"
+                    value={editingBranch.country}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, country: e.target.value })}
+                    data-testid="input-edit-branch-country"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-phone">Phone</Label>
+                  <Input
+                    id="edit-branch-phone"
+                    value={editingBranch.phone}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, phone: e.target.value })}
+                    data-testid="input-edit-branch-phone"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-branch-email">Email</Label>
+                  <Input
+                    id="edit-branch-email"
+                    type="email"
+                    value={editingBranch.email}
+                    onChange={(e) => setEditingBranch({ ...editingBranch, email: e.target.value })}
+                    data-testid="input-edit-branch-email"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="edit-branch-hq"
+                    checked={editingBranch.is_headquarters}
+                    onCheckedChange={(checked) => setEditingBranch({ ...editingBranch, is_headquarters: checked })}
+                    data-testid="switch-edit-branch-hq"
+                  />
+                  <Label htmlFor="edit-branch-hq">Headquarters</Label>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingBranch(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingBranch) {
+                  updateBranchMutation.mutate({
+                    id: editingBranch.id,
+                    data: {
+                      name: editingBranch.name,
+                      address: editingBranch.address,
+                      phone: editingBranch.phone,
+                      email: editingBranch.email,
+                      city: editingBranch.city,
+                      state: editingBranch.state,
+                      country: editingBranch.country,
+                      is_headquarters: editingBranch.is_headquarters,
+                    },
+                  });
+                }
+              }}
+              disabled={updateBranchMutation.isPending}
+              data-testid="button-update-branch"
+            >
+              {updateBranchMutation.isPending ? "Updating..." : "Update Branch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -2686,8 +3132,9 @@ export default function AdminPanel() {
             <AttendancePanel />
           </TabsContent>
 
-          <TabsContent value="configuration">
+          <TabsContent value="configuration" className="space-y-6">
             <ConfigurationManagementPanel />
+            <BranchManagementPanel />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
