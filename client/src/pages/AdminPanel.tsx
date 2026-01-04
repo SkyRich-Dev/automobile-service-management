@@ -1861,7 +1861,7 @@ function SystemHealthCard() {
 
 function ConfigurationManagementPanel() {
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState<ConfigCategory | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [editingOption, setEditingOption] = useState<ConfigOption | null>(null);
   const [isAddingOption, setIsAddingOption] = useState(false);
   const [newOption, setNewOption] = useState({
@@ -1879,13 +1879,25 @@ function ConfigurationManagementPanel() {
     queryKey: ["/api/config/categories/"],
   });
 
+  const { data: selectedCategory } = useQuery<ConfigCategory>({
+    queryKey: ["/api/config/categories/", selectedCategoryId],
+    enabled: !!selectedCategoryId,
+  });
+
+  const invalidateConfigQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+    if (selectedCategoryId) {
+      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/", selectedCategoryId] });
+    }
+  };
+
   const createOptionMutation = useMutation({
     mutationFn: async (data: { category: number } & typeof newOption) => {
       return apiRequest("POST", "/api/config/options/", data);
     },
     onSuccess: () => {
       toast({ title: "Option created successfully" });
-      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      invalidateConfigQueries();
       setIsAddingOption(false);
       setNewOption({
         code: "",
@@ -1909,7 +1921,7 @@ function ConfigurationManagementPanel() {
     },
     onSuccess: () => {
       toast({ title: "Option updated successfully" });
-      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      invalidateConfigQueries();
       setEditingOption(null);
     },
     onError: () => {
@@ -1923,7 +1935,7 @@ function ConfigurationManagementPanel() {
     },
     onSuccess: () => {
       toast({ title: "Option deleted" });
-      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      invalidateConfigQueries();
     },
     onError: () => {
       toast({ title: "Failed to delete option", variant: "destructive" });
@@ -1936,7 +1948,7 @@ function ConfigurationManagementPanel() {
     },
     onSuccess: () => {
       toast({ title: "Default configurations seeded" });
-      queryClient.invalidateQueries({ queryKey: ["/api/config/categories/"] });
+      invalidateConfigQueries();
     },
     onError: () => {
       toast({ title: "Failed to seed defaults", variant: "destructive" });
@@ -1991,9 +2003,9 @@ function ConfigurationManagementPanel() {
                     key={category.id}
                     className={cn(
                       "cursor-pointer hover-elevate transition-colors border-border/50",
-                      selectedCategory?.id === category.id && "ring-2 ring-primary"
+                      selectedCategoryId === category.id && "ring-2 ring-primary"
                     )}
-                    onClick={() => setSelectedCategory(category)}
+                    onClick={() => setSelectedCategoryId(category.id)}
                     data-testid={`card-category-${category.code}`}
                   >
                     <CardContent className="p-4">
