@@ -5764,8 +5764,8 @@ class AdminConfigDashboardViewSet(viewsets.ViewSet):
                 'entity_type', 'entity_name', 'action', 'performed_by__username', 'created_at'
             )),
             'system_health': {
-                'integrations_active': IntegrationConfig.objects.filter(is_active=True).count(),
-                'integrations_error': IntegrationConfig.objects.filter(status='error').count(),
+                'integrations_active': IntegrationConfig.objects.filter(is_enabled=True).count(),
+                'integrations_error': IntegrationConfig.objects.filter(sync_status='error').count(),
             }
         })
     
