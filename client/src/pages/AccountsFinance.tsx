@@ -273,6 +273,7 @@ export default function AccountsFinance() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { formatCurrency } = useLocalization();
+  const { isCollapsed } = useSidebar();
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -366,11 +367,7 @@ export default function AccountsFinance() {
     },
   });
 
-  if (dashboardLoading) {
-    return <LoadingSkeleton />;
-  }
-
-  const isWithinDateRange = (dateStr: string, period: string) => {
+  const isWithinDateRange = useCallback((dateStr: string, period: string) => {
     if (period === "all") return true;
     const date = new Date(dateStr);
     const now = new Date();
@@ -394,7 +391,7 @@ export default function AccountsFinance() {
       default:
         return true;
     }
-  };
+  }, []);
 
   const filteredInvoices = useMemo(() => {
     return invoices?.filter((inv) => {
@@ -406,7 +403,7 @@ export default function AccountsFinance() {
       const matchesDate = isWithinDateRange(inv.invoice_date, datePeriodFilter);
       return matchesStatus && matchesPaymentStatus && matchesSearch && matchesDate;
     }) || [];
-  }, [invoices, invoiceStatusFilter, paymentStatusFilter, searchTerm, datePeriodFilter]);
+  }, [invoices, invoiceStatusFilter, paymentStatusFilter, searchTerm, datePeriodFilter, isWithinDateRange]);
 
   const filteredExpenses = useMemo(() => {
     return expenses?.filter((exp) => {
@@ -418,7 +415,7 @@ export default function AccountsFinance() {
       const matchesDate = isWithinDateRange(exp.expense_date, datePeriodFilter);
       return matchesStatus && matchesSearch && matchesDate;
     }) || [];
-  }, [expenses, expenseStatusFilter, searchTerm, datePeriodFilter]);
+  }, [expenses, expenseStatusFilter, searchTerm, datePeriodFilter, isWithinDateRange]);
 
   const filteredReceivables = useMemo(() => {
     return receivables?.filter((rec) => {
@@ -428,7 +425,7 @@ export default function AccountsFinance() {
       const matchesDate = isWithinDateRange(rec.due_date, datePeriodFilter);
       return matchesSearch && matchesDate;
     }) || [];
-  }, [receivables, searchTerm, datePeriodFilter]);
+  }, [receivables, searchTerm, datePeriodFilter, isWithinDateRange]);
 
   const filteredAccounts = useMemo(() => {
     return accounts?.filter((acc) => {
@@ -439,7 +436,7 @@ export default function AccountsFinance() {
     }) || [];
   }, [accounts, searchTerm]);
 
-  const getInvoiceStatusLabel = (status: string) => {
+  const getInvoiceStatusLabel = useCallback((status: string) => {
     const statusMap: Record<string, string> = {
       DRAFT: t('finance.status.DRAFT', 'Draft'),
       PENDING_APPROVAL: t('finance.status.PENDING_APPROVAL', 'Pending Approval'),
@@ -452,9 +449,9 @@ export default function AccountsFinance() {
       CLOSED: t('finance.status.CLOSED', 'Closed'),
     };
     return statusMap[status] || status.replace(/_/g, " ");
-  };
+  }, [t]);
 
-  const getExpenseStatusLabel = (status: string) => {
+  const getExpenseStatusLabel = useCallback((status: string) => {
     const statusMap: Record<string, string> = {
       DRAFT: t('finance.status.DRAFT', 'Draft'),
       SUBMITTED: t('finance.status.SUBMITTED', 'Submitted'),
@@ -464,9 +461,11 @@ export default function AccountsFinance() {
       PAID: t('finance.status.PAID', 'Paid'),
     };
     return statusMap[status] || status.replace(/_/g, " ");
-  };
+  }, [t]);
 
-  const { isCollapsed } = useSidebar();
+  if (dashboardLoading) {
+    return <LoadingSkeleton />;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
