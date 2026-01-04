@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -27,6 +27,7 @@ import ServiceHistoryTimeline from "@/pages/ServiceHistoryTimeline";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
 
 type UserRole = 
   | 'SUPER_ADMIN'
@@ -75,13 +76,20 @@ function LoadingScreen() {
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: UserRole[] }) {
   const { user, profile, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation('/login');
+    }
+  }, [isLoading, user, setLocation]);
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   if (!user) {
-    return <Login />;
+    return <LoadingScreen />;
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
