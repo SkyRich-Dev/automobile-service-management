@@ -2038,16 +2038,14 @@ function ConfigurationManagementPanel() {
               <CardTitle className="text-lg">{selectedCategory.name}</CardTitle>
               <CardDescription>{selectedCategory.description || `Manage ${selectedCategory.name} options`}</CardDescription>
             </div>
-            {!selectedCategory.is_system && (
-              <Button
-                onClick={() => setIsAddingOption(true)}
-                size="sm"
-                data-testid="button-add-option"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Option
-              </Button>
-            )}
+            <Button
+              onClick={() => setIsAddingOption(true)}
+              size="sm"
+              data-testid="button-add-option"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Option
+            </Button>
           </CardHeader>
           <CardContent>
             <Table>
@@ -2081,7 +2079,6 @@ function ConfigurationManagementPanel() {
                             data: { is_active: checked },
                           })
                         }
-                        disabled={option.is_system}
                         data-testid={`switch-active-${option.id}`}
                       />
                     </TableCell>
@@ -2095,17 +2092,15 @@ function ConfigurationManagementPanel() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        {!option.is_system && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => deleteOptionMutation.mutate(option.id)}
-                            className="text-destructive"
-                            data-testid={`button-delete-option-${option.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deleteOptionMutation.mutate(option.id)}
+                          className="text-destructive"
+                          data-testid={`button-delete-option-${option.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
