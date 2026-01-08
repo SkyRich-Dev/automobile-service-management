@@ -88,7 +88,10 @@ from .serializers import (
     AutomationRuleSerializer, DelegationRuleSerializer, BranchHolidayCalendarSerializer,
     OperatingHoursSerializer, SLAConfigSerializer, ConfigAuditLogSerializer,
     MenuConfigSerializer, FeatureFlagSerializer,
-    CurrencySerializer, LanguageSerializer, SystemPreferenceSerializer
+    CurrencySerializer, LanguageSerializer, SystemPreferenceSerializer,
+    Customer360OverviewSerializer, VehicleWithServiceHistorySerializer,
+    ServiceHistorySerializer, CustomerInvoiceSummarySerializer,
+    CustomerContractSummarySerializer, CommunicationLogSerializer, ContractEligibilitySerializer
 )
 
 
@@ -6015,3 +6018,213 @@ class SystemPreferenceViewSet(viewsets.ModelViewSet):
             if created:
                 created_count += 1
         return Response({'message': f'Created/updated {len(defaults)} preferences'})
+
+
+class CustomerProfile360ViewSet(viewsets.GenericViewSet):
+    """
+    Customer 360 View - Comprehensive customer profile with all related data.
+    Provides tabs: Overview, Vehicles, Service History, Invoices, Contracts, Communications
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_customer(self, pk):
+        return Customer.objects.get(pk=pk)
+    
+    @action(detail=True, methods=['get'])
+    def overview(self, request, pk=None):
+        """Get customer overview with key metrics"""
+        try:
+            customer = self.get_customer(pk)
+            serializer = Customer360OverviewSerializer(customer)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def vehicles(self, request, pk=None):
+        """Get all vehicles owned by customer with service info"""
+        try:
+            customer = self.get_customer(pk)
+            vehicles = customer.vehicles.all()
+            serializer = VehicleWithServiceHistorySerializer(vehicles, many=True)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def service_history(self, request, pk=None):
+        """Get complete service history for customer"""
+        try:
+            customer = self.get_customer(pk)
+            vehicle_id = request.query_params.get('vehicle_id')
+            job_cards = customer.job_cards.select_related('vehicle', 'service_advisor').prefetch_related('tasks')
+            if vehicle_id:
+                job_cards = job_cards.filter(vehicle_id=vehicle_id)
+            job_cards = job_cards.order_by('-created_at')
+            serializer = ServiceHistorySerializer(job_cards, many=True)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def invoices(self, request, pk=None):
+        """Get invoice history for customer with summary"""
+        try:
+            customer = self.get_customer(pk)
+            invoices = Invoice.objects.filter(customer=customer).select_related('job_card__vehicle').order_by('-invoice_date')
+            
+            summary = {
+                'total_invoices': invoices.count(),
+                'total_billed': float(invoices.aggregate(total=Sum('grand_total'))['total'] or 0),
+                'total_paid': float(invoices.aggregate(total=Sum('amount_paid'))['total'] or 0),
+                'outstanding_balance': float(invoices.aggregate(total=Sum('balance_due'))['total'] or 0),
+            }
+            
+            serializer = CustomerInvoiceSummarySerializer(invoices, many=True)
+            return Response({
+                'summary': summary,
+                'invoices': serializer.data
+            })
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def contracts(self, request, pk=None):
+        """Get all contracts for customer with status breakdown"""
+        try:
+            customer = self.get_customer(pk)
+            contracts = customer.contracts.prefetch_related('contract_vehicles__vehicle').order_by('-created_at')
+            
+            active = contracts.filter(status='ACTIVE', end_date__gte=timezone.now().date())
+            expired = contracts.filter(Q(status='EXPIRED') | Q(end_date__lt=timezone.now().date()))
+            upcoming_expiry = active.filter(end_date__lte=timezone.now().date() + timezone.timedelta(days=30))
+            
+            serializer = CustomerContractSummarySerializer(contracts, many=True)
+            return Response({
+                'summary': {
+                    'total': contracts.count(),
+                    'active': active.count(),
+                    'expired': expired.count(),
+                    'expiring_soon': upcoming_expiry.count(),
+                },
+                'contracts': serializer.data
+            })
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def communications(self, request, pk=None):
+        """Get communication history for customer"""
+        try:
+            customer = self.get_customer(pk)
+            channel = request.query_params.get('channel')
+            interactions = CustomerInteraction.objects.filter(customer=customer).select_related('handled_by', 'initiated_by', 'job_card')
+            
+            if channel:
+                interactions = interactions.filter(channel=channel)
+            
+            interactions = interactions.order_by('-created_at')
+            serializer = CommunicationLogSerializer(interactions, many=True)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+
+
+class ContractDetectionService:
+    """
+    Service class for detecting and applying contract eligibility.
+    Used during appointment and job card creation.
+    """
+    
+    @staticmethod
+    def detect_contract(customer_id, vehicle_id):
+        """
+        Detect active contract for customer/vehicle combination.
+        Returns eligibility details for contract application.
+        """
+        today = timezone.now().date()
+        
+        contract = Contract.objects.filter(
+            customer_id=customer_id,
+            contract_vehicles__vehicle_id=vehicle_id,
+            status='ACTIVE',
+            start_date__lte=today,
+            end_date__gte=today
+        ).select_related('customer').prefetch_related('contract_vehicles', 'coverage_rules').first()
+        
+        if not contract:
+            customer_contract = Contract.objects.filter(
+                customer_id=customer_id,
+                status='ACTIVE',
+                start_date__lte=today,
+                end_date__gte=today
+            ).first()
+            
+            if customer_contract and customer_contract.contract_type in ['FLEET', 'CORPORATE']:
+                contract = customer_contract
+        
+        if contract:
+            services_remaining = contract.services_remaining if hasattr(contract, 'services_remaining') else None
+            is_eligible = True
+            message = f"Active {contract.get_contract_type_display()} contract found"
+            
+            if contract.max_services and services_remaining is not None and services_remaining <= 0:
+                is_eligible = False
+                message = "Contract service limit reached"
+            
+            return {
+                'has_active_contract': True,
+                'contract_id': contract.id,
+                'contract_number': contract.contract_number,
+                'contract_type': contract.contract_type,
+                'contract_status': contract.status,
+                'validity_start': contract.start_date,
+                'validity_end': contract.end_date,
+                'days_remaining': (contract.end_date - today).days,
+                'services_remaining': services_remaining,
+                'labor_coverage_percent': contract.labor_coverage_percent,
+                'parts_coverage': contract.parts_coverage,
+                'covered_service_types': contract.services_included,
+                'consumables_included': contract.consumables_included,
+                'is_eligible_for_free_service': is_eligible,
+                'eligibility_message': message
+            }
+        
+        return {
+            'has_active_contract': False,
+            'contract_id': None,
+            'contract_number': None,
+            'contract_type': None,
+            'contract_status': None,
+            'validity_start': None,
+            'validity_end': None,
+            'days_remaining': None,
+            'services_remaining': None,
+            'labor_coverage_percent': None,
+            'parts_coverage': None,
+            'covered_service_types': None,
+            'consumables_included': None,
+            'is_eligible_for_free_service': False,
+            'eligibility_message': 'No active contract found for this customer/vehicle'
+        }
+
+
+@api_view(['POST'])
+def detect_contract_view(request):
+    """
+    API endpoint to detect contract eligibility for appointment/job card creation.
+    Required: customer_id, vehicle_id
+    """
+    if not request.user.is_authenticated:
+        return Response({'error': 'Authentication required'}, status=401)
+    
+    customer_id = request.data.get('customer_id')
+    vehicle_id = request.data.get('vehicle_id')
+    
+    if not customer_id or not vehicle_id:
+        return Response({'error': 'customer_id and vehicle_id are required'}, status=400)
+    
+    result = ContractDetectionService.detect_contract(customer_id, vehicle_id)
+    serializer = ContractEligibilitySerializer(data=result)
+    serializer.is_valid()
+    return Response(serializer.data)

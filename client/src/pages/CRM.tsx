@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useCustomers, useCreateCustomer, useCreateVehicle } from "@/hooks/use-crm";
@@ -182,6 +183,7 @@ export default function CRM() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { isCollapsed } = useSidebar();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const createCustomer = useCreateCustomer();
@@ -776,7 +778,12 @@ export default function CRM() {
           <TabsContent value="customers" className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {customers?.map((customer) => (
-                <Card key={customer.id} data-testid={`card-customer-${customer.id}`}>
+                <Card 
+                  key={customer.id} 
+                  data-testid={`card-customer-${customer.id}`}
+                  className="cursor-pointer hover-elevate"
+                  onClick={() => setLocation(`/crm/customers/${customer.id}`)}
+                >
                   <CardContent className="p-5">
                     <div className="mb-4 flex items-center gap-3">
                       <Avatar className="h-12 w-12 border-2 border-border">
@@ -791,6 +798,7 @@ export default function CRM() {
                           {customer.loyalty_points} {t('crm.points', 'Points')}
                         </Badge>
                       </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">

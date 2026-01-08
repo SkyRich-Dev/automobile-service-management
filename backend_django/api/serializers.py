@@ -2100,3 +2100,299 @@ class SystemPreferenceSerializer(serializers.ModelSerializer):
         fields = ['id', 'key', 'preference_type', 'value', 'description', 
                   'updated_by', 'updated_by_name', 'updated_at']
         read_only_fields = ['id', 'updated_at']
+
+
+class Customer360OverviewSerializer(serializers.ModelSerializer):
+    vehicles_count = serializers.SerializerMethodField()
+    active_contracts_count = serializers.SerializerMethodField()
+    open_job_cards_count = serializers.SerializerMethodField()
+    pending_invoices_count = serializers.SerializerMethodField()
+    total_service_visits = serializers.SerializerMethodField()
+    last_service_date = serializers.SerializerMethodField()
+    preferred_branch_name = serializers.CharField(source='preferred_branch.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Customer
+        fields = ['id', 'customer_id', 'name', 'phone', 'email', 'alternate_phone', 'alternate_email',
+                  'address', 'city', 'state', 'pincode', 'gst_number', 'pan_number',
+                  'customer_type', 'customer_category', 'preferred_channel', 'preferred_branch',
+                  'preferred_branch_name', 'loyalty_points', 'credit_limit', 'outstanding_balance',
+                  'total_revenue', 'total_visits', 'last_visit_date', 'date_of_birth', 'anniversary_date',
+                  'notes', 'tags', 'do_not_contact', 'is_active', 'created_at', 'updated_at',
+                  'vehicles_count', 'active_contracts_count', 'open_job_cards_count',
+                  'pending_invoices_count', 'total_service_visits', 'last_service_date']
+    
+    def get_vehicles_count(self, obj):
+        return obj.vehicles.count()
+    
+    def get_active_contracts_count(self, obj):
+        from django.utils import timezone
+        return obj.contracts.filter(status='ACTIVE', end_date__gte=timezone.now().date()).count()
+    
+    def get_open_job_cards_count(self, obj):
+        return obj.job_cards.exclude(workflow_stage='COMPLETED').count()
+    
+    def get_pending_invoices_count(self, obj):
+        return Invoice.objects.filter(customer=obj, payment_status__in=['UNPAID', 'PARTIAL']).count()
+    
+    def get_total_service_visits(self, obj):
+        return obj.job_cards.filter(workflow_stage='COMPLETED').count()
+    
+    def get_last_service_date(self, obj):
+        last_job = obj.job_cards.filter(workflow_stage='COMPLETED').order_by('-actual_delivery').first()
+        return last_job.actual_delivery if last_job else None
+
+
+class VehicleWithServiceHistorySerializer(serializers.ModelSerializer):
+    service_count = serializers.SerializerMethodField()
+    last_service_date = serializers.SerializerMethodField()
+    last_odometer = serializers.SerializerMethodField()
+    active_contract = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Vehicle
+        fields = ['id', 'vehicle_id', 'vin', 'plate_number', 'make', 'model', 'variant', 
+                  'year', 'color', 'vehicle_type', 'fuel_type', 'transmission', 'current_odometer',
+                  'insurance_expiry', 'warranty_expiry', 'amc_expiry', 'created_at',
+                  'service_count', 'last_service_date', 'last_odometer', 'active_contract', 'status']
+    
+    def get_service_count(self, obj):
+        return obj.job_cards.filter(workflow_stage='COMPLETED').count()
+    
+    def get_last_service_date(self, obj):
+        last_job = obj.job_cards.filter(workflow_stage='COMPLETED').order_by('-actual_delivery').first()
+        return last_job.actual_delivery if last_job else None
+    
+    def get_last_odometer(self, obj):
+        last_job = obj.job_cards.order_by('-created_at').first()
+        return last_job.odometer_in if last_job else obj.current_odometer
+    
+    def get_active_contract(self, obj):
+        from django.utils import timezone
+        contract = Contract.objects.filter(
+            contract_vehicles__vehicle=obj,
+            status='ACTIVE',
+            end_date__gte=timezone.now().date()
+        ).first()
+        if contract:
+            return {
+                'id': contract.id,
+                'contract_number': contract.contract_number,
+                'contract_type': contract.contract_type,
+                'end_date': contract.end_date,
+                'services_remaining': contract.services_remaining
+            }
+        return None
+    
+    def get_status(self, obj):
+        return 'ACTIVE'
+
+
+class ServiceHistorySerializer(serializers.ModelSerializer):
+    vehicle_info = serializers.SerializerMethodField()
+    advisor_name = serializers.SerializerMethodField()
+    technicians = serializers.SerializerMethodField()
+    service_duration_hours = serializers.SerializerMethodField()
+    is_rework = serializers.SerializerMethodField()
+    sla_status = serializers.SerializerMethodField()
+    invoice_info = serializers.SerializerMethodField()
+    contract_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = JobCard
+        fields = ['id', 'job_card_number', 'service_tracking_id', 'vehicle', 'vehicle_info',
+                  'workflow_stage', 'job_type', 'priority', 'complaint', 'diagnosis',
+                  'odometer_in', 'odometer_out', 'estimated_hours', 'actual_hours',
+                  'estimated_amount', 'actual_amount', 'is_warranty', 'is_amc', 'is_insurance',
+                  'is_goodwill', 'promised_delivery', 'sla_deadline', 'actual_delivery',
+                  'customer_rating', 'created_at', 'updated_at', 'advisor_name', 'technicians',
+                  'service_duration_hours', 'is_rework', 'sla_status', 'invoice_info', 'contract_info']
+    
+    def get_vehicle_info(self, obj):
+        return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+    
+    def get_advisor_name(self, obj):
+        if obj.service_advisor:
+            return f"{obj.service_advisor.first_name} {obj.service_advisor.last_name}".strip() or obj.service_advisor.username
+        return None
+    
+    def get_technicians(self, obj):
+        tasks = obj.tasks.all()
+        technicians = set()
+        for task in tasks:
+            if task.assigned_to:
+                name = f"{task.assigned_to.first_name} {task.assigned_to.last_name}".strip() or task.assigned_to.username
+                technicians.add(name)
+        return list(technicians)
+    
+    def get_service_duration_hours(self, obj):
+        return float(obj.actual_hours) if obj.actual_hours else None
+    
+    def get_is_rework(self, obj):
+        return obj.events.filter(event_type='REWORK').exists() if hasattr(obj, 'events') else False
+    
+    def get_sla_status(self, obj):
+        from django.utils import timezone
+        if obj.workflow_stage == 'COMPLETED':
+            if obj.sla_deadline and obj.actual_delivery:
+                return 'MET' if obj.actual_delivery <= obj.sla_deadline else 'BREACHED'
+            return 'N/A'
+        elif obj.sla_deadline:
+            return 'AT_RISK' if timezone.now() > obj.sla_deadline else 'ON_TRACK'
+        return 'N/A'
+    
+    def get_invoice_info(self, obj):
+        invoice = Invoice.objects.filter(job_card=obj).first()
+        if invoice:
+            return {
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'grand_total': float(invoice.grand_total),
+                'payment_status': invoice.payment_status
+            }
+        return None
+    
+    def get_contract_info(self, obj):
+        if obj.is_warranty or obj.is_amc:
+            contract = Contract.objects.filter(
+                customer=obj.customer,
+                contract_vehicles__vehicle=obj.vehicle,
+                status='ACTIVE'
+            ).first()
+            if contract:
+                return {
+                    'id': contract.id,
+                    'contract_number': contract.contract_number,
+                    'contract_type': contract.contract_type
+                }
+        return None
+
+
+class CustomerInvoiceSummarySerializer(serializers.ModelSerializer):
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    vehicle_info = serializers.SerializerMethodField()
+    contract_covered = serializers.SerializerMethodField()
+    contract_type = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Invoice
+        fields = ['id', 'invoice_number', 'job_card', 'job_card_number', 'vehicle_info',
+                  'labor_total', 'parts_total', 'consumables_total', 'subtotal',
+                  'discount', 'tax', 'grand_total', 'amount_paid', 'balance_due',
+                  'payment_status', 'invoice_date', 'due_date', 'contract_covered', 'contract_type']
+    
+    def get_vehicle_info(self, obj):
+        if obj.job_card and obj.job_card.vehicle:
+            v = obj.job_card.vehicle
+            return f"{v.year or ''} {v.make} {v.model} - {v.plate_number}"
+        return None
+    
+    def get_contract_covered(self, obj):
+        if obj.job_card:
+            return obj.job_card.is_warranty or obj.job_card.is_amc
+        return False
+    
+    def get_contract_type(self, obj):
+        if obj.job_card:
+            if obj.job_card.is_warranty:
+                return 'WARRANTY'
+            elif obj.job_card.is_amc:
+                return 'AMC'
+        return None
+
+
+class CustomerContractSummarySerializer(serializers.ModelSerializer):
+    vehicles = serializers.SerializerMethodField()
+    days_remaining = serializers.SerializerMethodField()
+    services_remaining = serializers.SerializerMethodField()
+    utilization_percent = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Contract
+        fields = ['id', 'contract_number', 'contract_type', 'status', 'provider',
+                  'start_date', 'end_date', 'contract_value', 'max_services', 'services_used',
+                  'labor_coverage_percent', 'consumables_included', 'services_included',
+                  'parts_coverage', 'is_active', 'is_expired', 'days_remaining',
+                  'services_remaining', 'utilization_percent', 'vehicles', 'created_at']
+    
+    def get_vehicles(self, obj):
+        return [{
+            'id': cv.vehicle.id,
+            'plate_number': cv.vehicle.plate_number,
+            'make': cv.vehicle.make,
+            'model': cv.vehicle.model
+        } for cv in obj.contract_vehicles.all()]
+    
+    def get_days_remaining(self, obj):
+        from django.utils import timezone
+        if obj.end_date and obj.end_date >= timezone.now().date():
+            return (obj.end_date - timezone.now().date()).days
+        return None
+    
+    def get_services_remaining(self, obj):
+        if obj.max_services:
+            return max(0, obj.max_services - (obj.services_used or 0))
+        return None
+    
+    def get_utilization_percent(self, obj):
+        if obj.max_services and obj.max_services > 0:
+            return round(((obj.services_used or 0) / obj.max_services) * 100, 1)
+        return None
+    
+    def get_is_active(self, obj):
+        from django.utils import timezone
+        return obj.status == 'ACTIVE' and obj.end_date >= timezone.now().date()
+    
+    def get_is_expired(self, obj):
+        from django.utils import timezone
+        return obj.status == 'EXPIRED' or (obj.end_date and obj.end_date < timezone.now().date())
+
+
+class CommunicationLogSerializer(serializers.ModelSerializer):
+    handled_by_name = serializers.SerializerMethodField()
+    initiated_by_name = serializers.SerializerMethodField()
+    related_job_card = serializers.CharField(source='job_card.job_card_number', read_only=True, allow_null=True)
+    delivery_status = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CustomerInteraction
+        fields = ['id', 'interaction_id', 'interaction_type', 'channel', 'direction',
+                  'subject', 'description', 'outcome', 'sentiment', 'duration_minutes',
+                  'next_action', 'next_action_date', 'initiated_by', 'initiated_by_name',
+                  'handled_by', 'handled_by_name', 'related_job_card', 'delivery_status',
+                  'is_private', 'created_at']
+    
+    def get_handled_by_name(self, obj):
+        if obj.handled_by:
+            return f"{obj.handled_by.first_name} {obj.handled_by.last_name}".strip() or obj.handled_by.username
+        return None
+    
+    def get_initiated_by_name(self, obj):
+        if obj.initiated_by:
+            return f"{obj.initiated_by.first_name} {obj.initiated_by.last_name}".strip() or obj.initiated_by.username
+        return None
+    
+    def get_delivery_status(self, obj):
+        metadata = obj.metadata or {}
+        return metadata.get('delivery_status', 'SENT')
+
+
+class ContractEligibilitySerializer(serializers.Serializer):
+    has_active_contract = serializers.BooleanField()
+    contract_id = serializers.IntegerField(allow_null=True)
+    contract_number = serializers.CharField(allow_null=True)
+    contract_type = serializers.CharField(allow_null=True)
+    contract_status = serializers.CharField(allow_null=True)
+    validity_start = serializers.DateField(allow_null=True)
+    validity_end = serializers.DateField(allow_null=True)
+    days_remaining = serializers.IntegerField(allow_null=True)
+    services_remaining = serializers.IntegerField(allow_null=True)
+    labor_coverage_percent = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
+    parts_coverage = serializers.DictField(allow_null=True)
+    covered_service_types = serializers.ListField(child=serializers.CharField(), allow_null=True)
+    consumables_included = serializers.BooleanField(allow_null=True)
+    is_eligible_for_free_service = serializers.BooleanField()
+    eligibility_message = serializers.CharField()

@@ -141,6 +141,17 @@ urlpatterns = [
     path('crm/dashboard/', views.crm_dashboard, name='crm_dashboard'),
     path('crm/customer-360/<int:customer_id>/', views.customer_360_view, name='customer_360'),
     
+    # Customer 360 Profile Routes
+    path('customers/<int:pk>/360/overview/', views.CustomerProfile360ViewSet.as_view({'get': 'overview'}), name='customer_360_overview'),
+    path('customers/<int:pk>/360/vehicles/', views.CustomerProfile360ViewSet.as_view({'get': 'vehicles'}), name='customer_360_vehicles'),
+    path('customers/<int:pk>/360/service-history/', views.CustomerProfile360ViewSet.as_view({'get': 'service_history'}), name='customer_360_service_history'),
+    path('customers/<int:pk>/360/invoices/', views.CustomerProfile360ViewSet.as_view({'get': 'invoices'}), name='customer_360_invoices'),
+    path('customers/<int:pk>/360/contracts/', views.CustomerProfile360ViewSet.as_view({'get': 'contracts'}), name='customer_360_contracts'),
+    path('customers/<int:pk>/360/communications/', views.CustomerProfile360ViewSet.as_view({'get': 'communications'}), name='customer_360_communications'),
+    
+    # Contract Detection
+    path('contracts/detect/', views.detect_contract_view, name='detect_contract'),
+    
     # Finance Module Views
     path('finance/dashboard/', views.finance_dashboard, name='finance_dashboard'),
     
