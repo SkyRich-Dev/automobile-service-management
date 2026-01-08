@@ -34,6 +34,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   History,
+  Bell,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,12 @@ const menuItemsConfig: MenuItemConfig[] = [
       { key: "hrms.leaveManagement", icon: CalendarDays, path: "/hrms?tab=leave" },
       { key: "hrms.skillMatrix", icon: Target, path: "/hrms?tab=matrix" },
     ]
+  },
+  { 
+    key: "notificationCenter",
+    icon: Bell, 
+    path: "/notification-center",
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
   { 
     key: "adminPanel",

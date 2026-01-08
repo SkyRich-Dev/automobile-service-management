@@ -1,0 +1,206 @@
+MASTER PROMPT — ENTERPRISE NOTIFICATION CENTER (ADMIN PANEL)
+(Template-Driven | Multi-Channel | Fully Configurable | Zero Hard-Code)
+ROLE & OBJECTIVE
+You are a senior enterprise platform engineering team responsible for building a centralized Notification Center inside the Admin Panel of an Automobile Car & Bike Service Management System.
+This Notification Center must act as the single control point for ALL communications, allowing Super Admins to:
+Create and manage notification templates
+Decide which notification goes through which channel
+Control when, to whom, and how notifications are sent
+Enable/disable notifications without code changes
+⚠️ No notification logic must be hard-coded anywhere in the system.
+1. CORE DESIGN PRINCIPLES (NON-NEGOTIABLE)
+One Notification Center for the entire system
+Template-driven (no hard-coded messages)
+Channel-agnostic (SMS / WhatsApp / Email / Multiple)
+Event-based & rule-based triggering
+Fully configurable by Super Admin
+Auditable & traceable
+2. NOTIFICATION CENTER — HIGH-LEVEL STRUCTURE
+The Notification Center must be divided into:
+Notification Events
+Template Management
+Channel Configuration
+Trigger & Rule Engine
+Recipient Configuration
+Escalation Rules
+Notification Logs & Reports
+3. NOTIFICATION EVENT MASTER (FOUNDATION)
+Create a Notification Event Master where admin defines WHEN notifications are triggered.
+Example Events (Configurable)
+Service reminder (before due date)
+Appointment confirmation
+Job started
+Job delayed
+Job completed
+Invoice generated
+Payment pending
+Payment overdue
+Contract expiry reminder
+Supplier PO issued
+Supplier delivery delay
+Low stock alert
+HR attendance anomaly
+Payroll generated
+Each event must have:
+Event ID
+Event name
+Related module (Service / CRM / Inventory / Accounts / HR)
+Trigger condition (time-based / status-based / rule-based)
+Active / inactive flag
+4. TEMPLATE MANAGEMENT (CORE FEATURE)
+4.1 Template Master
+Super Admin must be able to create multiple templates per event.
+Each template must include:
+Template ID
+Template name
+Notification event
+Language (English / regional)
+Message content
+Dynamic variables (placeholders)
+Status (Draft / Active / Archived)
+Example Variables
+{{CustomerName}}
+{{VehicleNumber}}
+{{JobCardID}}
+{{InvoiceNumber}}
+{{DueDate}}
+{{Amount}}
+{{SupplierName}}
+⚠️ Variable validation required before activation.
+5. CHANNEL CONFIGURATION (SUPER ADMIN CONTROL)
+Super Admin must decide which channel is used for which event.
+Supported Channels
+SMS
+WhatsApp
+Email
+Multiple channels simultaneously
+Per Event Configuration
+For each event:
+Enable / disable SMS
+Enable / disable WhatsApp
+Enable / disable Email
+Select specific template per channel
+Example:
+Service reminder → WhatsApp + SMS
+Invoice → Email + WhatsApp
+Supplier PO → Email only
+6. TRIGGER & RULE ENGINE (SMART CONTROL)
+Admin must configure WHEN notifications are sent.
+Trigger Types
+Time-based (e.g., 3 days before service due)
+Status-based (e.g., invoice generated)
+SLA-based (e.g., service delay > X hours)
+Recurring (daily / weekly reminders)
+Rule Configuration
+Delay tolerance
+Retry count
+Retry interval
+Business hours restriction
+Holiday handling
+7. RECIPIENT CONFIGURATION (WHO GETS WHAT)
+Admin must configure recipients per event:
+Recipient Types
+Customer
+Supplier
+Technician
+Service Advisor
+Manager
+Accounts Team
+HR Team
+Rules
+Primary recipient
+CC / escalation recipients
+Branch-based recipients
+Role-based recipients
+Example:
+Payment overdue → Customer + Accounts Manager
+Service delay → Customer + Branch Manager
+8. ESCALATION & FALLBACK RULES
+If notification fails or SLA breached:
+Escalate to next role
+Switch channel (WhatsApp → SMS)
+Notify manager
+Escalation configuration must include:
+Escalation time
+Escalation recipient
+Escalation channel
+9. MODULE-WISE NOTIFICATION COVERAGE
+Service & CRM
+Service reminders
+Appointment confirmation
+Job status updates
+Delay notifications
+Job completion alerts
+Accounts & Finance
+Invoice generated
+Payment reminder
+Overdue payment escalation
+Credit limit alerts
+Inventory & Supplier
+PO issued
+Delivery reminder
+Delivery delay
+Low stock alert
+Contracts
+Contract activation
+Contract expiry
+Renewal reminder
+HR
+Attendance exception
+Payroll generated
+Incentive notification
+10. NOTIFICATION LOG & AUDIT (MANDATORY)
+Every notification must be logged with:
+Event name
+Template used
+Channel
+Recipient
+Sent date & time
+Delivery status
+Failure reason (if any)
+Retry count
+Logs must be:
+Searchable
+Exportable
+Immutable
+11. UI / UX REQUIREMENTS (ADMIN PANEL)
+Wizard-based template creation
+Live preview per channel
+Variable picker
+Safe test message option
+Enable / disable toggle
+Impact warning before changes
+Simple, non-technical language
+12. BACKEND DESIGN (HIGH-LEVEL)
+Core entities:
+NotificationEvent
+NotificationTemplate
+NotificationChannelConfig
+NotificationRule
+NotificationRecipientRule
+NotificationLog
+NotificationAuditLog
+All logic must be data-driven, not code-driven.
+13. SECURITY & GOVERNANCE
+Only Super Admin can:
+Create / edit templates
+Change channel rules
+Changes require:
+Reason
+Audit trail
+Rollback supported
+14. FINAL VALIDATION RULES
+After implementation:
+✅ No hard-coded messages
+✅ Admin controls all notifications
+✅ Multi-channel supported
+✅ Easy template management
+✅ Full audit & traceability
+✅ Scalable for future channels
+15. FINAL INSTRUCTION
+Build this Notification Center as a mission-critical communication engine, not a simple messaging feature.
+It must:
+Support business growth
+Reduce manual follow-ups
+Improve customer & supplier experience
+Be safe for enterprise use

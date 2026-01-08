@@ -3906,7 +3906,7 @@ class ApprovalRule(models.Model):
 
 
 class NotificationTemplate(models.Model):
-    """Notification message templates"""
+    """Notification message templates - enhanced for enterprise notification center"""
     CHANNELS = [
         ('EMAIL', 'Email'),
         ('SMS', 'SMS'),
@@ -3914,36 +3914,68 @@ class NotificationTemplate(models.Model):
         ('PUSH', 'Push Notification'),
         ('IN_APP', 'In-App Notification'),
     ]
+    TEMPLATE_STATUS = [
+        ('DRAFT', 'Draft'),
+        ('ACTIVE', 'Active'),
+        ('ARCHIVED', 'Archived'),
+    ]
     
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=100)
+    event = models.ForeignKey('NotificationEvent', on_delete=models.SET_NULL, null=True, blank=True, related_name='templates')
     channel = models.CharField(max_length=20, choices=CHANNELS)
-    subject = models.CharField(max_length=255, blank=True)
+    subject = models.CharField(max_length=500, blank=True)
     body = models.TextField()
+    body_html = models.TextField(blank=True, help_text="HTML content for email notifications")
     variables = models.JSONField(default=list)
     language = models.CharField(max_length=10, default='en')
+    status = models.CharField(max_length=20, choices=TEMPLATE_STATUS, default='ACTIVE')
+    is_default = models.BooleanField(default=False, help_text="Default template for event+channel+language")
+    version = models.IntegerField(default=1)
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_templates')
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} ({self.channel})"
 
+    def extract_variables(self):
+        """Extract all {{variable}} placeholders from content"""
+        import re
+        pattern = r'\{\{(\w+)\}\}'
+        return list(set(re.findall(pattern, self.body + (self.subject or ''))))
+
 
 class NotificationRule(models.Model):
-    """Event-based notification configuration"""
+    """Event-based notification configuration - enhanced with trigger rules"""
+    DELAY_UNITS = [
+        ('MINUTES', 'Minutes'),
+        ('HOURS', 'Hours'),
+        ('DAYS', 'Days'),
+    ]
+    
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    event = models.ForeignKey('NotificationEvent', on_delete=models.SET_NULL, null=True, blank=True, related_name='rules')
     event_type = models.CharField(max_length=100)
     module = models.CharField(max_length=50)
     template = models.ForeignKey(NotificationTemplate, on_delete=models.CASCADE, related_name='rules')
     recipient_roles = models.JSONField(default=list)
     recipient_users = models.ManyToManyField(User, blank=True, related_name='notification_rules')
     conditions = models.JSONField(default=dict)
+    delay_value = models.IntegerField(default=0, help_text="Delay before sending (0 = immediate)")
+    delay_unit = models.CharField(max_length=10, choices=DELAY_UNITS, default='MINUTES')
     delay_minutes = models.IntegerField(default=0)
+    retry_count = models.IntegerField(default=3)
+    retry_interval = models.IntegerField(default=30, help_text="Retry interval in minutes")
+    business_hours_only = models.BooleanField(default=False)
+    skip_holidays = models.BooleanField(default=False)
     is_escalation = models.BooleanField(default=False)
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, related_name='notification_rules')
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_notification_rules')
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -4228,5 +4260,258 @@ class SystemPreference(models.Model):
 
     def __str__(self):
         return f"{self.key}: {self.value}"
+
+
+class NotificationModule(models.TextChoices):
+    SERVICE = 'SERVICE', 'Service & Workflow'
+    CRM = 'CRM', 'Customer Relations'
+    INVENTORY = 'INVENTORY', 'Inventory & Supplier'
+    ACCOUNTS = 'ACCOUNTS', 'Accounts & Finance'
+    CONTRACTS = 'CONTRACTS', 'Contracts'
+    HR = 'HR', 'Human Resources'
+    SYSTEM = 'SYSTEM', 'System'
+
+
+class NotificationTriggerType(models.TextChoices):
+    TIME_BASED = 'TIME_BASED', 'Time Based'
+    STATUS_BASED = 'STATUS_BASED', 'Status Based'
+    SLA_BASED = 'SLA_BASED', 'SLA Based'
+    RECURRING = 'RECURRING', 'Recurring'
+    MANUAL = 'MANUAL', 'Manual'
+
+
+class NotificationChannel(models.TextChoices):
+    SMS = 'SMS', 'SMS'
+    WHATSAPP = 'WHATSAPP', 'WhatsApp'
+    EMAIL = 'EMAIL', 'Email'
+    PUSH = 'PUSH', 'Push Notification'
+    IN_APP = 'IN_APP', 'In-App Notification'
+
+
+class NotificationRecipientType(models.TextChoices):
+    CUSTOMER = 'CUSTOMER', 'Customer'
+    SUPPLIER = 'SUPPLIER', 'Supplier'
+    TECHNICIAN = 'TECHNICIAN', 'Technician'
+    SERVICE_ADVISOR = 'SERVICE_ADVISOR', 'Service Advisor'
+    MANAGER = 'MANAGER', 'Manager'
+    ACCOUNTS_TEAM = 'ACCOUNTS_TEAM', 'Accounts Team'
+    HR_TEAM = 'HR_TEAM', 'HR Team'
+    BRANCH_BASED = 'BRANCH_BASED', 'Branch Based'
+    ROLE_BASED = 'ROLE_BASED', 'Role Based'
+    SPECIFIC_USER = 'SPECIFIC_USER', 'Specific User'
+
+
+class NotificationDeliveryStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    QUEUED = 'QUEUED', 'Queued'
+    SENT = 'SENT', 'Sent'
+    DELIVERED = 'DELIVERED', 'Delivered'
+    FAILED = 'FAILED', 'Failed'
+    BOUNCED = 'BOUNCED', 'Bounced'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class NotificationEvent(models.Model):
+    """Master list of notification events - defines WHEN notifications can be triggered"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    module = models.CharField(max_length=20, choices=NotificationModule.choices)
+    trigger_type = models.CharField(max_length=20, choices=NotificationTriggerType.choices, default=NotificationTriggerType.STATUS_BASED)
+    trigger_condition = models.TextField(blank=True, help_text="Description of when this event is triggered")
+    available_variables = models.JSONField(default=list, help_text="List of variable names available for this event")
+    is_active = models.BooleanField(default=True)
+    is_system_event = models.BooleanField(default=False, help_text="System events cannot be deleted")
+    display_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_notification_events')
+
+    class Meta:
+        ordering = ['module', 'display_order', 'name']
+
+    def __str__(self):
+        return f"[{self.module}] {self.name}"
+
+
+class NotificationChannelConfig(models.Model):
+    """Per-event channel configuration - which channels are enabled for which events"""
+    event = models.ForeignKey(NotificationEvent, on_delete=models.CASCADE, related_name='channel_configs')
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices)
+    is_enabled = models.BooleanField(default=True)
+    template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='channel_configs')
+    priority = models.IntegerField(default=1, help_text="1=highest priority")
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        unique_together = [['event', 'channel']]
+        ordering = ['event', 'priority']
+
+    def __str__(self):
+        status = "Enabled" if self.is_enabled else "Disabled"
+        return f"{self.event.name} via {self.channel} ({status})"
+
+
+class NotificationRecipientRule(models.Model):
+    """Recipient configuration - WHO receives notifications"""
+    event = models.ForeignKey(NotificationEvent, on_delete=models.CASCADE, related_name='recipient_rules')
+    name = models.CharField(max_length=200)
+    recipient_type = models.CharField(max_length=20, choices=NotificationRecipientType.choices)
+    is_primary = models.BooleanField(default=True)
+    is_cc = models.BooleanField(default=False)
+    specific_roles = models.JSONField(default=list, help_text="List of role codes for ROLE_BASED type")
+    specific_branches = models.ManyToManyField(Branch, blank=True, related_name='notification_recipient_rules')
+    specific_users = models.ManyToManyField(User, blank=True, related_name='notification_recipient_rules')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_recipient_rules')
+
+    class Meta:
+        ordering = ['event', '-is_primary', 'name']
+
+    def __str__(self):
+        return f"{self.event.name} -> {self.recipient_type}"
+
+
+class NotificationEscalationRule(models.Model):
+    """Escalation rules - what happens when notification fails or SLA breached"""
+    event = models.ForeignKey(NotificationEvent, on_delete=models.CASCADE, related_name='escalation_rules')
+    name = models.CharField(max_length=200)
+    escalation_level = models.IntegerField(default=1)
+    escalation_after_minutes = models.IntegerField(default=60)
+    escalation_condition = models.CharField(max_length=50, choices=[
+        ('DELIVERY_FAILED', 'Delivery Failed'),
+        ('NO_RESPONSE', 'No Response'),
+        ('SLA_BREACH', 'SLA Breach'),
+        ('RETRY_EXHAUSTED', 'Retry Exhausted'),
+    ], default='DELIVERY_FAILED')
+    escalate_to_roles = models.JSONField(default=list)
+    escalate_to_users = models.ManyToManyField(User, blank=True, related_name='escalation_notifications')
+    fallback_channel = models.CharField(max_length=20, choices=NotificationChannel.choices, blank=True)
+    notify_original_recipient = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['event', 'escalation_level']
+        unique_together = [['event', 'escalation_level']]
+
+    def __str__(self):
+        return f"{self.event.name} - Level {self.escalation_level}"
+
+
+class NotificationQueue(models.Model):
+    """Queue for pending notifications"""
+    event = models.ForeignKey(NotificationEvent, on_delete=models.CASCADE, related_name='queued_notifications')
+    template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True)
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices)
+    recipient_type = models.CharField(max_length=20, choices=NotificationRecipientType.choices)
+    recipient_email = models.EmailField(blank=True)
+    recipient_phone = models.CharField(max_length=20, blank=True)
+    recipient_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='queued_notifications')
+    context_data = models.JSONField(default=dict, help_text="Variable values for template rendering")
+    reference_type = models.CharField(max_length=50, blank=True, help_text="e.g., JobCard, Invoice")
+    reference_id = models.IntegerField(null=True, blank=True)
+    scheduled_at = models.DateTimeField(default=timezone.now)
+    priority = models.IntegerField(default=5)
+    status = models.CharField(max_length=20, choices=NotificationDeliveryStatus.choices, default=NotificationDeliveryStatus.PENDING)
+    retry_count = models.IntegerField(default=0)
+    max_retries = models.IntegerField(default=3)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['priority', 'scheduled_at']
+
+    def __str__(self):
+        return f"{self.event.name} to {self.recipient_email or self.recipient_phone} ({self.status})"
+
+
+class NotificationLog(models.Model):
+    """Immutable log of all sent notifications"""
+    log_number = models.CharField(max_length=50, unique=True, editable=False)
+    event = models.ForeignKey(NotificationEvent, on_delete=models.SET_NULL, null=True, related_name='logs')
+    event_code = models.CharField(max_length=50)
+    event_name = models.CharField(max_length=200)
+    template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True, related_name='logs')
+    template_name = models.CharField(max_length=200, blank=True)
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices)
+    recipient_type = models.CharField(max_length=20, choices=NotificationRecipientType.choices)
+    recipient_name = models.CharField(max_length=200, blank=True)
+    recipient_email = models.EmailField(blank=True)
+    recipient_phone = models.CharField(max_length=20, blank=True)
+    recipient_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notification_logs')
+    subject = models.CharField(max_length=500, blank=True)
+    content_rendered = models.TextField(help_text="Final rendered message content")
+    context_data = models.JSONField(default=dict)
+    reference_type = models.CharField(max_length=50, blank=True)
+    reference_id = models.IntegerField(null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=NotificationDeliveryStatus.choices)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    failed_at = models.DateTimeField(null=True, blank=True)
+    failure_reason = models.TextField(blank=True)
+    retry_count = models.IntegerField(default=0)
+    external_message_id = models.CharField(max_length=200, blank=True, help_text="ID from SMS/Email provider")
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.log_number} - {self.event_name} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        if not self.log_number:
+            prefix = "NL"
+            date_str = timezone.now().strftime('%Y%m%d')
+            last_log = NotificationLog.objects.filter(log_number__startswith=f"{prefix}{date_str}").order_by('-log_number').first()
+            if last_log:
+                last_num = int(last_log.log_number[-4:])
+                self.log_number = f"{prefix}{date_str}{(last_num + 1):04d}"
+            else:
+                self.log_number = f"{prefix}{date_str}0001"
+        super().save(*args, **kwargs)
+
+
+class NotificationAuditLog(models.Model):
+    """Audit trail for all notification configuration changes"""
+    ACTION_TYPES = [
+        ('CREATE', 'Create'),
+        ('UPDATE', 'Update'),
+        ('DELETE', 'Delete'),
+        ('ACTIVATE', 'Activate'),
+        ('DEACTIVATE', 'Deactivate'),
+        ('TEST_SEND', 'Test Send'),
+    ]
+    
+    entity_type = models.CharField(max_length=50, help_text="NotificationEvent, NotificationTemplate, etc.")
+    entity_id = models.IntegerField()
+    entity_name = models.CharField(max_length=200)
+    action = models.CharField(max_length=20, choices=ACTION_TYPES)
+    changes = models.JSONField(default=dict, help_text="Before/after values")
+    reason = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='notification_audit_actions')
+    performed_by_name = models.CharField(max_length=200, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action} {self.entity_type} #{self.entity_id} by {self.performed_by_name}"
+
+    def save(self, *args, **kwargs):
+        if self.performed_by and not self.performed_by_name:
+            self.performed_by_name = self.performed_by.get_full_name() or self.performed_by.username
+        super().save(*args, **kwargs)
 
 

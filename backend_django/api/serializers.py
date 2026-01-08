@@ -32,7 +32,10 @@ from .models import (
     SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
     NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
     BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
-    Currency, Language, SystemPreference
+    Currency, Language, SystemPreference,
+    NotificationEvent, NotificationChannelConfig, NotificationRecipientRule,
+    NotificationEscalationRule, NotificationQueue, NotificationLog, NotificationAuditLog,
+    NotificationModule, NotificationTriggerType, NotificationChannel, NotificationRecipientType, NotificationDeliveryStatus
 )
 
 
@@ -2557,3 +2560,183 @@ class InventoryDashboardSerializer(serializers.Serializer):
     pending_adjustments = serializers.IntegerField()
     items_expiring_soon = serializers.IntegerField()
     recent_movements = serializers.ListField()
+
+
+class NotificationEventSerializer(serializers.ModelSerializer):
+    template_count = serializers.SerializerMethodField()
+    rule_count = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    module_display = serializers.CharField(source='get_module_display', read_only=True)
+    trigger_type_display = serializers.CharField(source='get_trigger_type_display', read_only=True)
+
+    class Meta:
+        model = NotificationEvent
+        fields = ['id', 'code', 'name', 'description', 'module', 'module_display',
+                  'trigger_type', 'trigger_type_display', 'trigger_condition',
+                  'available_variables', 'is_active', 'is_system_event', 'display_order',
+                  'template_count', 'rule_count', 'created_by', 'created_by_name',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_template_count(self, obj):
+        return obj.templates.filter(is_active=True).count()
+
+    def get_rule_count(self, obj):
+        return obj.rules.filter(is_active=True).count()
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class NotificationTemplateSerializer(serializers.ModelSerializer):
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    event_code = serializers.CharField(source='event.code', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    extracted_variables = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificationTemplate
+        fields = ['id', 'code', 'name', 'event', 'event_name', 'event_code',
+                  'channel', 'channel_display', 'subject', 'body', 'body_html',
+                  'variables', 'extracted_variables', 'language', 'status', 'status_display',
+                  'is_default', 'version', 'is_active', 'created_by', 'created_by_name',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'version', 'created_at', 'updated_at']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+    def get_extracted_variables(self, obj):
+        return obj.extract_variables()
+
+    def validate(self, data):
+        if data.get('event'):
+            event = data['event']
+            available_vars = set(event.available_variables)
+            template_vars = set(data.get('variables', []))
+            invalid_vars = template_vars - available_vars
+            if invalid_vars:
+                raise serializers.ValidationError({
+                    'variables': f"Invalid variables for this event: {', '.join(invalid_vars)}"
+                })
+        return data
+
+
+class NotificationChannelConfigSerializer(serializers.ModelSerializer):
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    template_name = serializers.CharField(source='template.name', read_only=True)
+
+    class Meta:
+        model = NotificationChannelConfig
+        fields = ['id', 'event', 'event_name', 'channel', 'channel_display',
+                  'is_enabled', 'template', 'template_name', 'priority',
+                  'updated_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationRuleSerializer(serializers.ModelSerializer):
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    template_name = serializers.CharField(source='template.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    delay_unit_display = serializers.CharField(source='get_delay_unit_display', read_only=True)
+
+    class Meta:
+        model = NotificationRule
+        fields = ['id', 'code', 'name', 'description', 'event', 'event_name',
+                  'event_type', 'module', 'template', 'template_name',
+                  'recipient_roles', 'conditions', 'delay_value', 'delay_unit',
+                  'delay_unit_display', 'delay_minutes', 'retry_count', 'retry_interval',
+                  'business_hours_only', 'skip_holidays', 'is_escalation',
+                  'branch', 'is_active', 'created_by', 'created_by_name',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class NotificationRecipientRuleSerializer(serializers.ModelSerializer):
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    recipient_type_display = serializers.CharField(source='get_recipient_type_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificationRecipientRule
+        fields = ['id', 'event', 'event_name', 'name', 'recipient_type',
+                  'recipient_type_display', 'is_primary', 'is_cc', 'specific_roles',
+                  'is_active', 'created_by', 'created_by_name', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+
+
+class NotificationEscalationRuleSerializer(serializers.ModelSerializer):
+    event_name = serializers.CharField(source='event.name', read_only=True)
+    condition_display = serializers.CharField(source='get_escalation_condition_display', read_only=True)
+    fallback_channel_display = serializers.CharField(source='get_fallback_channel_display', read_only=True)
+
+    class Meta:
+        model = NotificationEscalationRule
+        fields = ['id', 'event', 'event_name', 'name', 'escalation_level',
+                  'escalation_after_minutes', 'escalation_condition', 'condition_display',
+                  'escalate_to_roles', 'fallback_channel', 'fallback_channel_display',
+                  'notify_original_recipient', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationLogSerializer(serializers.ModelSerializer):
+    event_code = serializers.CharField(read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    recipient_type_display = serializers.CharField(source='get_recipient_type_display', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+
+    class Meta:
+        model = NotificationLog
+        fields = ['id', 'log_number', 'event', 'event_code', 'event_name',
+                  'template', 'template_name', 'channel', 'channel_display',
+                  'recipient_type', 'recipient_type_display', 'recipient_name',
+                  'recipient_email', 'recipient_phone', 'recipient_user',
+                  'subject', 'content_rendered', 'context_data', 'reference_type',
+                  'reference_id', 'branch', 'branch_name', 'status', 'status_display',
+                  'sent_at', 'delivered_at', 'failed_at', 'failure_reason',
+                  'retry_count', 'external_message_id', 'created_at']
+        read_only_fields = ['id', 'log_number', 'created_at']
+
+
+class NotificationAuditLogSerializer(serializers.ModelSerializer):
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+
+    class Meta:
+        model = NotificationAuditLog
+        fields = ['id', 'entity_type', 'entity_id', 'entity_name', 'action',
+                  'action_display', 'changes', 'reason', 'performed_by',
+                  'performed_by_name', 'ip_address', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class NotificationCenterDashboardSerializer(serializers.Serializer):
+    total_events = serializers.IntegerField()
+    active_events = serializers.IntegerField()
+    total_templates = serializers.IntegerField()
+    active_templates = serializers.IntegerField()
+    total_rules = serializers.IntegerField()
+    active_rules = serializers.IntegerField()
+    notifications_today = serializers.IntegerField()
+    notifications_failed_today = serializers.IntegerField()
+    pending_queue = serializers.IntegerField()
+    recent_logs = NotificationLogSerializer(many=True)
+    events_by_module = serializers.DictField()
+    delivery_stats = serializers.DictField()

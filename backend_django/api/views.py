@@ -6642,3 +6642,445 @@ class InventoryViewSet(viewsets.GenericViewSet):
         alert.resolve(request.user, notes)
         
         return Response({'status': 'resolved', 'alert_id': alert.alert_id})
+
+
+class NotificationCenterViewSet(viewsets.GenericViewSet):
+    """Enterprise Notification Center - Centralized control for all notifications"""
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """Get notification center dashboard metrics"""
+        from .models import NotificationEvent, NotificationTemplate, NotificationRule, NotificationLog, NotificationQueue
+        from .serializers import NotificationCenterDashboardSerializer, NotificationLogSerializer
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models import Count
+
+        today = timezone.now().date()
+        
+        events_by_module = NotificationEvent.objects.values('module').annotate(count=Count('id'))
+        
+        logs_today = NotificationLog.objects.filter(created_at__date=today)
+        delivery_stats = logs_today.values('status').annotate(count=Count('id'))
+        
+        recent_logs = NotificationLog.objects.select_related('event', 'template', 'branch').order_by('-created_at')[:10]
+        
+        data = {
+            'total_events': NotificationEvent.objects.count(),
+            'active_events': NotificationEvent.objects.filter(is_active=True).count(),
+            'total_templates': NotificationTemplate.objects.count(),
+            'active_templates': NotificationTemplate.objects.filter(is_active=True).count(),
+            'total_rules': NotificationRule.objects.count(),
+            'active_rules': NotificationRule.objects.filter(is_active=True).count(),
+            'notifications_today': logs_today.count(),
+            'notifications_failed_today': logs_today.filter(status='FAILED').count(),
+            'pending_queue': NotificationQueue.objects.filter(status='PENDING').count(),
+            'recent_logs': NotificationLogSerializer(recent_logs, many=True).data,
+            'events_by_module': {item['module']: item['count'] for item in events_by_module},
+            'delivery_stats': {item['status']: item['count'] for item in delivery_stats}
+        }
+        
+        return Response(data)
+
+    @action(detail=False, methods=['get', 'post'])
+    def events(self, request):
+        """List/create notification events"""
+        from .models import NotificationEvent
+        from .serializers import NotificationEventSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationEventSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationEvent.objects.all()
+        module = request.query_params.get('module')
+        is_active = request.query_params.get('is_active')
+        
+        if module:
+            queryset = queryset.filter(module=module)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        serializer = NotificationEventSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'put', 'delete'], url_path='events/(?P<event_id>[^/.]+)')
+    def event_detail(self, request, pk=None, event_id=None):
+        """Get/update/delete a notification event"""
+        from .models import NotificationEvent, NotificationAuditLog
+        from .serializers import NotificationEventSerializer
+        
+        try:
+            event = NotificationEvent.objects.get(pk=event_id)
+        except NotificationEvent.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=404)
+        
+        if request.method == 'DELETE':
+            if event.is_system_event:
+                return Response({'error': 'System events cannot be deleted'}, status=400)
+            NotificationAuditLog.objects.create(
+                entity_type='NotificationEvent',
+                entity_id=event.id,
+                entity_name=event.name,
+                action='DELETE',
+                changes={'deleted': True},
+                reason=request.data.get('reason', ''),
+                performed_by=request.user
+            )
+            event.delete()
+            return Response(status=204)
+        
+        if request.method == 'PUT':
+            old_data = NotificationEventSerializer(event).data
+            serializer = NotificationEventSerializer(event, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            NotificationAuditLog.objects.create(
+                entity_type='NotificationEvent',
+                entity_id=event.id,
+                entity_name=event.name,
+                action='UPDATE',
+                changes={'before': old_data, 'after': serializer.data},
+                reason=request.data.get('reason', ''),
+                performed_by=request.user
+            )
+            return Response(serializer.data)
+        
+        serializer = NotificationEventSerializer(event)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get', 'post'])
+    def templates(self, request):
+        """List/create notification templates"""
+        from .models import NotificationTemplate
+        from .serializers import NotificationTemplateSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationTemplateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationTemplate.objects.select_related('event', 'created_by')
+        event_id = request.query_params.get('event')
+        channel = request.query_params.get('channel')
+        status = request.query_params.get('status')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        if channel:
+            queryset = queryset.filter(channel=channel)
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        serializer = NotificationTemplateSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'put', 'delete'], url_path='templates/(?P<template_id>[^/.]+)')
+    def template_detail(self, request, pk=None, template_id=None):
+        """Get/update/delete a notification template"""
+        from .models import NotificationTemplate, NotificationAuditLog
+        from .serializers import NotificationTemplateSerializer
+        
+        try:
+            template = NotificationTemplate.objects.get(pk=template_id)
+        except NotificationTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=404)
+        
+        if request.method == 'DELETE':
+            NotificationAuditLog.objects.create(
+                entity_type='NotificationTemplate',
+                entity_id=template.id,
+                entity_name=template.name,
+                action='DELETE',
+                changes={'deleted': True},
+                reason=request.data.get('reason', ''),
+                performed_by=request.user
+            )
+            template.delete()
+            return Response(status=204)
+        
+        if request.method == 'PUT':
+            old_data = NotificationTemplateSerializer(template).data
+            serializer = NotificationTemplateSerializer(template, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            template.version += 1
+            serializer.save()
+            NotificationAuditLog.objects.create(
+                entity_type='NotificationTemplate',
+                entity_id=template.id,
+                entity_name=template.name,
+                action='UPDATE',
+                changes={'before': old_data, 'after': serializer.data},
+                reason=request.data.get('reason', ''),
+                performed_by=request.user
+            )
+            return Response(serializer.data)
+        
+        serializer = NotificationTemplateSerializer(template)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='templates/preview')
+    def template_preview(self, request):
+        """Preview a template with sample variables"""
+        content = request.data.get('content', '')
+        variables = request.data.get('variables', {})
+        
+        import re
+        rendered = content
+        for key, value in variables.items():
+            rendered = re.sub(r'\{\{' + key + r'\}\}', str(value), rendered)
+        
+        return Response({'rendered': rendered})
+
+    @action(detail=False, methods=['get', 'post'], url_path='channel-configs')
+    def channel_configs(self, request):
+        """Manage channel configurations per event"""
+        from .models import NotificationChannelConfig
+        from .serializers import NotificationChannelConfigSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationChannelConfigSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(updated_by=request.user)
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationChannelConfig.objects.select_related('event', 'template')
+        event_id = request.query_params.get('event')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        serializer = NotificationChannelConfigSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get', 'post'])
+    def rules(self, request):
+        """List/create notification rules"""
+        from .models import NotificationRule
+        from .serializers import NotificationRuleSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationRuleSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationRule.objects.select_related('event', 'template', 'branch')
+        event_id = request.query_params.get('event')
+        module = request.query_params.get('module')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        if module:
+            queryset = queryset.filter(module=module)
+        
+        serializer = NotificationRuleSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get', 'post'], url_path='recipient-rules')
+    def recipient_rules(self, request):
+        """Manage recipient rules per event"""
+        from .models import NotificationRecipientRule
+        from .serializers import NotificationRecipientRuleSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationRecipientRuleSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationRecipientRule.objects.select_related('event')
+        event_id = request.query_params.get('event')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        serializer = NotificationRecipientRuleSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get', 'post'], url_path='escalation-rules')
+    def escalation_rules(self, request):
+        """Manage escalation rules per event"""
+        from .models import NotificationEscalationRule
+        from .serializers import NotificationEscalationRuleSerializer
+        
+        if request.method == 'POST':
+            serializer = NotificationEscalationRuleSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=201)
+        
+        queryset = NotificationEscalationRule.objects.select_related('event')
+        event_id = request.query_params.get('event')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        serializer = NotificationEscalationRuleSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def logs(self, request):
+        """Get notification logs with filtering"""
+        from .models import NotificationLog
+        from .serializers import NotificationLogSerializer
+        
+        queryset = NotificationLog.objects.select_related('event', 'template', 'branch', 'recipient_user')
+        
+        event_id = request.query_params.get('event')
+        channel = request.query_params.get('channel')
+        status = request.query_params.get('status')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        search = request.query_params.get('search')
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        if channel:
+            queryset = queryset.filter(channel=channel)
+        if status:
+            queryset = queryset.filter(status=status)
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+        if search:
+            queryset = queryset.filter(
+                models.Q(recipient_name__icontains=search) |
+                models.Q(recipient_email__icontains=search) |
+                models.Q(recipient_phone__icontains=search) |
+                models.Q(log_number__icontains=search)
+            )
+        
+        queryset = queryset.order_by('-created_at')[:100]
+        serializer = NotificationLogSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='audit-logs')
+    def audit_logs(self, request):
+        """Get notification configuration audit logs"""
+        from .models import NotificationAuditLog
+        from .serializers import NotificationAuditLogSerializer
+        
+        queryset = NotificationAuditLog.objects.select_related('performed_by')
+        entity_type = request.query_params.get('entity_type')
+        action = request.query_params.get('action')
+        
+        if entity_type:
+            queryset = queryset.filter(entity_type=entity_type)
+        if action:
+            queryset = queryset.filter(action=action)
+        
+        queryset = queryset.order_by('-created_at')[:100]
+        serializer = NotificationAuditLogSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='test-send')
+    def test_send(self, request):
+        """Send a test notification"""
+        from .models import NotificationTemplate, NotificationLog, NotificationDeliveryStatus
+        import re
+        
+        template_id = request.data.get('template_id')
+        test_variables = request.data.get('variables', {})
+        test_email = request.data.get('email')
+        test_phone = request.data.get('phone')
+        
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=400)
+        
+        try:
+            template = NotificationTemplate.objects.get(pk=template_id)
+        except NotificationTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=404)
+        
+        rendered_content = template.body
+        rendered_subject = template.subject or ''
+        
+        for key, value in test_variables.items():
+            pattern = r'\{\{' + key + r'\}\}'
+            rendered_content = re.sub(pattern, str(value), rendered_content)
+            rendered_subject = re.sub(pattern, str(value), rendered_subject)
+        
+        log = NotificationLog.objects.create(
+            event=template.event,
+            event_code=template.event.code if template.event else 'TEST',
+            event_name=template.event.name if template.event else 'Test Notification',
+            template=template,
+            template_name=template.name,
+            channel=template.channel,
+            recipient_type='SPECIFIC_USER',
+            recipient_name='Test Recipient',
+            recipient_email=test_email or '',
+            recipient_phone=test_phone or '',
+            recipient_user=request.user,
+            subject=rendered_subject,
+            content_rendered=rendered_content,
+            context_data=test_variables,
+            reference_type='TEST',
+            status=NotificationDeliveryStatus.SENT
+        )
+        
+        from .models import NotificationAuditLog
+        NotificationAuditLog.objects.create(
+            entity_type='NotificationTemplate',
+            entity_id=template.id,
+            entity_name=template.name,
+            action='TEST_SEND',
+            changes={'test_recipient': test_email or test_phone},
+            performed_by=request.user
+        )
+        
+        return Response({
+            'status': 'sent',
+            'log_number': log.log_number,
+            'rendered_subject': rendered_subject,
+            'rendered_content': rendered_content
+        })
+
+    @action(detail=False, methods=['get'], url_path='available-variables')
+    def available_variables(self, request):
+        """Get available variables for each module"""
+        variables = {
+            'SERVICE': [
+                'CustomerName', 'CustomerPhone', 'CustomerEmail',
+                'VehicleNumber', 'VehicleMake', 'VehicleModel',
+                'JobCardID', 'JobCardNumber', 'ServiceType',
+                'EstimatedAmount', 'EstimatedDate', 'TechnicianName',
+                'BranchName', 'BranchPhone', 'AppointmentDate', 'AppointmentTime'
+            ],
+            'CRM': [
+                'CustomerName', 'CustomerPhone', 'CustomerEmail',
+                'LeadSource', 'TicketNumber', 'TicketStatus',
+                'CampaignName', 'FollowUpDate', 'CustomerScore'
+            ],
+            'INVENTORY': [
+                'PartNumber', 'PartName', 'QuantityRequired',
+                'QuantityAvailable', 'SupplierName', 'PONumber',
+                'ExpectedDeliveryDate', 'AlertType', 'StockLevel'
+            ],
+            'ACCOUNTS': [
+                'InvoiceNumber', 'InvoiceAmount', 'DueDate',
+                'PaymentAmount', 'PaymentDate', 'OutstandingBalance',
+                'CreditNoteNumber', 'CustomerName'
+            ],
+            'CONTRACTS': [
+                'ContractNumber', 'ContractType', 'CustomerName',
+                'VehicleNumber', 'StartDate', 'EndDate',
+                'CoverageType', 'RenewalDate', 'ExpiryDays'
+            ],
+            'HR': [
+                'EmployeeName', 'EmployeeID', 'Department',
+                'AttendanceDate', 'LeaveType', 'LeaveStartDate',
+                'LeaveEndDate', 'PayrollMonth', 'IncentiveAmount'
+            ],
+            'SYSTEM': [
+                'UserName', 'UserEmail', 'ActionType',
+                'SystemMessage', 'Timestamp', 'IPAddress'
+            ]
+        }
+        return Response(variables)

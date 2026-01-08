@@ -119,6 +119,9 @@ router.register(r'admin-config/menus', views.MenuConfigViewSet, basename='menu-c
 router.register(r'admin-config/feature-flags', views.FeatureFlagViewSet, basename='feature-flags')
 router.register(r'admin-config/dashboard', views.AdminConfigDashboardViewSet, basename='admin-config-dashboard')
 
+# Enterprise Notification Center Routes
+router.register(r'notification-center', views.NotificationCenterViewSet, basename='notification-center')
+
 # Localization & Currency Routes
 router.register(r'currencies', views.CurrencyViewSet, basename='currencies')
 router.register(r'languages', views.LanguageViewSet, basename='languages')

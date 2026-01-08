@@ -27,6 +27,7 @@ import ServiceHistoryTimeline from "@/pages/ServiceHistoryTimeline";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
+import NotificationCenter from "@/pages/NotificationCenter";
 import { useEffect } from "react";
 
 type UserRole = 
@@ -60,6 +61,7 @@ const routePermissions: Record<string, UserRole[]> = {
   '/service-history': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN'],
   '/accounts-finance': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'ACCOUNTS_MANAGER', 'ACCOUNTANT'],
   '/admin': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
+  '/notification-center': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
 };
 
 function LoadingScreen() {
@@ -131,6 +133,7 @@ function Router() {
       <Route path="/accounts" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/hrms" component={() => <ProtectedRoute component={HRMS} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/notification-center" component={() => <ProtectedRoute component={NotificationCenter} allowedRoles={routePermissions['/notification-center']} />} />
       <Route component={NotFound} />
     </Switch>
   );
