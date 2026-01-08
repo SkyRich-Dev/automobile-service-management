@@ -15,7 +15,11 @@ import {
   useInventoryAlerts,
   useAcknowledgeAlert,
   useResolveAlert,
-  useGenerateAlerts
+  useGenerateAlerts,
+  useStockAdjustments,
+  useApproveAdjustment,
+  useStockReturns,
+  useApproveReturn
 } from "@/hooks/use-inventory";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X } from "lucide-react";
+import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X, RotateCcw, Scale } from "lucide-react";
 
 function LoadingSkeleton() {
   const { isCollapsed } = useSidebar();
@@ -778,14 +782,237 @@ function AlertsTab() {
   );
 }
 
+function AdjustmentsTab() {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const { data: adjustments, isLoading: adjustmentsLoading } = useStockAdjustments();
+  const { data: returns, isLoading: returnsLoading } = useStockReturns();
+  const approveAdjustment = useApproveAdjustment();
+  const approveReturn = useApproveReturn();
+
+  const handleApproveAdjustment = (id: number) => {
+    approveAdjustment.mutate(id, {
+      onSuccess: () => toast({ title: t('inventory.messages.adjustmentApproved', 'Adjustment approved successfully') }),
+      onError: (error) => toast({ title: t('inventory.messages.adjustmentApproveError', 'Failed to approve adjustment'), description: error.message, variant: "destructive" }),
+    });
+  };
+
+  const handleApproveReturn = (id: number) => {
+    approveReturn.mutate(id, {
+      onSuccess: () => toast({ title: t('inventory.messages.returnApproved', 'Return approved and stock updated') }),
+      onError: (error) => toast({ title: t('inventory.messages.returnApproveError', 'Failed to approve return'), description: error.message, variant: "destructive" }),
+    });
+  };
+
+  if (adjustmentsLoading || returnsLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
+  const adjustmentTypeColors: Record<string, string> = {
+    INCREASE: "bg-green-500/10 text-green-600",
+    DECREASE: "bg-red-500/10 text-red-600",
+    SCRAP: "bg-orange-500/10 text-orange-600",
+    DAMAGE: "bg-red-500/10 text-red-600",
+    THEFT: "bg-red-700/10 text-red-700",
+    CORRECTION: "bg-blue-500/10 text-blue-600",
+    OPENING_STOCK: "bg-purple-500/10 text-purple-600",
+  };
+
+  const statusColors: Record<string, string> = {
+    PENDING_APPROVAL: "bg-yellow-500/10 text-yellow-600",
+    APPROVED: "bg-green-500/10 text-green-600",
+    REJECTED: "bg-red-500/10 text-red-600",
+    PENDING: "bg-yellow-500/10 text-yellow-600",
+  };
+
+  const conditionColors: Record<string, string> = {
+    GOOD: "bg-green-500/10 text-green-600",
+    DEFECTIVE: "bg-orange-500/10 text-orange-600",
+    DAMAGED: "bg-red-500/10 text-red-600",
+    WRONG_PART: "bg-blue-500/10 text-blue-600",
+  };
+
+  const pendingAdjustments = adjustments?.filter(a => a.status === "PENDING_APPROVAL").length || 0;
+  const pendingReturns = returns?.filter(r => r.status === "PENDING").length || 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-4">
+        {pendingAdjustments > 0 && (
+          <Badge variant="outline" className="gap-1">
+            <Scale className="h-3 w-3" />
+            {pendingAdjustments} {t('inventory.adjustments.pendingAdjustments', 'Pending Adjustments')}
+          </Badge>
+        )}
+        {pendingReturns > 0 && (
+          <Badge variant="outline" className="gap-1">
+            <RotateCcw className="h-3 w-3" />
+            {pendingReturns} {t('inventory.returns.pendingReturns', 'Pending Returns')}
+          </Badge>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5" />
+            {t('inventory.adjustments.title', 'Stock Adjustments')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('inventory.adjustments.number', 'Adjustment #')}</TableHead>
+                <TableHead>{t('inventory.adjustments.part', 'Part')}</TableHead>
+                <TableHead>{t('inventory.adjustments.type', 'Type')}</TableHead>
+                <TableHead>{t('inventory.adjustments.quantity', 'Qty')}</TableHead>
+                <TableHead>{t('inventory.adjustments.reason', 'Reason')}</TableHead>
+                <TableHead>{t('inventory.adjustments.status', 'Status')}</TableHead>
+                <TableHead>{t('inventory.adjustments.createdBy', 'Created By')}</TableHead>
+                <TableHead>{t('inventory.adjustments.actions', 'Actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {adjustments?.map((adj) => (
+                <TableRow key={adj.id} data-testid={`row-adjustment-${adj.id}`}>
+                  <TableCell className="font-mono text-sm">{adj.adjustment_number}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{adj.part_name}</div>
+                    <div className="text-xs text-muted-foreground">{adj.part_sku}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={adjustmentTypeColors[adj.adjustment_type] || ""}>
+                      {adj.adjustment_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className={adj.adjustment_type === 'DECREASE' || adj.adjustment_type === 'SCRAP' ? 'text-red-600' : 'text-green-600'}>
+                    {adj.adjustment_type === 'DECREASE' || adj.adjustment_type === 'SCRAP' ? '-' : '+'}{adj.quantity}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-sm">{adj.reason}</TableCell>
+                  <TableCell>
+                    <Badge className={statusColors[adj.status] || ""}>
+                      {adj.status.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{adj.created_by_name}</TableCell>
+                  <TableCell>
+                    {adj.status === "PENDING_APPROVAL" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleApproveAdjustment(adj.id)}
+                        disabled={approveAdjustment.isPending}
+                        data-testid={`button-approve-adjustment-${adj.id}`}
+                      >
+                        <Check className="mr-1 h-3 w-3" />
+                        {t('common.approve', 'Approve')}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!adjustments || adjustments.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <Scale className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                    {t('inventory.adjustments.noAdjustments', 'No stock adjustments found')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RotateCcw className="h-5 w-5" />
+            {t('inventory.returns.title', 'Stock Returns')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('inventory.returns.number', 'Return #')}</TableHead>
+                <TableHead>{t('inventory.returns.jobCard', 'Job Card')}</TableHead>
+                <TableHead>{t('inventory.returns.part', 'Part')}</TableHead>
+                <TableHead>{t('inventory.returns.quantity', 'Qty')}</TableHead>
+                <TableHead>{t('inventory.returns.condition', 'Condition')}</TableHead>
+                <TableHead>{t('inventory.returns.reason', 'Reason')}</TableHead>
+                <TableHead>{t('inventory.returns.status', 'Status')}</TableHead>
+                <TableHead>{t('inventory.returns.actions', 'Actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {returns?.map((ret) => (
+                <TableRow key={ret.id} data-testid={`row-return-${ret.id}`}>
+                  <TableCell className="font-mono text-sm">{ret.return_number}</TableCell>
+                  <TableCell>{ret.job_card_number}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{ret.part_name}</div>
+                    <div className="text-xs text-muted-foreground">{ret.part_sku}</div>
+                  </TableCell>
+                  <TableCell>{ret.quantity}</TableCell>
+                  <TableCell>
+                    <Badge className={conditionColors[ret.condition] || ""}>
+                      {ret.condition}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-sm">{ret.return_reason}</TableCell>
+                  <TableCell>
+                    <Badge className={statusColors[ret.status] || ""}>
+                      {ret.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {ret.status === "PENDING" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleApproveReturn(ret.id)}
+                        disabled={approveReturn.isPending}
+                        data-testid={`button-approve-return-${ret.id}`}
+                      >
+                        <Check className="mr-1 h-3 w-3" />
+                        {t('common.approve', 'Approve')}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!returns || returns.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <RotateCcw className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                    {t('inventory.returns.noReturns', 'No stock returns found')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Inventory() {
   const { t } = useTranslation();
   const { isCollapsed } = useSidebar();
   const { data: alerts } = useInventoryAlerts();
   const { data: reservations } = usePartReservations();
+  const { data: parts } = useParts();
+  const { data: grns } = useGRNs();
+  const { data: adjustments } = useStockAdjustments();
+  const { data: returns } = useStockReturns();
   
   const unresolvedAlerts = alerts?.filter(a => !a.is_resolved).length || 0;
   const activeReservations = reservations?.filter(r => r.status === "ACTIVE").length || 0;
+  const totalParts = parts?.length || 0;
+  const pendingGRNs = grns?.filter(g => g.status !== "ACCEPTED").length || 0;
+  const pendingAdjustments = adjustments?.filter(a => a.status === "PENDING_APPROVAL").length || 0;
+  const pendingReturns = returns?.filter(r => r.status === "PENDING").length || 0;
 
   return (
     <div className="flex min-h-screen bg-background" data-testid="page-inventory">
@@ -798,14 +1025,14 @@ export default function Inventory() {
           </p>
         </header>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
               <CardTitle className="text-sm font-medium">{t('inventory.tabs.parts', 'Parts')}</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{useParts().data?.length || 0}</div>
+              <div className="text-2xl font-bold">{totalParts}</div>
               <p className="text-xs text-muted-foreground">{t('inventory.totalItemsInInventory', 'Total items in inventory')}</p>
             </CardContent>
           </Card>
@@ -825,8 +1052,18 @@ export default function Inventory() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{useGRNs().data?.filter(g => g.status !== "ACCEPTED").length || 0}</div>
+              <div className="text-2xl font-bold">{pendingGRNs}</div>
               <p className="text-xs text-muted-foreground">{t('inventory.grns.awaitingAcceptance', 'Awaiting acceptance')}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+              <CardTitle className="text-sm font-medium">{t('inventory.tabs.adjustments', 'Adjustments')}</CardTitle>
+              <Scale className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={cn("text-2xl font-bold", pendingAdjustments + pendingReturns > 0 && "text-warning")}>{pendingAdjustments + pendingReturns}</div>
+              <p className="text-xs text-muted-foreground">{t('inventory.adjustments.pendingApprovals', 'Pending approvals')}</p>
             </CardContent>
           </Card>
           <Card>
@@ -866,6 +1103,13 @@ export default function Inventory() {
               <ClipboardList className="h-4 w-4" />
               {t('inventory.tabs.requisitions', 'Requisitions')}
             </TabsTrigger>
+            <TabsTrigger value="adjustments" className="gap-2" data-testid="tab-adjustments">
+              <Scale className="h-4 w-4" />
+              {t('inventory.tabs.adjustments', 'Adjustments')}
+              {(pendingAdjustments + pendingReturns) > 0 && (
+                <Badge variant="secondary" className="ml-1">{pendingAdjustments + pendingReturns}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="alerts" className="gap-2" data-testid="tab-alerts">
               <Bell className="h-4 w-4" />
               {t('inventory.tabs.alerts', 'Alerts')}
@@ -889,6 +1133,9 @@ export default function Inventory() {
           </TabsContent>
           <TabsContent value="requisitions">
             <PurchaseRequisitionsTab />
+          </TabsContent>
+          <TabsContent value="adjustments">
+            <AdjustmentsTab />
           </TabsContent>
           <TabsContent value="alerts">
             <AlertsTab />

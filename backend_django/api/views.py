@@ -6228,3 +6228,417 @@ def detect_contract_view(request):
     serializer = ContractEligibilitySerializer(data=result)
     serializer.is_valid()
     return Response(serializer.data)
+
+
+class InventoryViewSet(viewsets.GenericViewSet):
+    """
+    Comprehensive Inventory Management ViewSet.
+    Provides all inventory operations: stock overview, reservations, issues, returns, adjustments.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """Get inventory dashboard metrics"""
+        from .models import Part, PartReservation, StockReturn, StockAdjustment, InventoryAuditLog, ReservationStatus
+        from .serializers import InventoryDashboardSerializer, InventoryAuditLogSerializer
+        from django.db.models import Sum, F
+        from datetime import timedelta
+        
+        branch_id = request.query_params.get('branch')
+        queryset = Part.objects.filter(is_active=True)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        today = timezone.now().date()
+        expiry_threshold = today + timedelta(days=30)
+        
+        total_items = queryset.count()
+        total_stock_value = queryset.aggregate(
+            total=Sum(F('stock') * F('cost_price'))
+        )['total'] or 0
+        low_stock = queryset.filter(stock__lte=F('min_stock'), stock__gt=0).count()
+        out_of_stock = queryset.filter(stock__lte=0).count()
+        overstock = queryset.filter(stock__gte=F('max_stock')).count()
+        expiring = queryset.filter(expiry_date__lte=expiry_threshold, expiry_date__gte=today).count()
+        
+        pending_reservations = PartReservation.objects.filter(status=ReservationStatus.ACTIVE).count()
+        pending_returns = StockReturn.objects.filter(status='PENDING').count()
+        pending_adjustments = StockAdjustment.objects.filter(status='PENDING_APPROVAL').count()
+        
+        recent_logs = InventoryAuditLog.objects.select_related('part', 'branch', 'performed_by')[:10]
+        
+        data = {
+            'total_items': total_items,
+            'total_stock_value': total_stock_value,
+            'low_stock_count': low_stock,
+            'out_of_stock_count': out_of_stock,
+            'overstock_count': overstock,
+            'pending_reservations': pending_reservations,
+            'pending_returns': pending_returns,
+            'pending_adjustments': pending_adjustments,
+            'items_expiring_soon': expiring,
+            'recent_movements': InventoryAuditLogSerializer(recent_logs, many=True).data
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def stock_overview(self, request):
+        """Get stock overview with status indicators"""
+        from .serializers import StockOverviewSerializer
+        
+        queryset = Part.objects.filter(is_active=True)
+        
+        branch_id = request.query_params.get('branch')
+        category = request.query_params.get('category')
+        status = request.query_params.get('status')
+        search = request.query_params.get('search')
+        
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if category:
+            queryset = queryset.filter(category=category)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(sku__icontains=search) |
+                Q(part_number__icontains=search)
+            )
+        if status:
+            if status == 'LOW_STOCK':
+                queryset = queryset.filter(stock__lte=F('min_stock'), stock__gt=0)
+            elif status == 'OUT_OF_STOCK':
+                queryset = queryset.filter(stock__lte=0)
+            elif status == 'OVERSTOCK':
+                queryset = queryset.filter(stock__gte=F('max_stock'))
+        
+        serializer = StockOverviewSerializer(queryset.order_by('name'), many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def reservations(self, request):
+        """Get part reservations"""
+        from .models import PartReservation
+        from .serializers import PartReservationSerializer
+        
+        queryset = PartReservation.objects.select_related('part', 'job_card', 'reserved_by')
+        
+        status = request.query_params.get('status')
+        job_card_id = request.query_params.get('job_card')
+        
+        if status:
+            queryset = queryset.filter(status=status)
+        if job_card_id:
+            queryset = queryset.filter(job_card_id=job_card_id)
+        
+        serializer = PartReservationSerializer(queryset.order_by('-reserved_at'), many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def reserve_parts(self, request):
+        """Reserve parts for a job card"""
+        from .models import PartReservation, ReservationStatus
+        from .serializers import PartReservationSerializer
+        
+        job_card_id = request.data.get('job_card_id')
+        parts = request.data.get('parts', [])
+        
+        if not job_card_id or not parts:
+            return Response({'error': 'job_card_id and parts are required'}, status=400)
+        
+        try:
+            job_card = JobCard.objects.get(pk=job_card_id)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=404)
+        
+        reservations = []
+        errors = []
+        
+        for part_data in parts:
+            part_id = part_data.get('part_id')
+            quantity = part_data.get('quantity', 1)
+            
+            try:
+                part = Part.objects.get(pk=part_id)
+                if part.available_stock >= quantity:
+                    reservation = PartReservation.objects.create(
+                        job_card=job_card,
+                        part=part,
+                        quantity=quantity,
+                        reserved_by=request.user,
+                        status=ReservationStatus.ACTIVE
+                    )
+                    reservations.append(reservation)
+                else:
+                    errors.append({
+                        'part_id': part_id,
+                        'part_name': part.name,
+                        'error': f'Insufficient stock. Available: {part.available_stock}, Requested: {quantity}'
+                    })
+            except Part.DoesNotExist:
+                errors.append({'part_id': part_id, 'error': 'Part not found'})
+        
+        return Response({
+            'reservations': PartReservationSerializer(reservations, many=True).data,
+            'errors': errors
+        })
+    
+    @action(detail=False, methods=['post'])
+    def issue_parts(self, request):
+        """Issue parts from reservation to job card"""
+        from .models import PartReservation, PartIssue, ReservationStatus, InventoryAuditLog
+        
+        reservation_ids = request.data.get('reservation_ids', [])
+        
+        if not reservation_ids:
+            return Response({'error': 'reservation_ids required'}, status=400)
+        
+        issued = []
+        errors = []
+        
+        for res_id in reservation_ids:
+            try:
+                reservation = PartReservation.objects.select_related('part', 'job_card').get(pk=res_id)
+                if reservation.status != ReservationStatus.ACTIVE:
+                    errors.append({'reservation_id': res_id, 'error': 'Reservation not active'})
+                    continue
+                
+                stock_before = reservation.part.stock
+                reservation.part.stock -= reservation.quantity
+                reservation.part.reserved -= reservation.quantity
+                reservation.part.save()
+                
+                part_issue = PartIssue.objects.create(
+                    job_card=reservation.job_card,
+                    task=reservation.task,
+                    part=reservation.part,
+                    quantity=reservation.quantity,
+                    unit_price=reservation.part.selling_price,
+                    total=reservation.quantity * reservation.part.selling_price,
+                    issued_by=request.user
+                )
+                
+                reservation.status = ReservationStatus.ISSUED
+                reservation.issued_at = timezone.now()
+                reservation.save()
+                
+                InventoryAuditLog.objects.create(
+                    part=reservation.part,
+                    branch=reservation.job_card.branch,
+                    action='ISSUE',
+                    quantity=reservation.quantity,
+                    stock_before=stock_before,
+                    stock_after=reservation.part.stock,
+                    reference_type='PART_ISSUE',
+                    reference_id=part_issue.id,
+                    reference_number=part_issue.issue_number,
+                    reason=f'Issued for job {reservation.job_card.job_card_number}',
+                    performed_by=request.user
+                )
+                
+                issued.append({
+                    'reservation_id': res_id,
+                    'issue_number': part_issue.issue_number
+                })
+                
+            except PartReservation.DoesNotExist:
+                errors.append({'reservation_id': res_id, 'error': 'Reservation not found'})
+        
+        return Response({'issued': issued, 'errors': errors})
+    
+    @action(detail=False, methods=['get'])
+    def returns(self, request):
+        """Get stock returns"""
+        from .models import StockReturn
+        from .serializers import StockReturnSerializer
+        
+        queryset = StockReturn.objects.select_related('part', 'job_card', 'returned_by', 'approved_by')
+        
+        status = request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        serializer = StockReturnSerializer(queryset.order_by('-created_at'), many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def create_return(self, request):
+        """Create a part return request"""
+        from .models import StockReturn, PartIssue
+        from .serializers import StockReturnSerializer
+        
+        part_issue_id = request.data.get('part_issue_id')
+        quantity = request.data.get('quantity', 1)
+        reason = request.data.get('reason', '')
+        condition = request.data.get('condition', 'GOOD')
+        
+        if not part_issue_id:
+            return Response({'error': 'part_issue_id is required'}, status=400)
+        
+        try:
+            part_issue = PartIssue.objects.select_related('part', 'job_card').get(pk=part_issue_id)
+        except PartIssue.DoesNotExist:
+            return Response({'error': 'Part issue not found'}, status=404)
+        
+        max_returnable = part_issue.quantity - part_issue.return_quantity
+        if quantity > max_returnable:
+            return Response({'error': f'Maximum returnable quantity is {max_returnable}'}, status=400)
+        
+        stock_return = StockReturn.objects.create(
+            branch=part_issue.job_card.branch,
+            job_card=part_issue.job_card,
+            part_issue=part_issue,
+            part=part_issue.part,
+            quantity=quantity,
+            return_reason=reason,
+            condition=condition,
+            returned_by=request.user
+        )
+        
+        return Response(StockReturnSerializer(stock_return).data, status=201)
+    
+    @action(detail=True, methods=['post'], url_path='approve-return')
+    def approve_return(self, request, pk=None):
+        """Approve and restock a return"""
+        from .models import StockReturn
+        from .serializers import StockReturnSerializer
+        
+        try:
+            stock_return = StockReturn.objects.get(pk=pk)
+        except StockReturn.DoesNotExist:
+            return Response({'error': 'Return not found'}, status=404)
+        
+        stock_return.approve_and_restock(request.user)
+        return Response(StockReturnSerializer(stock_return).data)
+    
+    @action(detail=False, methods=['get'])
+    def adjustments(self, request):
+        """Get stock adjustments"""
+        from .models import StockAdjustment
+        from .serializers import StockAdjustmentSerializer
+        
+        queryset = StockAdjustment.objects.select_related('part', 'branch', 'created_by', 'approved_by')
+        
+        status = request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        serializer = StockAdjustmentSerializer(queryset.order_by('-created_at'), many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def create_adjustment(self, request):
+        """Create a stock adjustment request"""
+        from .models import StockAdjustment
+        from .serializers import StockAdjustmentSerializer
+        
+        part_id = request.data.get('part_id')
+        adjustment_type = request.data.get('adjustment_type')
+        quantity = request.data.get('quantity')
+        reason = request.data.get('reason')
+        
+        if not all([part_id, adjustment_type, quantity, reason]):
+            return Response({'error': 'part_id, adjustment_type, quantity, and reason are required'}, status=400)
+        
+        try:
+            part = Part.objects.get(pk=part_id)
+        except Part.DoesNotExist:
+            return Response({'error': 'Part not found'}, status=404)
+        
+        adjustment = StockAdjustment.objects.create(
+            branch=part.branch,
+            part=part,
+            adjustment_type=adjustment_type,
+            quantity=quantity,
+            reason=reason,
+            status='PENDING_APPROVAL',
+            created_by=request.user
+        )
+        
+        return Response(StockAdjustmentSerializer(adjustment).data, status=201)
+    
+    @action(detail=True, methods=['post'], url_path='approve-adjustment')
+    def approve_adjustment(self, request, pk=None):
+        """Approve a stock adjustment"""
+        from .models import StockAdjustment
+        from .serializers import StockAdjustmentSerializer
+        
+        try:
+            adjustment = StockAdjustment.objects.get(pk=pk)
+        except StockAdjustment.DoesNotExist:
+            return Response({'error': 'Adjustment not found'}, status=404)
+        
+        adjustment.approve(request.user)
+        return Response(StockAdjustmentSerializer(adjustment).data)
+    
+    @action(detail=False, methods=['get'])
+    def audit_log(self, request):
+        """Get inventory audit log"""
+        from .models import InventoryAuditLog
+        from .serializers import InventoryAuditLogSerializer
+        
+        queryset = InventoryAuditLog.objects.select_related('part', 'branch', 'performed_by')
+        
+        part_id = request.query_params.get('part')
+        branch_id = request.query_params.get('branch')
+        action = request.query_params.get('action')
+        
+        if part_id:
+            queryset = queryset.filter(part_id=part_id)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if action:
+            queryset = queryset.filter(action=action)
+        
+        serializer = InventoryAuditLogSerializer(queryset[:100], many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def alerts(self, request):
+        """Get inventory alerts"""
+        from .models import InventoryAlert
+        
+        queryset = InventoryAlert.objects.select_related('part', 'branch', 'resolved_by')
+        
+        is_resolved = request.query_params.get('resolved')
+        alert_type = request.query_params.get('type')
+        severity = request.query_params.get('severity')
+        
+        if is_resolved is not None:
+            queryset = queryset.filter(is_resolved=is_resolved.lower() == 'true')
+        if alert_type:
+            queryset = queryset.filter(alert_type=alert_type)
+        if severity:
+            queryset = queryset.filter(severity=severity)
+        
+        data = [{
+            'id': alert.id,
+            'alert_id': alert.alert_id,
+            'alert_type': alert.alert_type,
+            'part_id': alert.part_id,
+            'part_name': alert.part.name,
+            'branch_name': alert.branch.name,
+            'message': alert.message,
+            'severity': alert.severity,
+            'is_read': alert.is_read,
+            'is_resolved': alert.is_resolved,
+            'created_at': alert.created_at
+        } for alert in queryset.order_by('-created_at')[:50]]
+        
+        return Response(data)
+    
+    @action(detail=True, methods=['post'], url_path='resolve-alert')
+    def resolve_alert(self, request, pk=None):
+        """Resolve an inventory alert"""
+        from .models import InventoryAlert
+        
+        try:
+            alert = InventoryAlert.objects.get(pk=pk)
+        except InventoryAlert.DoesNotExist:
+            return Response({'error': 'Alert not found'}, status=404)
+        
+        notes = request.data.get('notes', '')
+        alert.resolve(request.user, notes)
+        
+        return Response({'status': 'resolved', 'alert_id': alert.alert_id})

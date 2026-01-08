@@ -30,6 +30,7 @@ router.register(r'stock-transfers', views.StockTransferViewSet, basename='stock-
 router.register(r'purchase-requisitions', views.PurchaseRequisitionViewSet, basename='purchase-requisitions')
 router.register(r'supplier-performance', views.SupplierPerformanceViewSet, basename='supplier-performance')
 router.register(r'inventory-alerts', views.InventoryAlertViewSet, basename='inventory-alerts')
+router.register(r'inventory', views.InventoryViewSet, basename='inventory')
 
 router.register(r'technician-schedules', views.TechnicianScheduleViewSet, basename='technician-schedules')
 router.register(r'appointments', views.AppointmentViewSet, basename='appointments')

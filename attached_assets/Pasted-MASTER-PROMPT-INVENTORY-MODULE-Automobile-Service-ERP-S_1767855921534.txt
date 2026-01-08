@@ -1,0 +1,195 @@
+MASTER PROMPT — INVENTORY MODULE
+(Automobile Service ERP | Simple for Users | Powerful for System)
+ROLE & OBJECTIVE
+You are a senior product engineering team designing a perfect Inventory Module for an Automobile Car & Bike Service Management System.
+The inventory module must be:
+Extremely easy to use for service advisors & storekeepers
+Error-proof for daily operations
+Fully traceable for management & audit
+Deeply integrated with:
+Job Cards
+Service Operations
+Contracts
+Accounts
+Supplier Module
+Zero hard-coding, fully configurable via Admin Panel
+1. CORE INVENTORY DESIGN PRINCIPLES (NON-NEGOTIABLE)
+Users should never think about stock math
+System should guide the user, not confuse them
+No part should move without:
+Reason
+Reference (Job / PO / Transfer)
+Timestamp
+Inventory must never block service unexpectedly
+Every part must be traceable:
+Supplier → Store → Job → Invoice
+2. INVENTORY MODULE STRUCTURE (USER-FRIENDLY)
+The Inventory module must be organized into simple, logical sections:
+Item Master
+Stock Overview
+Job-Based Reservation & Issue
+Purchase & Supplier Flow
+Returns & Adjustments
+Inter-Branch Transfers
+Inventory Dashboards & Alerts
+3. ITEM MASTER (FOUNDATION – SIMPLE UI)
+Item Master Must Capture:
+Item ID (auto)
+Item name (human-friendly)
+Category:
+Spare Part
+Consumable
+Accessory
+Tool
+OEM / Aftermarket
+Brand
+Compatible vehicle models
+Unit of measure
+Reorder level
+Max stock level
+Tax category
+Warranty eligible (Yes / No)
+Returnable (Yes / No)
+Active / Discontinued
+UI Requirement
+Search by name / part no / vehicle
+Bulk upload supported
+No duplicate item creation allowed
+4. STOCK OVERVIEW (ZERO CONFUSION)
+Stock Must Be Shown As:
+Available Stock
+Reserved Stock
+Issued Stock
+User View
+Green → Available
+Yellow → Reserved
+Red → Low / Out of Stock
+System Rules
+Reserved stock cannot be issued to another job
+Stock updates are real-time
+Branch-wise visibility mandatory
+5. JOB-BASED RESERVATION & ISSUE (MOST IMPORTANT)
+At Job Card / Estimate Stage
+System must:
+Auto-check stock
+Auto-reserve required parts
+Show shortage clearly
+User should see:
+“Available”
+“Reserved for this job”
+“Need to procure”
+At Service Execution Stage
+Parts can be issued only against Job Card
+Issue must capture:
+Job Card ID
+Technician name
+Issue date & time
+Partial issue allowed
+Excess usage must require reason
+⚠️ No manual stock deduction allowed
+6. CONTRACT & WARRANTY AWARE INVENTORY
+If customer has active contract:
+Covered parts auto-marked as “Contract Covered”
+Billing disabled for covered parts
+Warranty parts:
+Tagged for warranty claim
+Separate traceability
+Contract consumption auto-updated
+7. RETURNS, SCRAP & ADJUSTMENTS (CONTROLLED)
+Part Return from Job
+Mandatory return reason
+Stock auto-updated
+Linked to Job Card
+Scrap Handling
+Scrap reason mandatory
+Approval required
+Scrap visible in audit report
+Stock Adjustment
+Allowed only for authorized roles
+Reason & approval mandatory
+8. PURCHASE & SUPPLIER FLOW (INTEGRATED)
+Auto Purchase Trigger
+Low stock
+Job reservation shortage
+Emergency requirement
+Purchase Flow
+Purchase Request → Approval → PO → GRN → Stock Update
+GRN Rules
+Quantity & quality check
+Rejection handling
+Batch / serial capture (if applicable)
+9. INTER-BRANCH STOCK TRANSFER
+Transfer request from source branch
+Approval workflow
+In-transit status
+Receiving confirmation
+Full audit trail
+10. INVENTORY ALERTS & AUTOMATION
+System must auto-alert for:
+Low stock
+Overstock
+Dead stock
+Expiry (consumables)
+High usage anomaly
+Alerts must be:
+Dashboard visible
+Configurable
+Escalatable
+11. INVENTORY DASHBOARDS (ROLE-BASED)
+Store / Inventory Manager
+Stock health
+Pending reservations
+Fast-moving items
+Dead stock
+Service Manager
+Parts blocking jobs
+Reservation shortages
+Management
+Inventory value
+Consumption vs revenue
+Leakage indicators
+12. TRACEABILITY & AUDIT (MANDATORY)
+Every inventory movement must log:
+Item
+Quantity
+From → To
+Reason
+Reference (Job / PO / Transfer)
+User
+Date & time
+No delete. Only reverse with reason.
+13. UI / UX REQUIREMENTS (VERY IMPORTANT)
+Minimal clicks
+Clear color indicators
+Guided actions
+No technical jargon
+Tooltips for new users
+Mobile-friendly for storekeepers
+14. BACKEND DESIGN (HIGH-LEVEL)
+Core entities:
+Item
+Stock
+StockReservation
+StockIssue
+StockReturn
+StockTransfer
+PurchaseRequest
+PurchaseOrder
+GRN
+InventoryAuditLog
+Business rules enforced at service layer, not UI.
+15. FINAL VALIDATION RULES
+After implementation:
+✅ No stock mismatch
+✅ No service blocked unexpectedly
+✅ No manual stock tampering
+✅ Full job-to-part traceability
+✅ Easy for users, powerful for system
+✅ Audit-ready
+16. FINAL INSTRUCTION
+Build this Inventory Module as if it will be:
+Used daily by non-technical staff
+Audited for financial & warranty claims
+Integrated across service, contracts & accounts
+Scaled across multiple branches
+This module must feel simple on the surface, enterprise-grade underneath.

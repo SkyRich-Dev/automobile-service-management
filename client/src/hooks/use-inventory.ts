@@ -359,4 +359,235 @@ export function useGenerateAlerts() {
   });
 }
 
-export type { Part, PartReservation, GRN, GRNLine, StockTransfer, StockTransferLine, PurchaseRequisition, PRLine, InventoryAlert, SupplierPerformance };
+interface InventoryDashboard {
+  total_items: number;
+  total_stock_value: number;
+  low_stock_count: number;
+  out_of_stock_count: number;
+  overstock_count: number;
+  pending_reservations: number;
+  pending_returns: number;
+  pending_adjustments: number;
+  items_expiring_soon: number;
+  recent_movements: AuditLogEntry[];
+}
+
+interface AuditLogEntry {
+  id: number;
+  log_id: string;
+  part: number;
+  part_name: string;
+  part_sku: string;
+  branch: number;
+  branch_name: string;
+  action: string;
+  quantity: number;
+  stock_before: number;
+  stock_after: number;
+  reference_type: string;
+  reference_number: string;
+  reason: string;
+  performed_by_name: string;
+  timestamp: string;
+}
+
+interface StockOverviewItem {
+  id: number;
+  part_number: string;
+  name: string;
+  sku: string;
+  category: string;
+  item_type: string;
+  brand: string;
+  stock: number;
+  reserved: number;
+  available_stock: number;
+  min_stock: number;
+  max_stock: number;
+  reorder_quantity: number;
+  is_low_stock: boolean;
+  stock_status: string;
+  cost_price: string;
+  selling_price: string;
+  inventory_value: number;
+  location: string;
+  pending_reservations: number;
+  pending_orders: number;
+  expiry_date: string | null;
+}
+
+interface StockAdjustment {
+  id: number;
+  adjustment_number: string;
+  branch: number;
+  branch_name: string;
+  part: number;
+  part_name: string;
+  part_sku: string;
+  adjustment_type: string;
+  quantity: number;
+  stock_before: number;
+  stock_after: number;
+  reason: string;
+  status: string;
+  created_by_name: string;
+  approved_by_name: string | null;
+  approval_date: string | null;
+  created_at: string;
+}
+
+interface StockReturn {
+  id: number;
+  return_number: string;
+  branch: number;
+  branch_name: string;
+  job_card: number;
+  job_card_number: string;
+  part: number;
+  part_name: string;
+  part_sku: string;
+  quantity: number;
+  return_reason: string;
+  condition: string;
+  status: string;
+  returned_by_name: string;
+  approved_by_name: string | null;
+  created_at: string;
+}
+
+export function useInventoryDashboard(branchId?: number) {
+  return useQuery<InventoryDashboard>({
+    queryKey: ["inventory-dashboard", branchId],
+    queryFn: async () => {
+      const url = branchId 
+        ? `${API_BASE}/inventory/dashboard/?branch=${branchId}` 
+        : `${API_BASE}/inventory/dashboard/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch inventory dashboard");
+      return res.json();
+    },
+  });
+}
+
+export function useStockOverview(params?: { branch?: number; category?: string; status?: string; search?: string }) {
+  return useQuery<StockOverviewItem[]>({
+    queryKey: ["stock-overview", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params?.branch) searchParams.append("branch", String(params.branch));
+      if (params?.category) searchParams.append("category", params.category);
+      if (params?.status) searchParams.append("status", params.status);
+      if (params?.search) searchParams.append("search", params.search);
+      const res = await fetch(`${API_BASE}/inventory/stock_overview/?${searchParams}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stock overview");
+      return res.json();
+    },
+  });
+}
+
+export function useStockAdjustments(status?: string) {
+  return useQuery<StockAdjustment[]>({
+    queryKey: ["stock-adjustments", status],
+    queryFn: async () => {
+      const url = status 
+        ? `${API_BASE}/inventory/adjustments/?status=${status}` 
+        : `${API_BASE}/inventory/adjustments/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stock adjustments");
+      return res.json();
+    },
+  });
+}
+
+export function useCreateAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { part_id: number; adjustment_type: string; quantity: number; reason: string }) => {
+      const res = await fetch(`${API_BASE}/inventory/create_adjustment/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to create adjustment");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-dashboard"] });
+    },
+  });
+}
+
+export function useApproveAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${API_BASE}/inventory/${id}/approve-adjustment/`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to approve adjustment");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
+      queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-dashboard"] });
+    },
+  });
+}
+
+export function useStockReturns(status?: string) {
+  return useQuery<StockReturn[]>({
+    queryKey: ["stock-returns", status],
+    queryFn: async () => {
+      const url = status 
+        ? `${API_BASE}/inventory/returns/?status=${status}` 
+        : `${API_BASE}/inventory/returns/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stock returns");
+      return res.json();
+    },
+  });
+}
+
+export function useApproveReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${API_BASE}/inventory/${id}/approve-return/`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to approve return");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-dashboard"] });
+    },
+  });
+}
+
+export function useAuditLog(params?: { part?: number; branch?: number; action?: string }) {
+  return useQuery<AuditLogEntry[]>({
+    queryKey: ["inventory-audit-log", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params?.part) searchParams.append("part", String(params.part));
+      if (params?.branch) searchParams.append("branch", String(params.branch));
+      if (params?.action) searchParams.append("action", params.action);
+      const res = await fetch(`${API_BASE}/inventory/audit_log/?${searchParams}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch audit log");
+      return res.json();
+    },
+  });
+}
+
+export type { 
+  Part, PartReservation, GRN, GRNLine, StockTransfer, StockTransferLine, 
+  PurchaseRequisition, PRLine, InventoryAlert, SupplierPerformance,
+  InventoryDashboard, StockOverviewItem, StockAdjustment, StockReturn, AuditLogEntry
+};

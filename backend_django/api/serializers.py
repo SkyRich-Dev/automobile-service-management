@@ -2396,3 +2396,164 @@ class ContractEligibilitySerializer(serializers.Serializer):
     consumables_included = serializers.BooleanField(allow_null=True)
     is_eligible_for_free_service = serializers.BooleanField()
     eligibility_message = serializers.CharField()
+
+
+class StockAdjustmentSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import StockAdjustment
+        model = StockAdjustment
+        fields = ['id', 'adjustment_number', 'branch', 'branch_name', 'part', 'part_name', 'part_sku',
+                  'adjustment_type', 'quantity', 'stock_before', 'stock_after', 'reason',
+                  'status', 'created_by', 'created_by_name', 'approved_by', 'approved_by_name',
+                  'approval_date', 'rejection_reason', 'reference_document', 'created_at']
+        read_only_fields = ['id', 'adjustment_number', 'stock_before', 'stock_after', 'created_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class StockReturnSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    returned_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import StockReturn
+        model = StockReturn
+        fields = ['id', 'return_number', 'branch', 'branch_name', 'job_card', 'job_card_number',
+                  'part_issue', 'part', 'part_name', 'part_sku', 'quantity', 'return_reason',
+                  'condition', 'status', 'returned_by', 'returned_by_name', 'approved_by',
+                  'approved_by_name', 'approval_date', 'created_at']
+        read_only_fields = ['id', 'return_number', 'created_at']
+    
+    def get_returned_by_name(self, obj):
+        if obj.returned_by:
+            return f"{obj.returned_by.first_name} {obj.returned_by.last_name}".strip() or obj.returned_by.username
+        return None
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
+
+
+class InventoryAuditLogSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    performed_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import InventoryAuditLog
+        model = InventoryAuditLog
+        fields = ['id', 'log_id', 'part', 'part_name', 'part_sku', 'branch', 'branch_name',
+                  'action', 'quantity', 'stock_before', 'stock_after', 'reference_type',
+                  'reference_id', 'reference_number', 'reason', 'performed_by',
+                  'performed_by_name', 'timestamp']
+        read_only_fields = ['id', 'log_id', 'timestamp']
+    
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            return f"{obj.performed_by.first_name} {obj.performed_by.last_name}".strip() or obj.performed_by.username
+        return None
+
+
+class PartReservationSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    job_card_number = serializers.CharField(source='job_card.job_card_number', read_only=True)
+    reserved_by_name = serializers.SerializerMethodField()
+    available_stock = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import PartReservation
+        model = PartReservation
+        fields = ['id', 'reservation_number', 'job_card', 'job_card_number', 'part', 'part_name',
+                  'part_sku', 'task', 'quantity', 'status', 'reserved_by', 'reserved_by_name',
+                  'reserved_at', 'expires_at', 'issued_at', 'released_at', 'available_stock', 'notes']
+        read_only_fields = ['id', 'reservation_number', 'reserved_at']
+    
+    def get_reserved_by_name(self, obj):
+        if obj.reserved_by:
+            return f"{obj.reserved_by.first_name} {obj.reserved_by.last_name}".strip() or obj.reserved_by.username
+        return None
+    
+    def get_available_stock(self, obj):
+        return obj.part.available_stock
+
+
+class StockOverviewSerializer(serializers.ModelSerializer):
+    available_stock = serializers.IntegerField(read_only=True)
+    is_low_stock = serializers.BooleanField(read_only=True)
+    stock_status = serializers.SerializerMethodField()
+    inventory_value = serializers.SerializerMethodField()
+    pending_reservations = serializers.SerializerMethodField()
+    pending_orders = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Part
+        fields = ['id', 'part_number', 'name', 'sku', 'category', 'item_type', 'brand',
+                  'stock', 'reserved', 'available_stock', 'min_stock', 'max_stock',
+                  'reorder_quantity', 'is_low_stock', 'stock_status', 'cost_price',
+                  'selling_price', 'inventory_value', 'location', 'rack_number',
+                  'bin_number', 'pending_reservations', 'pending_orders', 'expiry_date']
+    
+    def get_stock_status(self, obj):
+        if obj.stock <= 0:
+            return 'OUT_OF_STOCK'
+        elif obj.available_stock <= 0:
+            return 'FULLY_RESERVED'
+        elif obj.is_low_stock:
+            return 'LOW_STOCK'
+        elif obj.stock >= obj.max_stock:
+            return 'OVERSTOCK'
+        return 'NORMAL'
+    
+    def get_inventory_value(self, obj):
+        return float(obj.stock * obj.cost_price)
+    
+    def get_pending_reservations(self, obj):
+        from .models import ReservationStatus
+        return obj.reservations.filter(status=ReservationStatus.ACTIVE).count()
+    
+    def get_pending_orders(self, obj):
+        from .models import PurchaseOrderStatus
+        return sum(
+            line.quantity_ordered - line.quantity_received
+            for line in obj.purchaseorderline_set.filter(
+                purchase_order__status__in=[
+                    PurchaseOrderStatus.APPROVED,
+                    PurchaseOrderStatus.ORDERED,
+                    PurchaseOrderStatus.PARTIALLY_RECEIVED
+                ]
+            )
+        )
+
+
+class InventoryDashboardSerializer(serializers.Serializer):
+    total_items = serializers.IntegerField()
+    total_stock_value = serializers.DecimalField(max_digits=14, decimal_places=2)
+    low_stock_count = serializers.IntegerField()
+    out_of_stock_count = serializers.IntegerField()
+    overstock_count = serializers.IntegerField()
+    pending_reservations = serializers.IntegerField()
+    pending_returns = serializers.IntegerField()
+    pending_adjustments = serializers.IntegerField()
+    items_expiring_soon = serializers.IntegerField()
+    recent_movements = serializers.ListField()

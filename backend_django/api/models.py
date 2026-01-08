@@ -1415,6 +1415,184 @@ class InventoryAlert(models.Model):
         return f"{self.alert_id} - {self.alert_type}"
 
 
+class StockAdjustmentType(models.TextChoices):
+    INCREASE = 'INCREASE', 'Stock Increase'
+    DECREASE = 'DECREASE', 'Stock Decrease'
+    SCRAP = 'SCRAP', 'Scrap'
+    DAMAGE = 'DAMAGE', 'Damage'
+    THEFT = 'THEFT', 'Theft/Loss'
+    CORRECTION = 'CORRECTION', 'Correction'
+    OPENING_STOCK = 'OPENING_STOCK', 'Opening Stock'
+
+
+class StockAdjustmentStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_APPROVAL = 'PENDING_APPROVAL', 'Pending Approval'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
+class StockAdjustment(models.Model):
+    adjustment_number = models.CharField(max_length=50, unique=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stock_adjustments')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='adjustments')
+    adjustment_type = models.CharField(max_length=20, choices=StockAdjustmentType.choices)
+    quantity = models.IntegerField()
+    stock_before = models.IntegerField(default=0)
+    stock_after = models.IntegerField(default=0)
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=StockAdjustmentStatus.choices, default=StockAdjustmentStatus.DRAFT)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_adjustments')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_adjustments')
+    approval_date = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    reference_document = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.adjustment_number:
+            self.adjustment_number = f"ADJ-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        if not self.pk:
+            self.stock_before = self.part.stock
+        super().save(*args, **kwargs)
+
+    def approve(self, user):
+        if self.status == StockAdjustmentStatus.PENDING_APPROVAL:
+            self.status = StockAdjustmentStatus.APPROVED
+            self.approved_by = user
+            self.approval_date = timezone.now()
+            if self.adjustment_type in [StockAdjustmentType.INCREASE, StockAdjustmentType.OPENING_STOCK, StockAdjustmentType.CORRECTION]:
+                self.part.stock += abs(self.quantity)
+            else:
+                self.part.stock = max(0, self.part.stock - abs(self.quantity))
+            self.stock_after = self.part.stock
+            self.part.save()
+            self.save()
+            InventoryAuditLog.objects.create(
+                part=self.part,
+                branch=self.branch,
+                action='ADJUSTMENT',
+                quantity=self.quantity,
+                stock_before=self.stock_before,
+                stock_after=self.stock_after,
+                reference_type='ADJUSTMENT',
+                reference_id=self.id,
+                reference_number=self.adjustment_number,
+                reason=self.reason,
+                performed_by=user
+            )
+
+    def __str__(self):
+        return f"{self.adjustment_number} - {self.part.name}"
+
+
+class StockReturnStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    APPROVED = 'APPROVED', 'Approved'
+    RESTOCKED = 'RESTOCKED', 'Restocked'
+    SCRAPPED = 'SCRAPPED', 'Scrapped'
+
+
+class StockReturn(models.Model):
+    return_number = models.CharField(max_length=50, unique=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stock_returns')
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='stock_returns')
+    part_issue = models.ForeignKey(PartIssue, on_delete=models.CASCADE, related_name='returns')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='returns')
+    quantity = models.IntegerField(default=1)
+    return_reason = models.TextField()
+    condition = models.CharField(max_length=20, choices=[
+        ('GOOD', 'Good - Restock'),
+        ('DEFECTIVE', 'Defective'),
+        ('DAMAGED', 'Damaged'),
+        ('WRONG_PART', 'Wrong Part'),
+    ], default='GOOD')
+    status = models.CharField(max_length=20, choices=StockReturnStatus.choices, default=StockReturnStatus.PENDING)
+    returned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='returned_parts')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_returns')
+    approval_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.return_number:
+            self.return_number = f"RET-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def approve_and_restock(self, user):
+        if self.status == StockReturnStatus.PENDING and self.condition == 'GOOD':
+            stock_before = self.part.stock
+            self.part.stock += self.quantity
+            self.part.save()
+            self.status = StockReturnStatus.RESTOCKED
+            self.approved_by = user
+            self.approval_date = timezone.now()
+            self.part_issue.return_quantity += self.quantity
+            self.part_issue.is_returned = self.part_issue.return_quantity >= self.part_issue.quantity
+            self.part_issue.save()
+            self.save()
+            InventoryAuditLog.objects.create(
+                part=self.part,
+                branch=self.branch,
+                action='RETURN',
+                quantity=self.quantity,
+                stock_before=stock_before,
+                stock_after=self.part.stock,
+                reference_type='RETURN',
+                reference_id=self.id,
+                reference_number=self.return_number,
+                reason=self.return_reason,
+                performed_by=user
+            )
+
+    def __str__(self):
+        return f"{self.return_number} - {self.part.name}"
+
+
+class InventoryAuditLog(models.Model):
+    log_id = models.CharField(max_length=50, unique=True, blank=True)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='audit_logs')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='inventory_audit_logs')
+    action = models.CharField(max_length=30, choices=[
+        ('ISSUE', 'Part Issued'),
+        ('RETURN', 'Part Returned'),
+        ('RESERVE', 'Part Reserved'),
+        ('RELEASE', 'Reservation Released'),
+        ('GRN', 'Goods Received'),
+        ('TRANSFER_OUT', 'Transfer Out'),
+        ('TRANSFER_IN', 'Transfer In'),
+        ('ADJUSTMENT', 'Stock Adjustment'),
+        ('SCRAP', 'Scrapped'),
+    ])
+    quantity = models.IntegerField()
+    stock_before = models.IntegerField()
+    stock_after = models.IntegerField()
+    reference_type = models.CharField(max_length=30)
+    reference_id = models.IntegerField()
+    reference_number = models.CharField(max_length=100)
+    reason = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_immutable = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['part', 'timestamp']),
+            models.Index(fields=['branch', 'timestamp']),
+            models.Index(fields=['reference_type', 'reference_id']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk and self.is_immutable:
+            raise ValidationError("Audit log entries cannot be modified")
+        if not self.log_id:
+            self.log_id = f"LOG-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.log_id} - {self.part.name} - {self.action}"
+
+
 class TechnicianSchedule(models.Model):
     technician = models.ForeignKey(User, on_delete=models.CASCADE, related_name='schedules')
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='schedules')
