@@ -1,0 +1,192 @@
+MASTER PROMPT — CUSTOMER PROFILE & CONTRACT-AWARE CRM
+(360° Customer View | Contract Detection | Service & Billing Integration)
+ROLE & OBJECTIVE
+You are a senior product engineering team (CRM Architect, Service SME, Backend Lead, Frontend Lead) tasked with designing and implementing an enterprise-level Customer Profile within the CRM module, tightly integrated with:
+Service Operations
+Job Cards
+Contracts (AMC / Warranty / Fleet)
+Invoices & Accounts
+The goal is to provide a single, authoritative customer view and ensure automatic contract detection and application during appointment creation and job card processing.
+⚠️ Do NOT change existing workflows or modules
+⚠️ Enhance and integrate only
+1. CUSTOMER PROFILE — CORE DESIGN PRINCIPLES
+One customer = single source of truth
+One customer can own multiple vehicles
+Every service, invoice, and contract must be traceable to the customer
+Contract eligibility must be auto-detected, not manually checked
+Customer profile must support operational, financial, and relationship views
+2. CUSTOMER PROFILE — 360° STRUCTURE
+2.1 Customer Master Details
+Include and display:
+Customer ID (system-generated)
+Customer type:
+Individual
+Corporate
+Fleet
+Customer name
+Primary & secondary contact numbers
+Email addresses
+Address(es)
+Preferred branch
+Preferred communication channel (WhatsApp / SMS / Email)
+Customer category (Retail / VIP / Fleet)
+Customer status (Active / Inactive / Blacklisted)
+3. VEHICLE OWNERSHIP & ASSET VIEW
+Each customer profile must show:
+Total number of vehicles owned
+Vehicle-wise details:
+Registration number
+VIN
+Make / Model / Variant
+Fuel type
+Year
+Odometer history
+Vehicle status:
+Active
+Sold
+Inactive
+Vehicles must be clickable to open vehicle-specific service history.
+4. SERVICE HISTORY (VEHICLE & CUSTOMER LEVEL)
+4.1 Service History View
+For each vehicle, display:
+Service date
+Job Card ID
+Service type
+Issues reported
+Work performed
+Technician(s) involved
+Service duration
+Service status
+Rework indicator (if any)
+4.2 Service Timeline
+Chronological timeline of all services
+Drill-down to job card details
+SLA & delay indicators
+5. INVOICE & BILLING HISTORY (CRM-INTEGRATED)
+5.1 Invoice Summary
+At customer profile level, show:
+Total invoices count
+Total billed amount
+Total paid amount
+Outstanding balance
+5.2 Invoice Detail View
+Each invoice must show:
+Invoice ID
+Linked Job Card ID
+Invoice date
+Line items:
+Labor
+Parts
+Taxes
+Discounts
+Contract-covered vs chargeable split
+Payment status
+Payment history
+Invoices must be viewable directly from CRM, without switching modules.
+6. CONTRACT MANAGEMENT (CRM-CENTRIC)
+6.1 Contract Overview in Customer Profile
+Display:
+Active contracts
+Upcoming expiries
+Expired contracts
+Contract type (AMC / Warranty / Fleet)
+Contract validity period
+Remaining entitlements
+Utilization summary
+7. CONTRACT AUTO-DETECTION (CRITICAL REQUIREMENT)
+7.1 During Appointment Creation
+When creating an appointment:
+System must automatically:
+Identify customer
+Identify selected vehicle
+Check for active contracts linked to:
+Customer
+Vehicle
+Display:
+“Active Contract Found” badge
+Contract type & validity
+Covered service types
+Prevent manual override unless authorized
+7.2 During Job Card Creation
+When creating a job card:
+System must:
+Re-check contract validity (real-time)
+Auto-apply contract rules:
+Covered labor
+Covered parts
+Free service eligibility
+Visually tag:
+Contract-covered items
+Non-covered items
+Lock pricing for covered items
+8. CONTRACT CONSUMPTION & TRACEABILITY
+For every service under contract:
+Auto-deduct:
+Service count
+Labor hours
+Parts entitlement
+Link consumption to:
+Contract ID
+Job Card ID
+Invoice ID
+Update contract utilization dashboard in CRM
+9. CUSTOMER COMMUNICATION & TRANSPARENCY
+From the customer profile:
+View all communications sent:
+Service updates
+Invoice notifications
+Contract reminders
+Channel used (WhatsApp / SMS / Email)
+Delivery status
+Timestamp
+10. ACCESS CONTROL & GOVERNANCE
+CRM Executive:
+View customer profile
+Add interactions
+Service Advisor:
+View contracts & service history
+Accounts:
+View invoices & payments
+Manager:
+Override contract application (with reason)
+All overrides must be logged and auditable
+11. UI / UX REQUIREMENTS (WITHOUT REDESIGN)
+Tab-based customer profile:
+Overview
+Vehicles
+Service History
+Invoices
+Contracts
+Communications
+Quick actions:
+Create appointment
+Create job card
+View active contract
+Clear badges & indicators
+No duplicate data entry
+12. BACKEND DESIGN (HIGH-LEVEL)
+Key entities to integrate:
+Customer
+Vehicle
+JobCard
+ServiceHistory
+Invoice
+Contract
+ContractConsumption
+CommunicationLog
+Contract detection logic must be enforced in the service layer, not UI.
+13. FINAL VALIDATION RULES
+After implementation:
+✅ Customer profile shows full 360° view
+✅ Vehicles & services are clearly traceable
+✅ Invoices visible inside CRM
+✅ Active contracts auto-detected
+✅ Contract rules auto-applied
+✅ No manual errors in contract usage
+14. FINAL INSTRUCTION
+Build this Customer Profile & Contract-Aware CRM enhancement as if it will be:
+Used daily by service advisors
+Trusted by customers
+Audited for billing disputes
+Scaled across branches
+This is a relationship intelligence layer, not just a contact screen.
