@@ -247,9 +247,9 @@ function DashboardTab() {
 }
 
 function EventsTab() {
-  const [moduleFilter, setModuleFilter] = useState<string>("");
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
-  const { data: events, isLoading } = useNotificationEvents({ module: moduleFilter || undefined });
+  const { data: events, isLoading } = useNotificationEvents({ module: moduleFilter === "all" ? undefined : moduleFilter });
   const createEvent = useCreateNotificationEvent();
   const { toast } = useToast();
   const { data: availableVars } = useAvailableVariables();
@@ -292,7 +292,7 @@ function EventsTab() {
               <SelectValue placeholder="All Modules" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Modules</SelectItem>
+              <SelectItem value="all">All Modules</SelectItem>
               {NOTIFICATION_MODULES.map((m) => (
                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
               ))}
@@ -453,13 +453,13 @@ function EventsTab() {
 }
 
 function TemplatesTab() {
-  const [channelFilter, setChannelFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [previewContent, setPreviewContent] = useState("");
   const { data: templates, isLoading } = useNotificationTemplates({
-    channel: channelFilter || undefined,
-    status: statusFilter || undefined,
+    channel: channelFilter === "all" ? undefined : channelFilter,
+    status: statusFilter === "all" ? undefined : statusFilter,
   });
   const { data: events } = useNotificationEvents({ is_active: true });
   const createTemplate = useCreateNotificationTemplate();
@@ -542,7 +542,7 @@ function TemplatesTab() {
               <SelectValue placeholder="All Channels" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Channels</SelectItem>
+              <SelectItem value="all">All Channels</SelectItem>
               {NOTIFICATION_CHANNELS.map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
@@ -553,7 +553,7 @@ function TemplatesTab() {
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Statuses</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               {TEMPLATE_STATUSES.map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
@@ -766,8 +766,8 @@ function TemplatesTab() {
 }
 
 function RulesTab() {
-  const [moduleFilter, setModuleFilter] = useState<string>("");
-  const { data: rules, isLoading } = useNotificationRules({ module: moduleFilter || undefined });
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const { data: rules, isLoading } = useNotificationRules({ module: moduleFilter === "all" ? undefined : moduleFilter });
 
   return (
     <div className="space-y-6">
@@ -778,7 +778,7 @@ function RulesTab() {
               <SelectValue placeholder="All Modules" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Modules</SelectItem>
+              <SelectItem value="all">All Modules</SelectItem>
               {NOTIFICATION_MODULES.map((m) => (
                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
               ))}
@@ -848,12 +848,12 @@ function RulesTab() {
 }
 
 function LogsTab() {
-  const [channelFilter, setChannelFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const { data: logs, isLoading, refetch } = useNotificationLogs({
-    channel: channelFilter || undefined,
-    status: statusFilter || undefined,
+    channel: channelFilter === "all" ? undefined : channelFilter,
+    status: statusFilter === "all" ? undefined : statusFilter,
     search: search || undefined,
   });
 
@@ -878,7 +878,7 @@ function LogsTab() {
               <SelectValue placeholder="All Channels" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Channels</SelectItem>
+              <SelectItem value="all">All Channels</SelectItem>
               {NOTIFICATION_CHANNELS.map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
@@ -889,7 +889,7 @@ function LogsTab() {
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Statuses</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               {DELIVERY_STATUSES.map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
@@ -1032,9 +1032,9 @@ function LogsTab() {
 }
 
 function AuditTab() {
-  const [entityFilter, setEntityFilter] = useState<string>("");
+  const [entityFilter, setEntityFilter] = useState<string>("all");
   const { data: auditLogs, isLoading } = useNotificationAuditLogs({
-    entity_type: entityFilter || undefined,
+    entity_type: entityFilter === "all" ? undefined : entityFilter,
   });
 
   return (
@@ -1045,7 +1045,7 @@ function AuditTab() {
             <SelectValue placeholder="All Entities" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Entities</SelectItem>
+            <SelectItem value="all">All Entities</SelectItem>
             <SelectItem value="NotificationEvent">Events</SelectItem>
             <SelectItem value="NotificationTemplate">Templates</SelectItem>
             <SelectItem value="NotificationRule">Rules</SelectItem>
