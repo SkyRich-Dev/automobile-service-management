@@ -31,7 +31,7 @@
       "receivables": "ลูกหนี้",
       "chartOfAccounts": "ผังบัญชี"
     },
-    "hrms": {
+    "hrmsMenu": {
       "overview": "ภาพรวม",
       "skills": "ทักษะ",
       "employees": "พนักงาน",

@@ -175,12 +175,12 @@ const menuItemsConfig: MenuItemConfig[] = [
     path: "/hrms",
     allowedRoles: [...ADMIN_ROLES, 'HR_MANAGER'],
     subItems: [
-      { key: "hrms.overview", icon: PieChart, path: "/hrms?tab=overview" },
-      { key: "hrms.skills", icon: Award, path: "/hrms?tab=skills" },
-      { key: "hrms.employees", icon: Users, path: "/hrms?tab=employees" },
-      { key: "hrms.training", icon: GraduationCap, path: "/hrms?tab=training" },
-      { key: "hrms.leaveManagement", icon: CalendarDays, path: "/hrms?tab=leave" },
-      { key: "hrms.skillMatrix", icon: Target, path: "/hrms?tab=matrix" },
+      { key: "hrmsMenu.overview", icon: PieChart, path: "/hrms?tab=overview" },
+      { key: "hrmsMenu.skills", icon: Award, path: "/hrms?tab=skills" },
+      { key: "hrmsMenu.employees", icon: Users, path: "/hrms?tab=employees" },
+      { key: "hrmsMenu.training", icon: GraduationCap, path: "/hrms?tab=training" },
+      { key: "hrmsMenu.leaveManagement", icon: CalendarDays, path: "/hrms?tab=leave" },
+      { key: "hrmsMenu.skillMatrix", icon: Target, path: "/hrms?tab=matrix" },
     ]
   },
   { 
