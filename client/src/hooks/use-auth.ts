@@ -42,10 +42,27 @@ async function fetchUser(): Promise<AuthResponse | null> {
   return response.json();
 }
 
+function getCsrfToken(): string | null {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'csrftoken') {
+      return value;
+    }
+  }
+  return null;
+}
+
 async function loginUser(credentials: { username: string; password: string }): Promise<AuthResponse> {
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (csrfToken) {
+    headers["X-CSRFToken"] = csrfToken;
+  }
+  
   const response = await fetch(`${API_BASE}/auth/login/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     credentials: "include",
     body: JSON.stringify(credentials),
   });
