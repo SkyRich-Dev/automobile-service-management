@@ -94,6 +94,7 @@ const LEAD_STATUSES = [
   { value: 'QUALIFIED', label: 'Qualified', color: 'bg-cyan-500' },
   { value: 'QUOTED', label: 'Quoted', color: 'bg-amber-500' },
   { value: 'NEGOTIATION', label: 'Negotiation', color: 'bg-orange-500' },
+  { value: 'CUSTOMER', label: 'Customer', color: 'bg-emerald-500' },
   { value: 'CONVERTED', label: 'Converted', color: 'bg-green-500' },
   { value: 'LOST', label: 'Lost', color: 'bg-red-500' },
 ];
@@ -291,8 +292,7 @@ export default function LeadDetail() {
     );
   };
 
-  const currentStatusIndex = LEAD_STATUSES.findIndex(s => s.value === lead?.status);
-
+  
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -368,49 +368,94 @@ export default function LeadDetail() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-medium">{t('crm.leadPipeline', 'Lead Pipeline')}</h3>
-                <Select 
-                  value={lead.status} 
-                  onValueChange={handleStatusChange}
-                  disabled={transitionLead.isPending || lead.status === 'CONVERTED'}
-                >
-                  <SelectTrigger className="w-48" data-testid="select-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEAD_STATUSES.map(status => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  {lead.converted_customer && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setLocation(`/crm/customers/${lead.converted_customer}`)}
+                      data-testid="button-view-customer"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      {t('crm.viewCustomer', 'View Customer')}
+                    </Button>
+                  )}
+                  <Select 
+                    value={lead.status} 
+                    onValueChange={handleStatusChange}
+                    disabled={transitionLead.isPending || lead.status === 'CONVERTED'}
+                  >
+                    <SelectTrigger className="w-48" data-testid="select-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_STATUSES
+                        .filter(status => {
+                          // Hide LOST option for CUSTOMER and CONVERTED statuses
+                          if (status.value === 'LOST' && ['CUSTOMER', 'CONVERTED'].includes(lead.status)) {
+                            return false;
+                          }
+                          // Only show CUSTOMER option when in NEGOTIATION
+                          if (status.value === 'CUSTOMER' && lead.status !== 'NEGOTIATION') {
+                            return false;
+                          }
+                          // Hide earlier stages when in CUSTOMER or CONVERTED
+                          const earlierStages = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTED', 'NEGOTIATION'];
+                          if (['CUSTOMER', 'CONVERTED'].includes(lead.status) && earlierStages.includes(status.value)) {
+                            return false;
+                          }
+                          return true;
+                        })
+                        .map(status => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {LEAD_STATUSES.map((status, index) => {
-                  const isActive = index <= currentStatusIndex;
-                  const isCurrent = status.value === lead.status;
-                  return (
-                    <div key={status.value} className="flex items-center flex-1">
-                      <div
-                        className={cn(
-                          "flex-1 h-2 rounded-full transition-colors",
-                          isActive ? status.color : "bg-muted"
-                        )}
-                      />
-                      {index < LEAD_STATUSES.length - 1 && (
-                        <ChevronRight className={cn("h-4 w-4 mx-1", isActive ? "text-foreground" : "text-muted-foreground")} />
-                      )}
+              {(() => {
+                // Pipeline statuses (excludes LOST as it's a terminal state)
+                const pipelineStatuses = LEAD_STATUSES.filter(s => s.value !== 'LOST');
+                const pipelineIndex = pipelineStatuses.findIndex(s => s.value === lead.status);
+                const isLost = lead.status === 'LOST';
+                
+                return (
+                  <>
+                    <div className="flex items-center gap-2">
+                      {pipelineStatuses.map((status, index) => {
+                        const isActive = isLost ? false : index <= pipelineIndex;
+                        return (
+                          <div key={status.value} className="flex items-center flex-1">
+                            <div
+                              className={cn(
+                                "flex-1 h-2 rounded-full transition-colors",
+                                isLost ? "bg-red-500" : (isActive ? status.color : "bg-muted")
+                              )}
+                            />
+                            {index < pipelineStatuses.length - 1 && (
+                              <ChevronRight className={cn("h-4 w-4 mx-1", isActive ? "text-foreground" : "text-muted-foreground")} />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                {LEAD_STATUSES.map(status => (
-                  <span key={status.value} className={cn(status.value === lead.status && "font-medium text-foreground")}>
-                    {status.label}
-                  </span>
-                ))}
-              </div>
+                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                      {pipelineStatuses.map(status => (
+                        <span key={status.value} className={cn(status.value === lead.status && "font-medium text-foreground")}>
+                          {status.label}
+                        </span>
+                      ))}
+                    </div>
+                    {isLost && (
+                      <div className="mt-2 text-center">
+                        <Badge variant="destructive">{t('crm.leadLost', 'Lead Lost')}</Badge>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         </header>

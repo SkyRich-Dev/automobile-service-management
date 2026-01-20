@@ -1885,6 +1885,7 @@ class LeadStatus(models.TextChoices):
     QUALIFIED = 'QUALIFIED', 'Qualified'
     QUOTED = 'QUOTED', 'Quoted'
     NEGOTIATION = 'NEGOTIATION', 'Negotiation'
+    CUSTOMER = 'CUSTOMER', 'Customer'
     CONVERTED = 'CONVERTED', 'Converted'
     LOST = 'LOST', 'Lost'
 

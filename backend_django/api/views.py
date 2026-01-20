@@ -2624,29 +2624,82 @@ class LeadViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def transition(self, request, pk=None):
+        from django.db import transaction
+        
         lead = self.get_object()
         new_status = request.data.get('status')
+        old_status = lead.status
+        
         if new_status not in [s[0] for s in LeadStatus.choices]:
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         
-        old_status = lead.status
-        lead.status = new_status
-        lead.last_contact_date = timezone.now()
+        # Prevent LOST transition from CUSTOMER or CONVERTED status
+        if new_status == 'LOST' and old_status in ['CUSTOMER', 'CONVERTED']:
+            return Response({'error': 'Cannot mark a customer as lost'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if new_status == 'LOST':
-            lead.lost_reason = request.data.get('lost_reason', '')
-            lead.lost_to_competitor = request.data.get('lost_to_competitor', '')
+        # Prevent regression from CUSTOMER or CONVERTED to earlier statuses
+        terminal_statuses = ['CUSTOMER', 'CONVERTED']
+        earlier_statuses = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTED', 'NEGOTIATION']
+        if old_status in terminal_statuses and new_status in earlier_statuses:
+            return Response({'error': 'Cannot move customer back to earlier pipeline stages'}, status=status.HTTP_400_BAD_REQUEST)
         
-        lead.save()
+        # Only allow CUSTOMER transition from NEGOTIATION
+        if new_status == 'CUSTOMER' and old_status != 'NEGOTIATION':
+            return Response({'error': 'Can only convert to customer from Negotiation stage'}, status=status.HTTP_400_BAD_REQUEST)
         
-        CRMEvent.objects.create(
-            event_type='LEAD_STATUS_CHANGE',
-            lead=lead,
-            description=f'Lead status changed from {old_status} to {new_status}',
-            metadata={'old_status': old_status, 'new_status': new_status},
-            triggered_by=request.user,
-            is_system_generated=False
-        )
+        try:
+            with transaction.atomic():
+                lead.status = new_status
+                lead.last_contact_date = timezone.now()
+                
+                if new_status == 'LOST':
+                    lead.lost_reason = request.data.get('lost_reason', '')
+                    lead.lost_to_competitor = request.data.get('lost_to_competitor', '')
+                
+                # Auto-create customer when transitioning to CUSTOMER status
+                if new_status == 'CUSTOMER' and not lead.converted_customer:
+                    customer = Customer.objects.create(
+                        name=lead.name,
+                        phone=lead.phone,
+                        email=lead.email or '',
+                        address=lead.address or '',
+                        city=lead.city or '',
+                        branch=lead.branch,
+                        referral_source=lead.source
+                    )
+                    lead.converted_customer = customer
+                    
+                    # Create vehicle if lead has vehicle info
+                    if lead.vehicle_make or lead.vehicle_model:
+                        Vehicle.objects.create(
+                            customer=customer,
+                            make=lead.vehicle_make or '',
+                            model=lead.vehicle_model or '',
+                            year=lead.vehicle_year,
+                            plate_number=lead.registration_number or ''
+                        )
+                    
+                    CRMEvent.objects.create(
+                        event_type='LEAD_TO_CUSTOMER',
+                        lead=lead,
+                        customer=customer,
+                        description=f'Lead automatically converted to customer {customer.customer_id}',
+                        triggered_by=request.user,
+                        is_system_generated=True
+                    )
+                
+                lead.save()
+                
+                CRMEvent.objects.create(
+                    event_type='LEAD_STATUS_CHANGE',
+                    lead=lead,
+                    description=f'Lead status changed from {old_status} to {new_status}',
+                    metadata={'old_status': old_status, 'new_status': new_status},
+                    triggered_by=request.user,
+                    is_system_generated=False
+                )
+        except Exception as e:
+            return Response({'error': f'Failed to transition lead: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(LeadSerializer(lead).data)
     

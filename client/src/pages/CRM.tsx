@@ -139,6 +139,7 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
   QUALIFIED: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   QUOTED: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
   NEGOTIATION: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  CUSTOMER: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
   CONVERTED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   LOST: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
@@ -722,6 +723,15 @@ export default function CRM() {
                             onClick={() => transitionLead.mutate({ id: lead.id, status: "QUOTED" })}
                           >
                             {t('crm.actions.sendQuote', 'Send Quote')}
+                          </Button>
+                        )}
+                        {lead.status === "NEGOTIATION" && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => transitionLead.mutate({ id: lead.id, status: "CUSTOMER" })}
+                          >
+                            {t('crm.actions.convertToCustomer', 'Convert to Customer')}
                           </Button>
                         )}
                         {["NEW", "CONTACTED", "QUALIFIED", "QUOTED", "NEGOTIATION"].includes(lead.status) && (
