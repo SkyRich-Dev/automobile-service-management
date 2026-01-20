@@ -328,7 +328,9 @@ export default function CRM() {
           );
         
         await Promise.all(vehiclePromises);
-        queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/vehicles/"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/customers/"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/crm/dashboard/"] });
       }
       
       toast({ title: t('crm.messages.customerAdded', 'Customer added successfully') });
