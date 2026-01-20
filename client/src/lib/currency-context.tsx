@@ -34,6 +34,7 @@ interface LocalizationContextType {
   setCurrency: (code: string) => Promise<void>;
   setLanguage: (code: string) => Promise<void>;
   formatCurrency: (amount: number | string | null | undefined, currencyCode?: string) => string;
+  formatDate: (dateStr: string | null | undefined) => string;
   convertCurrency: (amount: number, fromCode: string, toCode: string) => number;
 }
 
@@ -144,6 +145,21 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     return amountInBase * toRate;
   };
 
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString(currentLanguage?.code || 'en', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return '-';
+    }
+  };
+
   const setCurrency = async (code: string) => {
     await setCurrencyMutation.mutateAsync(code);
   };
@@ -165,6 +181,7 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
         setCurrency,
         setLanguage,
         formatCurrency,
+        formatDate,
         convertCurrency,
       }}
     >
