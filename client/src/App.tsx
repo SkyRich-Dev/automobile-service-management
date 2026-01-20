@@ -14,6 +14,7 @@ import ServiceOperations from "@/pages/ServiceOperations";
 import Inventory from "@/pages/Inventory";
 import CRM from "@/pages/CRM";
 import CustomerProfile from "@/pages/CustomerProfile";
+import LeadDetail from "@/pages/LeadDetail";
 import JobCardDetail from "@/pages/JobCardDetail";
 import Appointments from "@/pages/Appointments";
 import Contracts from "@/pages/Contracts";
@@ -124,6 +125,7 @@ function Router() {
       <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} allowedRoles={routePermissions['/inventory']} />} />
       <Route path="/crm" component={() => <ProtectedRoute component={CRM} allowedRoles={routePermissions['/crm']} />} />
       <Route path="/crm/customers/:id" component={() => <ProtectedRoute component={CustomerProfile} allowedRoles={routePermissions['/crm']} />} />
+      <Route path="/crm/leads/:id" component={() => <ProtectedRoute component={LeadDetail} allowedRoles={routePermissions['/crm']} />} />
       <Route path="/job-cards/:id" component={() => <ProtectedRoute component={JobCardDetail} allowedRoles={routePermissions['/service']} />} />
       <Route path="/appointments" component={() => <ProtectedRoute component={Appointments} allowedRoles={routePermissions['/appointments']} />} />
       <Route path="/contracts" component={() => <ProtectedRoute component={Contracts} allowedRoles={routePermissions['/contracts']} />} />

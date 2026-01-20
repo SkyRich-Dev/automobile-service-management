@@ -654,7 +654,7 @@ export default function CRM() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredLeads.map((lead) => (
-                  <Card key={lead.id} data-testid={`card-lead-${lead.id}`}>
+                  <Card key={lead.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/crm/leads/${lead.id}`)} data-testid={`card-lead-${lead.id}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -696,7 +696,7 @@ export default function CRM() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-4 pt-3 border-t">
+                      <div className="flex items-center gap-2 mt-4 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
                         {lead.status === "NEW" && (
                           <Button
                             size="sm"
