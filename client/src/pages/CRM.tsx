@@ -816,6 +816,9 @@ export default function CRM() {
                         </div>
                       )}
                     </div>
+                    <div className="mt-4 pt-3 border-t text-xs text-muted-foreground text-center">
+                      {t('crm.clickToViewProfile', 'Click to view full profile')}
+                    </div>
                   </CardContent>
                 </Card>
               ))}

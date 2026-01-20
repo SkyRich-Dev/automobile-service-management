@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
 import { useSidebar } from "@/lib/sidebar-context";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -35,6 +36,8 @@ import {
   PanelLeft,
   History,
   Bell,
+  Building2,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -43,6 +46,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type UserRole = 
   | 'SUPER_ADMIN' 
@@ -180,6 +190,12 @@ const menuItemsConfig: MenuItemConfig[] = [
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
   { 
+    key: "configCenter",
+    icon: Sliders, 
+    path: "/config-center",
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER']
+  },
+  { 
     key: "adminPanel",
     icon: ShieldCheck, 
     path: "/admin",
@@ -187,14 +203,27 @@ const menuItemsConfig: MenuItemConfig[] = [
   },
 ];
 
+interface Branch {
+  id: number;
+  name: string;
+  code: string;
+  is_active: boolean;
+}
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, profile, logout } = useAuth();
   const { t } = useTranslation();
-  const { isCollapsed, toggleSidebar } = useSidebar();
+  const { isCollapsed, toggleSidebar, selectedBranch, setSelectedBranch } = useSidebar();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(["accountsFinance"]);
 
+  const { data: branches } = useQuery<Branch[]>({
+    queryKey: ["/api/branches/"],
+    enabled: !!user,
+  });
+
   const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
+  const showBranchSwitcher = ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER'].includes(userRole);
   
   const getLocalizedMenuItems = (): MenuItem[] => {
     return menuItemsConfig.map(item => ({
@@ -380,6 +409,51 @@ export function AppSidebar() {
           </div>
         )}
       </div>
+
+      {showBranchSwitcher && branches && branches.length > 1 && (
+        <div className={cn(
+          "border-b border-sidebar-border",
+          isCollapsed ? "py-2 px-2" : "py-2 px-3"
+        )}>
+          {isCollapsed ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-sidebar-foreground/60"
+                  data-testid="button-branch-collapsed"
+                >
+                  <Building2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {selectedBranch === "all" ? t('sidebar.allBranches', 'All Branches') : branches.find(b => String(b.id) === selectedBranch)?.name}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <SelectTrigger 
+                className="w-full h-9 bg-sidebar-accent/50 border-sidebar-border text-sm"
+                data-testid="select-branch-switcher"
+              >
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-sidebar-foreground/60" />
+                  <SelectValue placeholder={t('sidebar.selectBranch', 'Select Branch')} />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('sidebar.allBranches', 'All Branches')}</SelectItem>
+                {branches.filter(b => b.is_active).map((branch) => (
+                  <SelectItem key={branch.id} value={String(branch.id)}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
 
       <div className={cn(
         "flex items-center border-b border-sidebar-border",

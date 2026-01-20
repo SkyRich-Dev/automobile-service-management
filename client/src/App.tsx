@@ -28,6 +28,7 @@ import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
 import NotificationCenter from "@/pages/NotificationCenter";
+import AdminConfig from "@/pages/AdminConfig";
 import { useEffect } from "react";
 
 type UserRole = 
@@ -62,6 +63,8 @@ const routePermissions: Record<string, UserRole[]> = {
   '/accounts-finance': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'ACCOUNTS_MANAGER', 'ACCOUNTANT'],
   '/admin': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
   '/notification-center': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
+  '/hrms': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'HR_MANAGER'],
+  '/config-center': ['SUPER_ADMIN', 'CEO_OWNER'],
 };
 
 function LoadingScreen() {
@@ -131,9 +134,10 @@ function Router() {
       <Route path="/accounts-finance" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/accounts" component={() => <ProtectedRoute component={AccountsFinance} allowedRoles={routePermissions['/accounts-finance']} />} />
-      <Route path="/hrms" component={() => <ProtectedRoute component={HRMS} allowedRoles={routePermissions['/admin']} />} />
+      <Route path="/hrms" component={() => <ProtectedRoute component={HRMS} allowedRoles={routePermissions['/hrms']} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/notification-center" component={() => <ProtectedRoute component={NotificationCenter} allowedRoles={routePermissions['/notification-center']} />} />
+      <Route path="/config-center" component={() => <ProtectedRoute component={AdminConfig} allowedRoles={routePermissions['/config-center']} />} />
       <Route component={NotFound} />
     </Switch>
   );
