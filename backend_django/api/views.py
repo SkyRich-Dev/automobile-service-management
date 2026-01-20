@@ -406,6 +406,17 @@ class PartViewSet(viewsets.ModelViewSet):
     serializer_class = PartSerializer
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
+    def perform_create(self, serializer):
+        import uuid
+        data = serializer.validated_data
+        
+        # Auto-generate part_number if not provided
+        if not data.get('part_number'):
+            part_number = f"PART-{uuid.uuid4().hex[:8].upper()}"
+            serializer.save(part_number=part_number)
+        else:
+            serializer.save()
+    
     def get_queryset(self):
         queryset = Part.objects.filter(is_active=True)
         category = self.request.query_params.get('category', None)
@@ -1397,19 +1408,51 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
-        po = self.get_object()
+        from django.db import transaction
+        
+        # First verify object permissions using DRF's standard flow
+        initial_po = self.get_object()
+        
         new_status = request.data.get('status')
         valid_statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']
         if new_status not in valid_statuses:
             return Response({'error': f'Invalid status. Must be one of: {valid_statuses}'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if new_status == 'APPROVED' and not po.approved_by:
-            po.approved_by = request.user
-        if new_status == 'RECEIVED':
-            po.actual_delivery = timezone.now().date()
+        try:
+            with transaction.atomic():
+                # Lock the PO row for update to prevent concurrent modifications
+                po = PurchaseOrder.objects.select_for_update().get(pk=pk)
+                
+                if new_status == 'APPROVED' and not po.approved_by:
+                    po.approved_by = request.user
+                
+                # When transitioning to RECEIVED, auto-receive all remaining items and update stock
+                if new_status == 'RECEIVED' and po.status != 'RECEIVED':
+                    po.actual_delivery = timezone.now().date()
+                    
+                    # Lock all related lines and their parts for update
+                    lines = PurchaseOrderLine.objects.select_for_update().filter(purchase_order=po)
+                    
+                    for line in lines:
+                        remaining_qty = line.quantity_ordered - line.quantity_received
+                        if remaining_qty > 0:
+                            # Lock the part row for update
+                            part = Part.objects.select_for_update().get(pk=line.part_id)
+                            part.stock += remaining_qty
+                            part.last_purchase_date = timezone.now().date()
+                            part.save()
+                            
+                            # Mark line as fully received
+                            line.quantity_received = line.quantity_ordered
+                            line.save()
+                
+                po.status = new_status
+                po.save()
+        except PurchaseOrder.DoesNotExist:
+            return Response({'error': 'Purchase order not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': f'Failed to update status: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        po.status = new_status
-        po.save()
         return Response(PurchaseOrderSerializer(po).data)
     
     @action(detail=True, methods=['get'])
