@@ -52,6 +52,7 @@ import {
   User,
   MessageSquare,
   Search,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -222,21 +223,32 @@ export default function CRM() {
     notes: "",
   });
 
+  const [customerVehicles, setCustomerVehicles] = useState<Array<{
+    make: string;
+    model: string;
+    plate_number: string;
+    vin: string;
+    year: string;
+  }>>([{ make: "", model: "", plate_number: "", vin: "", year: "" }]);
+
   const [leadFormData, setLeadFormData] = useState({
     name: "",
     phone: "",
     email: "",
     source: "WALK_IN",
     lead_type: "SERVICE",
-    vehicle_make: "",
-    vehicle_model: "",
     expected_value: "",
     priority: "MEDIUM",
     notes: "",
   });
 
+  const [leadVehicles, setLeadVehicles] = useState<Array<{
+    make: string;
+    model: string;
+  }>>([{ make: "", model: "" }]);
+
   const createLead = useMutation({
-    mutationFn: async (data: typeof leadFormData) => {
+    mutationFn: async (data: typeof leadFormData & { vehicles: typeof leadVehicles }) => {
       const res = await apiRequest("POST", "/api/leads/", data);
       return res.json();
     },
@@ -251,12 +263,11 @@ export default function CRM() {
         email: "",
         source: "WALK_IN",
         lead_type: "SERVICE",
-        vehicle_make: "",
-        vehicle_model: "",
         expected_value: "",
         priority: "MEDIUM",
         notes: "",
       });
+      setLeadVehicles([{ make: "", model: "" }]);
     },
     onError: () => {
       toast({ title: t('crm.messages.leadCreateError', 'Failed to create lead'), variant: "destructive" });
@@ -291,21 +302,88 @@ export default function CRM() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    createCustomer.mutate(formData, {
-      onSuccess: () => {
-        toast({ title: t('crm.messages.customerAdded', 'Customer added successfully') });
-        setOpen(false);
-        setFormData({ name: "", email: "", phone: "", loyalty_points: 0, address: "", notes: "" });
-      },
-      onError: () => {
-        toast({ title: t('crm.messages.customerCreateError', 'Failed to create customer'), variant: "destructive" });
-      },
-    });
+    const validVehicles = customerVehicles.filter(v => v.make.trim() || v.model.trim() || v.plate_number.trim());
+    
+    try {
+      const newCustomer = await new Promise<any>((resolve, reject) => {
+        createCustomer.mutate(formData, {
+          onSuccess: resolve,
+          onError: reject,
+        });
+      });
+      
+      if (validVehicles.length > 0 && newCustomer?.id) {
+        const vehiclePromises = validVehicles
+          .filter(vehicle => vehicle.make || vehicle.model || vehicle.plate_number)
+          .map(vehicle => 
+            apiRequest("POST", "/api/vehicles/", {
+              customer: newCustomer.id,
+              make: vehicle.make,
+              model: vehicle.model,
+              plate_number: vehicle.plate_number,
+              vin: vehicle.vin,
+              year: vehicle.year ? parseInt(vehicle.year) : null,
+              color: null,
+            })
+          );
+        
+        await Promise.all(vehiclePromises);
+        queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      }
+      
+      toast({ title: t('crm.messages.customerAdded', 'Customer added successfully') });
+      setOpen(false);
+      setFormData({ name: "", email: "", phone: "", loyalty_points: 0, address: "", notes: "" });
+      setCustomerVehicles([{ make: "", model: "", plate_number: "", vin: "", year: "" }]);
+    } catch (error) {
+      toast({ title: t('crm.messages.customerCreateError', 'Failed to create customer'), variant: "destructive" });
+    }
   };
 
   const handleLeadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createLead.mutate(leadFormData);
+    const validVehicles = leadVehicles.filter(v => v.make.trim() || v.model.trim());
+    const payload = { 
+      ...leadFormData, 
+      vehicles: validVehicles,
+    } as any;
+    if (validVehicles.length > 0) {
+      payload.vehicle_make = validVehicles[0]?.make || "";
+      payload.vehicle_model = validVehicles[0]?.model || "";
+    }
+    createLead.mutate(payload);
+  };
+
+  const addLeadVehicle = () => {
+    setLeadVehicles([...leadVehicles, { make: "", model: "" }]);
+  };
+
+  const removeLeadVehicle = (index: number) => {
+    if (leadVehicles.length > 1) {
+      setLeadVehicles(leadVehicles.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateLeadVehicle = (index: number, field: 'make' | 'model', value: string) => {
+    const updated = [...leadVehicles];
+    updated[index][field] = value;
+    setLeadVehicles(updated);
+  };
+
+  const addCustomerVehicle = () => {
+    setCustomerVehicles([...customerVehicles, { make: "", model: "", plate_number: "", vin: "", year: "" }]);
+  };
+
+  const removeCustomerVehicle = (index: number) => {
+    if (customerVehicles.length > 1) {
+      setCustomerVehicles(customerVehicles.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateCustomerVehicle = (index: number, field: keyof typeof customerVehicles[0], value: string) => {
+    const updated = [...customerVehicles];
+    updated[index][field] = value;
+    setCustomerVehicles(updated);
   };
 
   const isLoading = customersLoading || dashboardLoading;
@@ -889,7 +967,7 @@ export default function CRM() {
         </Tabs>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t('crm.addNewCustomer', 'Add New Customer')}</DialogTitle>
               <DialogDescription>{t('crm.addCustomerDetails', 'Add customer details')}</DialogDescription>
@@ -913,6 +991,70 @@ export default function CRM() {
                 <Label htmlFor="address">{t('crm.form.address', 'Address')}</Label>
                 <Input id="address" name="address" value={formData.address} onChange={handleChange} placeholder={t('crm.form.streetAddress', 'Street address')} data-testid="input-customer-address" />
               </div>
+              
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">{t('crm.form.vehicles', 'Vehicles')}</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addCustomerVehicle} data-testid="button-add-customer-vehicle">
+                    <Plus className="h-3 w-3 mr-1" /> {t('crm.form.addVehicle', 'Add Vehicle')}
+                  </Button>
+                </div>
+                {customerVehicles.map((vehicle, index) => (
+                  <Card key={index} className="p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          <Input 
+                            value={vehicle.make} 
+                            onChange={(e) => updateCustomerVehicle(index, 'make', e.target.value)}
+                            placeholder={t('crm.form.make', 'Make')} 
+                            data-testid={`input-customer-vehicle-make-${index}`}
+                          />
+                          <Input 
+                            value={vehicle.model} 
+                            onChange={(e) => updateCustomerVehicle(index, 'model', e.target.value)}
+                            placeholder={t('crm.form.model', 'Model')} 
+                            data-testid={`input-customer-vehicle-model-${index}`}
+                          />
+                          <Input 
+                            value={vehicle.year} 
+                            onChange={(e) => updateCustomerVehicle(index, 'year', e.target.value)}
+                            placeholder={t('crm.form.year', 'Year')} 
+                            type="number"
+                            data-testid={`input-customer-vehicle-year-${index}`}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input 
+                            value={vehicle.plate_number} 
+                            onChange={(e) => updateCustomerVehicle(index, 'plate_number', e.target.value)}
+                            placeholder={t('crm.form.plateNumber', 'Plate Number')} 
+                            data-testid={`input-customer-vehicle-plate-${index}`}
+                          />
+                          <Input 
+                            value={vehicle.vin} 
+                            onChange={(e) => updateCustomerVehicle(index, 'vin', e.target.value)}
+                            placeholder={t('crm.form.vin', 'VIN (optional)')} 
+                            data-testid={`input-customer-vehicle-vin-${index}`}
+                          />
+                        </div>
+                      </div>
+                      {customerVehicles.length > 1 && (
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => removeCustomerVehicle(index)}
+                          data-testid={`button-remove-customer-vehicle-${index}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
                 <Button type="submit" disabled={createCustomer.isPending} data-testid="button-save-customer">
@@ -977,15 +1119,42 @@ export default function CRM() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle_make">{t('crm.form.vehicleMake', 'Vehicle Make')}</Label>
-                  <Input id="vehicle_make" name="vehicle_make" value={leadFormData.vehicle_make} onChange={handleLeadChange} placeholder={t('crm.form.vehicleMakePlaceholder', 'Honda, Toyota')} data-testid="input-lead-make" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>{t('crm.form.vehicles', 'Vehicles')}</Label>
+                  <Button type="button" variant="ghost" size="sm" onClick={addLeadVehicle} data-testid="button-add-lead-vehicle">
+                    <Plus className="h-3 w-3 mr-1" /> {t('crm.form.addVehicle', 'Add Vehicle')}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle_model">{t('crm.form.vehicleModel', 'Vehicle Model')}</Label>
-                  <Input id="vehicle_model" name="vehicle_model" value={leadFormData.vehicle_model} onChange={handleLeadChange} placeholder={t('crm.form.vehicleModelPlaceholder', 'Civic, Corolla')} data-testid="input-lead-model" />
-                </div>
+                {leadVehicles.map((vehicle, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <Input 
+                      value={vehicle.make} 
+                      onChange={(e) => updateLeadVehicle(index, 'make', e.target.value)}
+                      placeholder={t('crm.form.vehicleMakePlaceholder', 'Honda, Toyota')} 
+                      className="flex-1"
+                      data-testid={`input-lead-make-${index}`}
+                    />
+                    <Input 
+                      value={vehicle.model} 
+                      onChange={(e) => updateLeadVehicle(index, 'model', e.target.value)}
+                      placeholder={t('crm.form.vehicleModelPlaceholder', 'Civic, Corolla')} 
+                      className="flex-1"
+                      data-testid={`input-lead-model-${index}`}
+                    />
+                    {leadVehicles.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => removeLeadVehicle(index)}
+                        data-testid={`button-remove-lead-vehicle-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSidebar } from "@/lib/sidebar-context";
 import { cn } from "@/lib/utils";
@@ -15,11 +15,17 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, User, Car, History, FileText, ScrollText, MessageSquare,
   Phone, Mail, MapPin, Building2, Star, CreditCard, Calendar,
   CheckCircle2, Clock, AlertTriangle, XCircle, Shield, Wrench,
-  Plus, ExternalLink, RefreshCw
+  Plus, ExternalLink, RefreshCw, Loader2
 } from "lucide-react";
 
 interface CustomerOverview {
@@ -270,6 +276,69 @@ export default function CustomerProfile() {
   const customerId = params.id;
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [vehicleFormData, setVehicleFormData] = useState({
+    make: "",
+    model: "",
+    year: "",
+    plate_number: "",
+    vin: "",
+    color: "",
+    vehicle_type: "CAR",
+    fuel_type: "",
+    transmission: "",
+  });
+
+  const createVehicle = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/vehicles/", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers", customerId, "360", "vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers", customerId, "360", "overview"] });
+      toast({ title: t('crm.messages.vehicleAdded', 'Vehicle added successfully') });
+      setVehicleDialogOpen(false);
+      setVehicleFormData({
+        make: "",
+        model: "",
+        year: "",
+        plate_number: "",
+        vin: "",
+        color: "",
+        vehicle_type: "CAR",
+        fuel_type: "",
+        transmission: "",
+      });
+    },
+    onError: () => {
+      toast({ title: t('crm.messages.vehicleCreateError', 'Failed to add vehicle'), variant: "destructive" });
+    },
+  });
+
+  const handleVehicleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createVehicle.mutate({
+      customer: parseInt(customerId!),
+      make: vehicleFormData.make,
+      model: vehicleFormData.model,
+      year: vehicleFormData.year ? parseInt(vehicleFormData.year) : null,
+      plate_number: vehicleFormData.plate_number,
+      vin: vehicleFormData.vin,
+      color: vehicleFormData.color || null,
+      vehicle_type: vehicleFormData.vehicle_type,
+      fuel_type: vehicleFormData.fuel_type || null,
+      transmission: vehicleFormData.transmission || null,
+    });
+  };
+
+  const handleVehicleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setVehicleFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const { data: overview, isLoading: overviewLoading } = useQuery<CustomerOverview>({
     queryKey: ["/api/customers", customerId, "360", "overview"],
@@ -541,6 +610,12 @@ export default function CustomerProfile() {
           </TabsContent>
 
           <TabsContent value="vehicles" className="space-y-4">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => setVehicleDialogOpen(true)} data-testid="button-add-vehicle">
+                <Plus className="h-4 w-4 mr-2" />
+                {t('crm.form.addVehicle', 'Add Vehicle')}
+              </Button>
+            </div>
             {vehiclesLoading ? (
               <div className="flex justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -550,6 +625,10 @@ export default function CustomerProfile() {
                 <CardContent className="py-12 text-center">
                   <Car className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No vehicles registered</p>
+                  <Button className="mt-4" onClick={() => setVehicleDialogOpen(true)} data-testid="button-add-first-vehicle">
+                    <Plus className="h-4 w-4 mr-2" />
+                    {t('crm.form.addVehicle', 'Add Vehicle')}
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -957,6 +1036,98 @@ export default function CustomerProfile() {
             )}
           </TabsContent>
         </Tabs>
+
+        <Dialog open={vehicleDialogOpen} onOpenChange={setVehicleDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t('crm.addNewVehicle', 'Add New Vehicle')}</DialogTitle>
+              <DialogDescription>{t('crm.addVehicleDetails', 'Add vehicle details for this customer')}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleVehicleSubmit} className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="make">{t('crm.form.make', 'Make')}</Label>
+                  <Input id="make" name="make" value={vehicleFormData.make} onChange={handleVehicleChange} placeholder="Honda" required data-testid="input-vehicle-make" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="model">{t('crm.form.model', 'Model')}</Label>
+                  <Input id="model" name="model" value={vehicleFormData.model} onChange={handleVehicleChange} placeholder="Civic" required data-testid="input-vehicle-model" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="year">{t('crm.form.year', 'Year')}</Label>
+                  <Input id="year" name="year" type="number" value={vehicleFormData.year} onChange={handleVehicleChange} placeholder="2023" data-testid="input-vehicle-year" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="plate_number">{t('crm.form.plateNumber', 'Plate Number')}</Label>
+                  <Input id="plate_number" name="plate_number" value={vehicleFormData.plate_number} onChange={handleVehicleChange} placeholder="MH01AB1234" required data-testid="input-vehicle-plate" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vin">{t('crm.form.vin', 'VIN')}</Label>
+                  <Input id="vin" name="vin" value={vehicleFormData.vin} onChange={handleVehicleChange} placeholder="Vehicle Identification Number" data-testid="input-vehicle-vin" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vehicle_type">{t('crm.form.vehicleType', 'Type')}</Label>
+                  <Select value={vehicleFormData.vehicle_type} onValueChange={(v) => setVehicleFormData(prev => ({ ...prev, vehicle_type: v }))}>
+                    <SelectTrigger data-testid="select-vehicle-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CAR">Car</SelectItem>
+                      <SelectItem value="BIKE">Bike</SelectItem>
+                      <SelectItem value="SCOOTER">Scooter</SelectItem>
+                      <SelectItem value="TRUCK">Truck</SelectItem>
+                      <SelectItem value="SUV">SUV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fuel_type">{t('crm.form.fuelType', 'Fuel Type')}</Label>
+                  <Select value={vehicleFormData.fuel_type} onValueChange={(v) => setVehicleFormData(prev => ({ ...prev, fuel_type: v }))}>
+                    <SelectTrigger data-testid="select-fuel-type">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PETROL">Petrol</SelectItem>
+                      <SelectItem value="DIESEL">Diesel</SelectItem>
+                      <SelectItem value="ELECTRIC">Electric</SelectItem>
+                      <SelectItem value="HYBRID">Hybrid</SelectItem>
+                      <SelectItem value="CNG">CNG</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="transmission">{t('crm.form.transmission', 'Transmission')}</Label>
+                  <Select value={vehicleFormData.transmission} onValueChange={(v) => setVehicleFormData(prev => ({ ...prev, transmission: v }))}>
+                    <SelectTrigger data-testid="select-transmission">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MANUAL">Manual</SelectItem>
+                      <SelectItem value="AUTOMATIC">Automatic</SelectItem>
+                      <SelectItem value="CVT">CVT</SelectItem>
+                      <SelectItem value="DCT">DCT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="color">{t('crm.form.color', 'Color')}</Label>
+                <Input id="color" name="color" value={vehicleFormData.color} onChange={handleVehicleChange} placeholder="White, Black, Silver..." data-testid="input-vehicle-color" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setVehicleDialogOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
+                <Button type="submit" disabled={createVehicle.isPending} data-testid="button-save-vehicle">
+                  {createVehicle.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {t('common.save', 'Save')}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
