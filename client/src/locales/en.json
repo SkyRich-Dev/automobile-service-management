@@ -634,7 +634,7 @@
       "QUALIFIED": "Qualified",
       "QUOTED": "Quoted",
       "NEGOTIATION": "Negotiation",
-      "CONVERTED": "Converted",
+      "CUSTOMER": "Customer",
       "LOST": "Lost"
     },
     "ticketStatus": {

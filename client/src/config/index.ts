@@ -536,7 +536,7 @@ export const LEAD_STATUS_DEFINITIONS: Record<string, StatusConfig> = {
   QUALIFIED: { value: "QUALIFIED", label: "Qualified", isTerminal: false, color: "teal" },
   QUOTED: { value: "QUOTED", label: "Quoted", isTerminal: false, color: "green" },
   NEGOTIATION: { value: "NEGOTIATION", label: "Negotiation", isTerminal: false, color: "yellow" },
-  CONVERTED: { value: "CONVERTED", label: "Converted", isTerminal: true, color: "emerald" },
+  CUSTOMER: { value: "CUSTOMER", label: "Customer", isTerminal: true, color: "emerald" },
   LOST: { value: "LOST", label: "Lost", isTerminal: true, color: "red" },
 };
 

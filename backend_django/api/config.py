@@ -292,7 +292,7 @@ LEAD_STATUS_DEFINITIONS: Dict[str, StatusConfig] = {
     "QUALIFIED": StatusConfig("QUALIFIED", "Qualified"),
     "QUOTED": StatusConfig("QUOTED", "Quoted"),
     "NEGOTIATION": StatusConfig("NEGOTIATION", "Negotiation"),
-    "CONVERTED": StatusConfig("CONVERTED", "Converted", True),
+    "CUSTOMER": StatusConfig("CUSTOMER", "Customer", True),
     "LOST": StatusConfig("LOST", "Lost", True),
 }
 

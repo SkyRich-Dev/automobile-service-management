@@ -2700,12 +2700,12 @@ class LeadViewSet(viewsets.ModelViewSet):
         if new_status not in [s[0] for s in LeadStatus.choices]:
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Prevent LOST transition from CUSTOMER or CONVERTED status
-        if new_status == 'LOST' and old_status in ['CUSTOMER', 'CONVERTED']:
+        # Prevent LOST transition from CUSTOMER status
+        if new_status == 'LOST' and old_status == 'CUSTOMER':
             return Response({'error': 'Cannot mark a customer as lost'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Prevent regression from CUSTOMER or CONVERTED to earlier statuses
-        terminal_statuses = ['CUSTOMER', 'CONVERTED']
+        # Prevent regression from CUSTOMER to earlier statuses
+        terminal_statuses = ['CUSTOMER']
         earlier_statuses = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTED', 'NEGOTIATION']
         if old_status in terminal_statuses and new_status in earlier_statuses:
             return Response({'error': 'Cannot move customer back to earlier pipeline stages'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2773,8 +2773,8 @@ class LeadViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def convert(self, request, pk=None):
         lead = self.get_object()
-        if lead.status == 'CONVERTED':
-            return Response({'error': 'Lead already converted'}, status=status.HTTP_400_BAD_REQUEST)
+        if lead.status == 'CUSTOMER':
+            return Response({'error': 'Lead is already a customer'}, status=status.HTTP_400_BAD_REQUEST)
         
         customer = Customer.objects.create(
             name=lead.name,
@@ -2786,9 +2786,18 @@ class LeadViewSet(viewsets.ModelViewSet):
             referral_source=lead.source
         )
         
-        lead.status = 'CONVERTED'
+        lead.status = 'CUSTOMER'
         lead.converted_customer = customer
         lead.save()
+        
+        if lead.vehicle_make or lead.vehicle_model:
+            Vehicle.objects.create(
+                customer=customer,
+                make=lead.vehicle_make or '',
+                model=lead.vehicle_model or '',
+                year=lead.vehicle_year,
+                plate_number=lead.registration_number or ''
+            )
         
         CRMEvent.objects.create(
             event_type='LEAD_CONVERTED',
@@ -2809,7 +2818,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         new_leads = Lead.objects.filter(status='NEW').count()
         contacted = Lead.objects.filter(status='CONTACTED').count()
         qualified = Lead.objects.filter(status='QUALIFIED').count()
-        converted = Lead.objects.filter(status='CONVERTED').count()
+        converted = Lead.objects.filter(status='CUSTOMER').count()
         lost = Lead.objects.filter(status='LOST').count()
         total_value = Lead.objects.filter(status__in=['QUALIFIED', 'QUOTED', 'NEGOTIATION']).aggregate(
             total=Sum('expected_value'))['total'] or 0

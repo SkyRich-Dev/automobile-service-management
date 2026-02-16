@@ -2104,7 +2104,6 @@ class LeadStatus(models.TextChoices):
     QUOTED = 'QUOTED', 'Quoted'
     NEGOTIATION = 'NEGOTIATION', 'Negotiation'
     CUSTOMER = 'CUSTOMER', 'Customer'
-    CONVERTED = 'CONVERTED', 'Converted'
     LOST = 'LOST', 'Lost'
 
 

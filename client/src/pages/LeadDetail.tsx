@@ -95,7 +95,6 @@ const LEAD_STATUSES = [
   { value: 'QUOTED', label: 'Quoted', color: 'bg-amber-500' },
   { value: 'NEGOTIATION', label: 'Negotiation', color: 'bg-orange-500' },
   { value: 'CUSTOMER', label: 'Customer', color: 'bg-emerald-500' },
-  { value: 'CONVERTED', label: 'Converted', color: 'bg-green-500' },
   { value: 'LOST', label: 'Lost', color: 'bg-red-500' },
 ];
 
@@ -383,7 +382,7 @@ export default function LeadDetail() {
                   <Select 
                     value={lead.status} 
                     onValueChange={handleStatusChange}
-                    disabled={transitionLead.isPending || lead.status === 'CONVERTED'}
+                    disabled={transitionLead.isPending || lead.status === 'CUSTOMER'}
                   >
                     <SelectTrigger className="w-48" data-testid="select-status">
                       <SelectValue />
@@ -391,17 +390,17 @@ export default function LeadDetail() {
                     <SelectContent>
                       {LEAD_STATUSES
                         .filter(status => {
-                          // Hide LOST option for CUSTOMER and CONVERTED statuses
-                          if (status.value === 'LOST' && ['CUSTOMER', 'CONVERTED'].includes(lead.status)) {
+                          // Hide LOST option for CUSTOMER status
+                          if (status.value === 'LOST' && lead.status === 'CUSTOMER') {
                             return false;
                           }
                           // Only show CUSTOMER option when in NEGOTIATION
                           if (status.value === 'CUSTOMER' && lead.status !== 'NEGOTIATION') {
                             return false;
                           }
-                          // Hide earlier stages when in CUSTOMER or CONVERTED
+                          // Hide earlier stages when in CUSTOMER
                           const earlierStages = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTED', 'NEGOTIATION'];
-                          if (['CUSTOMER', 'CONVERTED'].includes(lead.status) && earlierStages.includes(status.value)) {
+                          if (lead.status === 'CUSTOMER' && earlierStages.includes(status.value)) {
                             return false;
                           }
                           return true;
