@@ -3,6 +3,13 @@ import path from "path";
 
 let djangoProcess: ChildProcess | null = null;
 
+function killExistingDjango(): void {
+  try {
+    execSync("pkill -f 'manage.py runserver' 2>/dev/null || true", { stdio: "ignore" });
+  } catch {
+  }
+}
+
 function runDjangoMigrations(): void {
   const djangoPath = path.resolve(process.cwd(), "backend_django");
   try {
@@ -35,13 +42,14 @@ function seedSampleData(): void {
 export function startDjango(): Promise<void> {
   return new Promise((resolve, reject) => {
     const djangoPath = path.resolve(process.cwd(), "backend_django");
-    
+
     console.log("Starting Django server...");
 
+    killExistingDjango();
     runDjangoMigrations();
     seedSampleData();
-    
-    djangoProcess = spawn("python", ["manage.py", "runserver", "0.0.0.0:8000"], {
+
+    djangoProcess = spawn("python", ["manage.py", "runserver", "0.0.0.0:8000", "--noreload"], {
       cwd: djangoPath,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -56,7 +64,15 @@ export function startDjango(): Promise<void> {
     });
 
     djangoProcess.stderr?.on("data", (data) => {
-      console.error(`[Django Error] ${data.toString().trim()}`);
+      const errText = data.toString().trim();
+      if (errText.includes("Starting development server") || errText.includes("Performing system checks")) {
+        console.log(`[Django] ${errText}`);
+        if (errText.includes("Starting development server")) {
+          resolve();
+        }
+      } else {
+        console.error(`[Django Error] ${errText}`);
+      }
     });
 
     djangoProcess.on("error", (err) => {
@@ -69,13 +85,12 @@ export function startDjango(): Promise<void> {
       djangoProcess = null;
     });
 
-    // Resolve after 5 seconds if Django doesn't output the ready message
     setTimeout(() => {
       if (djangoProcess) {
         console.log("Django server appears to be running");
         resolve();
       }
-    }, 5000);
+    }, 10000);
   });
 }
 
