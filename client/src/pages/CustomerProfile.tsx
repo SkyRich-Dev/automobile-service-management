@@ -25,7 +25,8 @@ import {
   ArrowLeft, User, Car, History, FileText, ScrollText, MessageSquare,
   Phone, Mail, MapPin, Building2, Star, CreditCard, Calendar,
   CheckCircle2, Clock, AlertTriangle, XCircle, Shield, Wrench,
-  Plus, ExternalLink, RefreshCw, Loader2
+  Plus, ExternalLink, RefreshCw, Loader2,
+  DollarSign, Banknote, TrendingUp, AlertCircle, Clipboard
 } from "lucide-react";
 
 interface CustomerOverview {
@@ -66,6 +67,93 @@ interface CustomerOverview {
   pending_invoices_count: number;
   total_service_visits: number;
   last_service_date: string | null;
+  financial_summary: FinancialSummary;
+  credit_status: CreditStatus;
+}
+
+interface PaymentData {
+  id: number;
+  payment_number: string;
+  invoice: number;
+  invoice_number: string;
+  job_card_number: string | null;
+  vehicle_info: string | null;
+  amount: number;
+  payment_method: string;
+  reference_number: string;
+  payment_date: string;
+  received_by_name: string | null;
+  notes: string;
+}
+
+interface PaymentSummary {
+  total_payments: number;
+  total_amount: number;
+  by_method: Record<string, { count: number; total: number }>;
+}
+
+interface JobCardData {
+  id: number;
+  job_card_number: string;
+  service_tracking_id: string;
+  vehicle: number;
+  vehicle_info: string;
+  workflow_stage: string;
+  job_type: string;
+  priority: string;
+  complaint: string | null;
+  estimated_amount: number;
+  actual_amount: number | null;
+  is_warranty: boolean;
+  is_amc: boolean;
+  is_insurance: boolean;
+  is_goodwill: boolean;
+  promised_delivery: string | null;
+  actual_delivery: string | null;
+  created_at: string;
+  advisor_name: string | null;
+  invoice_status: {
+    id: number;
+    invoice_number: string;
+    grand_total: number;
+    amount_paid: number;
+    balance_due: number;
+    payment_status: string;
+  } | null;
+  contract_info: {
+    id: number;
+    contract_number: string;
+    contract_type: string;
+  } | null;
+}
+
+interface JobCardSummary {
+  total: number;
+  open: number;
+  completed: number;
+  warranty_covered: number;
+  amc_covered: number;
+  total_estimated: number;
+  total_actual: number;
+}
+
+interface FinancialSummary {
+  total_billed: number;
+  total_paid: number;
+  total_tax: number;
+  outstanding_balance: number;
+  overdue_amount: number;
+  overdue_invoice_count: number;
+  avg_payment_days: number | null;
+}
+
+interface CreditStatus {
+  credit_limit: number;
+  outstanding_balance: number;
+  available_credit: number;
+  utilization_percent: number;
+  overdue_invoice_count: number;
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 interface VehicleData {
@@ -241,6 +329,22 @@ const CONTRACT_TYPE_COLORS: Record<string, string> = {
   EXTENDED_WARRANTY: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300",
 };
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  CARD: "Card",
+  UPI: "UPI",
+  BANK_TRANSFER: "Bank Transfer",
+  CHEQUE: "Cheque",
+  CREDIT: "Credit",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  URGENT: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  HIGH: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+  NORMAL: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  LOW: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
+};
+
 const SLA_STATUS_ICONS: Record<string, JSX.Element> = {
   MET: <CheckCircle2 className="h-4 w-4 text-green-600" />,
   ON_TRACK: <Clock className="h-4 w-4 text-blue-600" />,
@@ -370,6 +474,16 @@ export default function CustomerProfile() {
     enabled: !!customerId,
   });
 
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery<{ summary: PaymentSummary; payments: PaymentData[] }>({
+    queryKey: ["/api/customers", customerId, "360", "payments"],
+    enabled: !!customerId,
+  });
+
+  const { data: jobCardsData, isLoading: jobCardsLoading } = useQuery<{ summary: JobCardSummary; job_cards: JobCardData[] }>({
+    queryKey: ["/api/customers", customerId, "360", "job-cards"],
+    enabled: !!customerId,
+  });
+
   if (overviewLoading) {
     return <LoadingSkeleton />;
   }
@@ -427,6 +541,17 @@ export default function CustomerProfile() {
                 </div>
               </div>
             </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mt-4">
+            <Button variant="outline" onClick={() => setLocation("/job-cards")} data-testid="button-quick-jobcard">
+              <Wrench className="mr-2 h-4 w-4" /> Create Job Card
+            </Button>
+            <Button variant="outline" onClick={() => setActiveTab("invoices")} data-testid="button-quick-outstanding">
+              <FileText className="mr-2 h-4 w-4" /> View Outstanding
+            </Button>
+            <Button variant="outline" onClick={() => setActiveTab("contracts")} data-testid="button-quick-contracts">
+              <ScrollText className="mr-2 h-4 w-4" /> View Contracts
+            </Button>
           </div>
         </header>
 
@@ -490,6 +615,26 @@ export default function CustomerProfile() {
           </Card>
         </div>
 
+        {overview.credit_status && overview.credit_status.risk_level !== 'LOW' && (
+          <Card className={cn("mb-6", overview.credit_status.risk_level === 'HIGH' ? "border-red-500 bg-red-50 dark:bg-red-950" : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950")}>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className={cn("h-5 w-5", overview.credit_status.risk_level === 'HIGH' ? "text-red-600" : "text-yellow-600")} />
+                <div>
+                  <p className={cn("font-medium", overview.credit_status.risk_level === 'HIGH' ? "text-red-800 dark:text-red-300" : "text-yellow-800 dark:text-yellow-300")}>
+                    {overview.credit_status.risk_level === 'HIGH' ? 'High Credit Risk' : 'Medium Credit Risk'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Credit utilization: {overview.credit_status.utilization_percent}% | 
+                    Outstanding: {formatCurrency(overview.credit_status.outstanding_balance)} of {formatCurrency(overview.credit_status.credit_limit)} limit
+                    {overview.credit_status.overdue_invoice_count > 0 && ` | ${overview.credit_status.overdue_invoice_count} overdue invoice(s)`}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview" data-testid="tab-overview">
@@ -510,10 +655,16 @@ export default function CustomerProfile() {
             <TabsTrigger value="communications" data-testid="tab-communications">
               <MessageSquare className="mr-2 h-4 w-4" /> Communications
             </TabsTrigger>
+            <TabsTrigger value="payments" data-testid="tab-payments">
+              <DollarSign className="mr-2 h-4 w-4" /> Payments
+            </TabsTrigger>
+            <TabsTrigger value="job-cards" data-testid="tab-job-cards">
+              <Clipboard className="mr-2 h-4 w-4" /> Job Cards ({overview.open_job_cards_count})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-3">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Contact Information</CardTitle>
@@ -585,6 +736,49 @@ export default function CustomerProfile() {
                     <span className="text-muted-foreground">Customer Since</span>
                     <span>{formatDate(overview.created_at)}</span>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Financial Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {overview.financial_summary && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Billed</span>
+                        <span className="font-medium">{formatCurrency(overview.financial_summary.total_billed)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Paid</span>
+                        <span className="font-medium text-green-600">{formatCurrency(overview.financial_summary.total_paid)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Tax (GST)</span>
+                        <span className="font-medium">{formatCurrency(overview.financial_summary.total_tax)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Outstanding</span>
+                        <span className={cn("font-medium", overview.financial_summary.outstanding_balance > 0 && "text-orange-600")}>
+                          {formatCurrency(overview.financial_summary.outstanding_balance)}
+                        </span>
+                      </div>
+                      {overview.financial_summary.overdue_amount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Overdue Amount</span>
+                          <span className="font-medium text-red-600">{formatCurrency(overview.financial_summary.overdue_amount)}</span>
+                        </div>
+                      )}
+                      {overview.financial_summary.avg_payment_days !== null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Avg Payment Days</span>
+                          <span>{overview.financial_summary.avg_payment_days} days</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -1033,6 +1227,192 @@ export default function CustomerProfile() {
                   </Card>
                 ))}
               </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-4">
+            {paymentsData?.summary && (
+              <div className="grid gap-4 md:grid-cols-3 mb-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Total Payments</p>
+                    <p className="text-xl font-bold">{paymentsData.summary.total_payments}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Total Amount Paid</p>
+                    <p className="text-xl font-bold text-green-600">{formatCurrency(paymentsData.summary.total_amount)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Payment Methods Used</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(paymentsData.summary.by_method).map(([method, data]) => (
+                        <Badge key={method} variant="outline" className="text-xs">
+                          {PAYMENT_METHOD_LABELS[method] || method}: {data.count}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            {paymentsLoading ? (
+              <div className="flex justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !paymentsData?.payments?.length ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No payments recorded</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Payment #</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Job Card</TableHead>
+                        <TableHead>Vehicle</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Received By</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentsData.payments.map((payment) => (
+                        <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
+                          <TableCell className="font-mono text-xs">{payment.payment_number}</TableCell>
+                          <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                          <TableCell className="font-mono text-xs">{payment.invoice_number}</TableCell>
+                          <TableCell className="font-mono text-xs">{payment.job_card_number || "-"}</TableCell>
+                          <TableCell className="text-xs">{payment.vehicle_info || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{PAYMENT_METHOD_LABELS[payment.payment_method] || payment.payment_method}</Badge>
+                          </TableCell>
+                          <TableCell className="font-medium text-green-600">{formatCurrency(payment.amount)}</TableCell>
+                          <TableCell className="text-xs">{payment.received_by_name || "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="job-cards" className="space-y-4">
+            {jobCardsData?.summary && (
+              <div className="grid gap-4 md:grid-cols-4 mb-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Total Job Cards</p>
+                    <p className="text-xl font-bold">{jobCardsData.summary.total}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Open</p>
+                    <p className="text-xl font-bold text-orange-600">{jobCardsData.summary.open}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Completed</p>
+                    <p className="text-xl font-bold text-green-600">{jobCardsData.summary.completed}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Contract Covered</p>
+                    <p className="text-xl font-bold">{jobCardsData.summary.warranty_covered + jobCardsData.summary.amc_covered}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            {jobCardsLoading ? (
+              <div className="flex justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !jobCardsData?.job_cards?.length ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Clipboard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No job cards found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Job Card</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Vehicle</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Contract</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {jobCardsData.job_cards.map((jc) => (
+                        <TableRow key={jc.id} className="cursor-pointer hover-elevate" onClick={() => setLocation(`/job-cards`)} data-testid={`row-jobcard-${jc.id}`}>
+                          <TableCell>
+                            <p className="font-mono text-xs">{jc.job_card_number}</p>
+                            {jc.advisor_name && <p className="text-xs text-muted-foreground">{jc.advisor_name}</p>}
+                          </TableCell>
+                          <TableCell>{formatDate(jc.created_at)}</TableCell>
+                          <TableCell className="text-xs">{jc.vehicle_info}</TableCell>
+                          <TableCell>{jc.job_type}</TableCell>
+                          <TableCell>
+                            <Badge className={PRIORITY_COLORS[jc.priority] || "bg-gray-100"}>{jc.priority}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={WORKFLOW_STAGE_COLORS[jc.workflow_stage] || "bg-gray-100"}>
+                              {jc.workflow_stage.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {jc.actual_amount ? formatCurrency(jc.actual_amount) : jc.estimated_amount ? formatCurrency(jc.estimated_amount) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {jc.invoice_status ? (
+                              <div>
+                                <p className="font-mono text-xs">{jc.invoice_status.invoice_number}</p>
+                                <Badge className={PAYMENT_STATUS_COLORS[jc.invoice_status.payment_status] || "bg-gray-100"}>
+                                  {jc.invoice_status.payment_status}
+                                </Badge>
+                              </div>
+                            ) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {jc.contract_info ? (
+                              <Badge className={CONTRACT_TYPE_COLORS[jc.contract_info.contract_type] || "bg-gray-100"}>
+                                {jc.contract_info.contract_type}
+                              </Badge>
+                            ) : jc.is_warranty ? (
+                              <Badge className="bg-blue-100 text-blue-800">WARRANTY</Badge>
+                            ) : jc.is_amc ? (
+                              <Badge className="bg-green-100 text-green-800">AMC</Badge>
+                            ) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
         </Tabs>

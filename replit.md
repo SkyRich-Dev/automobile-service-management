@@ -24,6 +24,13 @@ The system is divided into a backend and a frontend:
 - **11-Stage Service Workflow:** Enforces a strict service lifecycle from appointment to completion.
 - **RBAC:** 17 hierarchical user roles with granular permissions for secure and controlled access.
 - **CRM Module:** Manages leads, customer interactions, tickets, tasks, and campaigns, including a customer scoring algorithm. Customers are created exclusively through the lead pipeline (Customer stage is the final stage). Direct customer creation is not available.
+- **CRM-Customer-JobCard-Accounts Interlinking:** Comprehensive end-to-end traceability between CRM, Customer 360, Job Cards, and Accounts:
+  - Customer 360 Profile: 8 tabs (Overview, Vehicles, Service History, Invoices, Contracts, Communications, Payments, Job Cards)
+  - Financial Summary: Auto-computed total_billed, total_paid, outstanding, overdue, avg payment days in Overview
+  - Credit Risk Assessment: Real-time credit utilization, risk level (LOW/MEDIUM/HIGH), overdue tracking
+  - Job Card Creation: Auto-detects active contracts, shows credit risk warnings, recent service history
+  - Payment Traceability: Invoice/payment events automatically logged as CRM interactions
+  - API Endpoints: /api/customers/{id}/360/payments/, /api/customers/{id}/360/job-cards/, /api/customers/{id}/360/credit-status/
 - **Contract Module:** Full lifecycle management for various contract types, including coverage rules, consumption tracking, and approval workflows.
 - **Enhanced Inventory & Supplier Module:** Features detailed part management, reservation system, Goods Receipt Notes (GRN), stock transfers, purchase requisitions, supplier performance tracking, and inventory alerts.
 - **Enterprise Accounts & Finance Module:** Implements a Chart of Accounts, tax rates, enhanced invoicing with full lifecycle, credit notes, payments, expense management, and double-entry bookkeeping.

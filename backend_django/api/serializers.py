@@ -1,6 +1,8 @@
 from decimal import Decimal
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.db.models import Sum, Q
+from django.utils import timezone
 from .models import (
     Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
@@ -2117,6 +2119,8 @@ class Customer360OverviewSerializer(serializers.ModelSerializer):
     total_service_visits = serializers.SerializerMethodField()
     last_service_date = serializers.SerializerMethodField()
     preferred_branch_name = serializers.CharField(source='preferred_branch.name', read_only=True, allow_null=True)
+    financial_summary = serializers.SerializerMethodField()
+    credit_status = serializers.SerializerMethodField()
     
     class Meta:
         model = Customer
@@ -2127,7 +2131,8 @@ class Customer360OverviewSerializer(serializers.ModelSerializer):
                   'total_revenue', 'total_visits', 'last_visit_date', 'date_of_birth', 'anniversary_date',
                   'notes', 'tags', 'do_not_contact', 'is_active', 'created_at', 'updated_at',
                   'vehicles_count', 'active_contracts_count', 'open_job_cards_count',
-                  'pending_invoices_count', 'total_service_visits', 'last_service_date']
+                  'pending_invoices_count', 'total_service_visits', 'last_service_date',
+                  'financial_summary', 'credit_status']
     
     def get_vehicles_count(self, obj):
         return obj.vehicles.count()
@@ -2148,6 +2153,148 @@ class Customer360OverviewSerializer(serializers.ModelSerializer):
     def get_last_service_date(self, obj):
         last_job = obj.job_cards.filter(workflow_stage='COMPLETED').order_by('-actual_delivery').first()
         return last_job.actual_delivery if last_job else None
+    
+    def get_financial_summary(self, obj):
+        invoices = Invoice.objects.filter(customer=obj)
+        total_billed = float(invoices.aggregate(total=Sum('grand_total'))['total'] or 0)
+        total_paid = float(invoices.aggregate(total=Sum('amount_paid'))['total'] or 0)
+        total_tax = float(invoices.aggregate(total=Sum('tax'))['total'] or 0)
+        outstanding = float(invoices.aggregate(total=Sum('balance_due'))['total'] or 0)
+        overdue_invoices = invoices.filter(
+            payment_status__in=['UNPAID', 'PARTIAL'],
+            due_date__lt=timezone.now().date()
+        )
+        overdue_amount = float(overdue_invoices.aggregate(total=Sum('balance_due'))['total'] or 0)
+        avg_payment_days = None
+        paid_invoices = invoices.filter(payment_status='PAID')
+        if paid_invoices.exists():
+            payment_days = []
+            for inv in paid_invoices:
+                last_payment = inv.payments.order_by('-payment_date').first()
+                if last_payment and inv.invoice_date:
+                    days = (last_payment.payment_date.date() - inv.invoice_date).days
+                    payment_days.append(max(0, days))
+            if payment_days:
+                avg_payment_days = round(sum(payment_days) / len(payment_days), 1)
+        return {
+            'total_billed': total_billed,
+            'total_paid': total_paid,
+            'total_tax': total_tax,
+            'outstanding_balance': outstanding,
+            'overdue_amount': overdue_amount,
+            'overdue_invoice_count': overdue_invoices.count(),
+            'avg_payment_days': avg_payment_days,
+        }
+    
+    def get_credit_status(self, obj):
+        credit_limit = float(obj.credit_limit or 0)
+        invoice_outstanding = float(Invoice.objects.filter(customer=obj).aggregate(total=Sum('balance_due'))['total'] or 0)
+        outstanding = max(invoice_outstanding, float(obj.outstanding_balance or 0))
+        available_credit = max(0, credit_limit - outstanding)
+        utilization_pct = round((outstanding / credit_limit * 100), 1) if credit_limit > 0 else 0
+        overdue_count = Invoice.objects.filter(
+            customer=obj,
+            payment_status__in=['UNPAID', 'PARTIAL'],
+            due_date__lt=timezone.now().date()
+        ).count()
+        if overdue_count > 0 or utilization_pct > 90:
+            risk_level = 'HIGH'
+        elif utilization_pct > 70:
+            risk_level = 'MEDIUM'
+        else:
+            risk_level = 'LOW'
+        return {
+            'credit_limit': credit_limit,
+            'outstanding_balance': outstanding,
+            'available_credit': available_credit,
+            'utilization_percent': utilization_pct,
+            'overdue_invoice_count': overdue_count,
+            'risk_level': risk_level,
+        }
+
+
+class Customer360PaymentSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
+    job_card_number = serializers.SerializerMethodField()
+    vehicle_info = serializers.SerializerMethodField()
+    received_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Payment
+        fields = ['id', 'payment_number', 'invoice', 'invoice_number', 'job_card_number',
+                  'vehicle_info', 'amount', 'payment_method', 'reference_number',
+                  'payment_date', 'received_by_name', 'notes']
+    
+    def get_job_card_number(self, obj):
+        if obj.invoice and obj.invoice.job_card:
+            return obj.invoice.job_card.job_card_number
+        return None
+    
+    def get_vehicle_info(self, obj):
+        if obj.invoice and obj.invoice.job_card and obj.invoice.job_card.vehicle:
+            v = obj.invoice.job_card.vehicle
+            return f"{v.year or ''} {v.make} {v.model} - {v.plate_number}"
+        return None
+    
+    def get_received_by_name(self, obj):
+        if obj.received_by:
+            return f"{obj.received_by.first_name} {obj.received_by.last_name}".strip() or obj.received_by.username
+        return None
+
+
+class Customer360JobCardSerializer(serializers.ModelSerializer):
+    vehicle_info = serializers.SerializerMethodField()
+    advisor_name = serializers.SerializerMethodField()
+    invoice_status = serializers.SerializerMethodField()
+    contract_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = JobCard
+        fields = ['id', 'job_card_number', 'service_tracking_id', 'vehicle', 'vehicle_info',
+                  'workflow_stage', 'job_type', 'priority', 'complaint',
+                  'estimated_amount', 'actual_amount', 'is_warranty', 'is_amc',
+                  'is_insurance', 'is_goodwill', 'promised_delivery', 'actual_delivery',
+                  'created_at', 'advisor_name', 'invoice_status', 'contract_info']
+    
+    def get_vehicle_info(self, obj):
+        if obj.vehicle:
+            return f"{obj.vehicle.year or ''} {obj.vehicle.make} {obj.vehicle.model} - {obj.vehicle.plate_number}"
+        return None
+    
+    def get_advisor_name(self, obj):
+        if obj.service_advisor:
+            return f"{obj.service_advisor.first_name} {obj.service_advisor.last_name}".strip() or obj.service_advisor.username
+        return None
+    
+    def get_invoice_status(self, obj):
+        invoice = Invoice.objects.filter(job_card=obj).first()
+        if invoice:
+            return {
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'grand_total': float(invoice.grand_total),
+                'amount_paid': float(invoice.amount_paid),
+                'balance_due': float(invoice.balance_due),
+                'payment_status': invoice.payment_status,
+            }
+        return None
+    
+    def get_contract_info(self, obj):
+        if not obj.vehicle:
+            return None
+        if obj.is_warranty or obj.is_amc:
+            contract = Contract.objects.filter(
+                customer=obj.customer,
+                contract_vehicles__vehicle=obj.vehicle,
+                status='ACTIVE'
+            ).first()
+            if contract:
+                return {
+                    'id': contract.id,
+                    'contract_number': contract.contract_number,
+                    'contract_type': contract.contract_type
+                }
+        return None
 
 
 class VehicleWithServiceHistorySerializer(serializers.ModelSerializer):

@@ -275,6 +275,7 @@ interface CreateJobDialogProps {
 function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { formatCurrency } = useLocalization();
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const { data: vehicles, isLoading: vehiclesLoading } = useVehicles(
@@ -288,6 +289,49 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
     priority: "NORMAL",
     complaint: "",
     estimated_amount: "",
+  });
+
+  const { data: creditStatus } = useQuery<{
+    credit_limit: number;
+    outstanding_balance: number;
+    available_credit: number;
+    utilization_percent: number;
+    risk_level: string;
+    overdue_count: number;
+    overdue_total: number;
+  }>({
+    queryKey: ["/api/customers", selectedCustomer, "360", "credit-status"],
+    enabled: !!selectedCustomer,
+  });
+
+  const { data: contractDetection } = useQuery<{
+    has_contract: boolean;
+    is_eligible: boolean;
+    contract_type: string | null;
+    contract_number: string | null;
+    message: string;
+    services_remaining: number | null;
+    coverage_details: Record<string, any> | null;
+  }>({
+    queryKey: ["contract-detect", selectedCustomer, formData.vehicle],
+    queryFn: async () => {
+      const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      const res = await fetch(`/api/contracts/detect/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+        body: JSON.stringify({ customer_id: parseInt(selectedCustomer), vehicle_id: parseInt(formData.vehicle) }),
+        credentials: "include",
+      });
+      if (!res.ok) return { has_contract: false, is_eligible: false, contract_type: null, contract_number: null, message: "", services_remaining: null, coverage_details: null };
+      return res.json();
+    },
+    enabled: !!selectedCustomer && !!formData.vehicle,
+  });
+
+  const { data: recentServiceHistory } = useQuery<any[]>({
+    queryKey: ["/api/customers", selectedCustomer, "360", "service-history"],
+    enabled: !!selectedCustomer,
+    select: (data: any) => (Array.isArray(data) ? data.slice(0, 3) : []),
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -335,7 +379,7 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('jobCard.createNew', 'Create New Job Card')}</DialogTitle>
         </DialogHeader>
@@ -381,6 +425,65 @@ function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps
               </SelectContent>
             </Select>
           </div>
+
+          {creditStatus && creditStatus.risk_level !== 'LOW' && (
+            <Card className={cn("border", creditStatus.risk_level === 'HIGH' ? "border-red-500 bg-red-50 dark:bg-red-950" : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950")}>
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className={cn("h-4 w-4 shrink-0", creditStatus.risk_level === 'HIGH' ? "text-red-600" : "text-yellow-600")} />
+                  <div className="text-sm">
+                    <p className={cn("font-medium", creditStatus.risk_level === 'HIGH' ? "text-red-800 dark:text-red-300" : "text-yellow-800 dark:text-yellow-300")}>
+                      {creditStatus.risk_level === 'HIGH' ? 'High Credit Risk' : 'Credit Warning'}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Outstanding: {formatCurrency(creditStatus.outstanding_balance)} / {formatCurrency(creditStatus.credit_limit)}
+                      {creditStatus.overdue_count > 0 && ` | ${creditStatus.overdue_count} overdue invoice(s): ${formatCurrency(creditStatus.overdue_total)}`}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {contractDetection && contractDetection.has_contract && (
+            <Card className={cn("border", contractDetection.is_eligible ? "border-green-500 bg-green-50 dark:bg-green-950" : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950")}>
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2">
+                  <Shield className={cn("h-4 w-4 shrink-0", contractDetection.is_eligible ? "text-green-600" : "text-yellow-600")} />
+                  <div className="text-sm">
+                    <p className={cn("font-medium", contractDetection.is_eligible ? "text-green-800 dark:text-green-300" : "text-yellow-800 dark:text-yellow-300")}>
+                      {contractDetection.message}
+                    </p>
+                    {contractDetection.contract_number && (
+                      <p className="text-muted-foreground text-xs">
+                        {contractDetection.contract_type} - {contractDetection.contract_number}
+                        {contractDetection.services_remaining !== null && ` | ${contractDetection.services_remaining} services remaining`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {recentServiceHistory && recentServiceHistory.length > 0 && (
+            <Card>
+              <CardContent className="py-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                  <History className="h-3 w-3" /> Recent Service History
+                </p>
+                <div className="space-y-1">
+                  {recentServiceHistory.map((service: any) => (
+                    <div key={service.id} className="flex items-center justify-between text-xs">
+                      <span className="font-mono">{service.job_card_number}</span>
+                      <span className="text-muted-foreground">{service.vehicle_info}</span>
+                      <Badge variant="outline" className="text-xs">{service.workflow_stage}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

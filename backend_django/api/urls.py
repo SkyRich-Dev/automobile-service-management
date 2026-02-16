@@ -152,6 +152,9 @@ urlpatterns = [
     path('customers/<int:pk>/360/invoices/', views.CustomerProfile360ViewSet.as_view({'get': 'invoices'}), name='customer_360_invoices'),
     path('customers/<int:pk>/360/contracts/', views.CustomerProfile360ViewSet.as_view({'get': 'contracts'}), name='customer_360_contracts'),
     path('customers/<int:pk>/360/communications/', views.CustomerProfile360ViewSet.as_view({'get': 'communications'}), name='customer_360_communications'),
+    path('customers/<int:pk>/360/payments/', views.CustomerProfile360ViewSet.as_view({'get': 'payments'}), name='customer_360_payments'),
+    path('customers/<int:pk>/360/job-cards/', views.CustomerProfile360ViewSet.as_view({'get': 'job_cards'}), name='customer_360_job_cards'),
+    path('customers/<int:pk>/360/credit-status/', views.CustomerProfile360ViewSet.as_view({'get': 'credit_status'}), name='customer_360_credit_status'),
     
     # Contract Detection
     path('contracts/detect/', views.detect_contract_view, name='detect_contract'),

@@ -91,7 +91,8 @@ from .serializers import (
     CurrencySerializer, LanguageSerializer, SystemPreferenceSerializer,
     Customer360OverviewSerializer, VehicleWithServiceHistorySerializer,
     ServiceHistorySerializer, CustomerInvoiceSummarySerializer,
-    CustomerContractSummarySerializer, CommunicationLogSerializer, ContractEligibilitySerializer
+    CustomerContractSummarySerializer, CommunicationLogSerializer, ContractEligibilitySerializer,
+    Customer360PaymentSerializer, Customer360JobCardSerializer
 )
 
 
@@ -884,6 +885,31 @@ class PaymentViewSet(viewsets.ModelViewSet):
             new_value=f'Payment received: ${payment.amount}',
             metadata={'payment_id': payment.id, 'amount': float(payment.amount), 'method': payment.payment_method}
         )
+        
+        try:
+            customer = payment.invoice.customer if hasattr(payment.invoice, 'customer') else (payment.invoice.job_card.customer if payment.invoice.job_card else None)
+            if customer:
+                CustomerInteraction.objects.create(
+                    customer=customer,
+                    job_card=payment.invoice.job_card,
+                    interaction_type='SERVICE_VISIT',
+                    channel='IN_APP',
+                    direction='outbound',
+                    subject=f"Payment Received - {payment.payment_number}",
+                    description=f"Payment {payment.payment_number} of {payment.amount} received via {payment.get_payment_method_display()} for Invoice {payment.invoice.invoice_number}",
+                    outcome='SUCCESSFUL',
+                    handled_by=self.request.user,
+                    metadata={
+                        'type': 'PAYMENT_RECEIVED',
+                        'payment_id': payment.id,
+                        'payment_number': payment.payment_number,
+                        'amount': float(payment.amount),
+                        'payment_method': payment.payment_method,
+                        'invoice_number': payment.invoice.invoice_number,
+                    }
+                )
+        except Exception:
+            pass
 
 
 class ServiceEventViewSet(viewsets.ReadOnlyModelViewSet):
@@ -5298,6 +5324,29 @@ class IntegrationViewSet(viewsets.ViewSet):
             metadata={'invoice_id': invoice.id, 'total': float(invoice.total_amount)}
         )
         
+        try:
+            CustomerInteraction.objects.create(
+                customer=job_card.customer,
+                job_card=job_card,
+                branch=job_card.branch,
+                interaction_type='SERVICE_VISIT',
+                channel='IN_APP',
+                direction='outbound',
+                subject=f"Invoice Generated - {invoice.invoice_number}",
+                description=f"Invoice {invoice.invoice_number} generated for Job Card {job_card.job_card_number}. Total: {invoice.total_amount}",
+                outcome='SUCCESSFUL',
+                handled_by=request.user if request.user.is_authenticated else None,
+                metadata={
+                    'type': 'INVOICE_GENERATED',
+                    'invoice_id': invoice.id,
+                    'invoice_number': invoice.invoice_number,
+                    'total_amount': float(invoice.total_amount),
+                    'job_card_number': job_card.job_card_number,
+                }
+            )
+        except Exception:
+            pass
+        
         return Response({
             'success': True,
             'invoice_id': invoice.id,
@@ -6255,6 +6304,134 @@ class CustomerProfile360ViewSet(viewsets.GenericViewSet):
             interactions = interactions.order_by('-created_at')
             serializer = CommunicationLogSerializer(interactions, many=True)
             return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def payments(self, request, pk=None):
+        """Get payment history for customer with summary"""
+        try:
+            customer = self.get_customer(pk)
+            payments = Payment.objects.filter(
+                invoice__customer=customer
+            ).select_related(
+                'invoice', 'invoice__job_card', 'invoice__job_card__vehicle', 'received_by'
+            ).order_by('-payment_date')
+            
+            total_payments = payments.aggregate(total=Sum('amount'))['total'] or 0
+            payment_methods = {}
+            for p in payments:
+                method = p.payment_method
+                if method not in payment_methods:
+                    payment_methods[method] = {'count': 0, 'total': 0}
+                payment_methods[method]['count'] += 1
+                payment_methods[method]['total'] += float(p.amount)
+            
+            summary = {
+                'total_payments': payments.count(),
+                'total_amount': float(total_payments),
+                'by_method': payment_methods,
+            }
+            
+            serializer = Customer360PaymentSerializer(payments, many=True)
+            return Response({
+                'summary': summary,
+                'payments': serializer.data
+            })
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def job_cards(self, request, pk=None):
+        """Get all job cards for customer with status breakdown"""
+        try:
+            customer = self.get_customer(pk)
+            status_filter = request.query_params.get('status')
+            vehicle_id = request.query_params.get('vehicle_id')
+            
+            job_cards = customer.job_cards.select_related(
+                'vehicle', 'service_advisor'
+            ).order_by('-created_at')
+            
+            if status_filter:
+                if status_filter == 'OPEN':
+                    job_cards = job_cards.exclude(workflow_stage='COMPLETED')
+                elif status_filter == 'COMPLETED':
+                    job_cards = job_cards.filter(workflow_stage='COMPLETED')
+                else:
+                    job_cards = job_cards.filter(workflow_stage=status_filter)
+            if vehicle_id:
+                job_cards = job_cards.filter(vehicle_id=vehicle_id)
+            
+            all_cards = customer.job_cards.all()
+            summary = {
+                'total': all_cards.count(),
+                'open': all_cards.exclude(workflow_stage='COMPLETED').count(),
+                'completed': all_cards.filter(workflow_stage='COMPLETED').count(),
+                'warranty_covered': all_cards.filter(is_warranty=True).count(),
+                'amc_covered': all_cards.filter(is_amc=True).count(),
+                'total_estimated': float(all_cards.aggregate(total=Sum('estimated_amount'))['total'] or 0),
+                'total_actual': float(all_cards.aggregate(total=Sum('actual_amount'))['total'] or 0),
+            }
+            
+            serializer = Customer360JobCardSerializer(job_cards, many=True)
+            return Response({
+                'summary': summary,
+                'job_cards': serializer.data
+            })
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=404)
+    
+    @action(detail=True, methods=['get'])
+    def credit_status(self, request, pk=None):
+        """Get detailed credit status for customer"""
+        try:
+            customer = self.get_customer(pk)
+            credit_limit = float(customer.credit_limit or 0)
+            outstanding = float(customer.outstanding_balance or 0)
+            available_credit = max(0, credit_limit - outstanding)
+            
+            overdue_invoices = Invoice.objects.filter(
+                customer=customer,
+                payment_status__in=['UNPAID', 'PARTIAL'],
+                due_date__lt=timezone.now().date()
+            ).order_by('due_date')
+            
+            overdue_total = float(overdue_invoices.aggregate(total=Sum('balance_due'))['total'] or 0)
+            
+            oldest_overdue = overdue_invoices.first()
+            days_oldest_overdue = None
+            if oldest_overdue and oldest_overdue.due_date:
+                days_oldest_overdue = (timezone.now().date() - oldest_overdue.due_date).days
+            
+            utilization_pct = round((outstanding / credit_limit * 100), 1) if credit_limit > 0 else 0
+            if overdue_invoices.count() > 2 or utilization_pct > 90:
+                risk_level = 'HIGH'
+            elif overdue_invoices.count() > 0 or utilization_pct > 70:
+                risk_level = 'MEDIUM'
+            else:
+                risk_level = 'LOW'
+            
+            overdue_list = [{
+                'id': inv.id,
+                'invoice_number': inv.invoice_number,
+                'grand_total': float(inv.grand_total),
+                'balance_due': float(inv.balance_due),
+                'due_date': inv.due_date,
+                'days_overdue': (timezone.now().date() - inv.due_date).days if inv.due_date else None,
+            } for inv in overdue_invoices[:10]]
+            
+            return Response({
+                'credit_limit': credit_limit,
+                'outstanding_balance': outstanding,
+                'available_credit': available_credit,
+                'utilization_percent': utilization_pct,
+                'risk_level': risk_level,
+                'overdue_count': overdue_invoices.count(),
+                'overdue_total': overdue_total,
+                'days_oldest_overdue': days_oldest_overdue,
+                'overdue_invoices': overdue_list,
+            })
         except Customer.DoesNotExist:
             return Response({'error': 'Customer not found'}, status=404)
 
