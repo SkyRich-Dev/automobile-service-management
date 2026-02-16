@@ -1,0 +1,193 @@
+MASTER PROMPT — FULL SYSTEM AUDIT, VALIDATION & CORRECTIVE ACTION
+(Zero Hard-Code | Zero Fake Checks | End-to-End Verification | Production Readiness)
+🎯 OBJECTIVE
+You are a Senior Enterprise System Auditor + Architect + QA Lead.
+Your task is to:
+Audit the entire Automobile Service Management System
+Verify every module, screen, and workflow
+Identify hard-coded logic
+Detect broken connections between modules
+Validate data flow integrity
+Validate business rule enforcement
+Confirm no UI-only logic without backend enforcement
+Ensure zero functional errors
+Provide real corrective fixes
+⚠️ Do NOT provide generic analysis
+⚠️ Do NOT assume something works
+⚠️ Do NOT say “working correctly” without validating flow
+⚠️ Actually inspect code, routes, models, APIs, services, and state handling
+1️⃣ PHASE 1 — ARCHITECTURE VALIDATION
+Validate:
+Frontend structure (React routing, state, role rendering)
+Backend structure (Django models, serializers, services)
+DB relationships (FK integrity)
+API response consistency
+Authentication flow
+JWT handling
+Role-based access control
+WebSocket or async flows
+Required Output:
+Identify structural weaknesses
+Identify circular dependencies
+Identify missing relationships
+Identify duplicated logic
+Identify unprotected routes
+2️⃣ PHASE 2 — HARD-CODE DETECTION
+Scan entire codebase for:
+Hard-coded GST values
+Hard-coded service stages
+Hard-coded roles
+Hard-coded approval logic
+Hard-coded notification templates
+Hard-coded pricing rules
+Hard-coded branch logic
+Static arrays replacing database config
+For each hard-coded item:
+Show exact file
+Show exact line
+Explain why it is wrong
+Refactor into configurable DB-driven logic
+No exceptions allowed.
+3️⃣ PHASE 3 — WORKFLOW VALIDATION
+Verify the full lifecycle:
+Customer
+→ Appointment
+→ Job Card
+→ Task Execution
+→ Contract Detection
+→ Parts Reservation
+→ QC
+→ Invoice
+→ Payment
+→ CRM Update
+Check:
+Can any step be skipped?
+Can job complete without QC?
+Can invoice generate without job?
+Can parts issue without stock?
+Can contract apply without validation?
+Can stage change without permission?
+Fix all bypass possibilities.
+4️⃣ PHASE 4 — MODULE-BY-MODULE VALIDATION
+Service Operations
+Stage tracking correct?
+Date & time tracking enforced?
+SLA calculation correct?
+Delay escalation triggered?
+CRM
+Customer 360° correct?
+Invoice visibility real?
+Contract visible?
+Outstanding accurate?
+Inventory
+Reservation logic correct?
+Stock math correct?
+No negative stock?
+GST correctly applied?
+Accounts
+Invoice always linked to job?
+Tax calculations correct?
+Ledger entries consistent?
+Payment updates CRM?
+Contracts
+Auto-detection correct?
+Expiry logic correct?
+Consumption tracked?
+Renewal logic consistent?
+HR & Skill
+Skill-based job assignment enforced?
+Payroll tied to attendance?
+Incentives tied to productivity?
+5️⃣ PHASE 5 — DATA INTEGRITY CHECK
+Validate:
+No orphan records
+No duplicate primary entities
+No job without customer
+No invoice without job
+No stock without GRN
+No contract without customer
+Fix FK constraints if missing.
+6️⃣ PHASE 6 — UI FUNCTIONALITY TEST
+For every screen:
+All buttons working?
+All forms validated?
+All error messages handled?
+All loading states present?
+All APIs connected?
+No dead routes?
+No console errors?
+Fix:
+Unused state
+Broken navigation
+Incorrect conditional rendering
+Missing error boundaries
+7️⃣ PHASE 7 — SECURITY & PERMISSION CHECK
+Validate:
+Unauthorized role access blocked?
+API protected server-side?
+Permission checks not only UI-based?
+No admin bypass?
+No public endpoints exposing data?
+Fix all security vulnerabilities.
+8️⃣ PHASE 8 — NOTIFICATION VALIDATION
+Check:
+Event triggers working?
+Templates loading from DB?
+Channel configuration respected?
+Retry logic functional?
+Logging working?
+Remove any hard-coded notification logic.
+9️⃣ PHASE 9 — CONFIGURATION CENTER VALIDATION
+Ensure:
+Workflows editable via Admin
+Approval limits configurable
+Pricing rules configurable
+GST configurable
+SLA configurable
+Role-permission matrix configurable
+If anything requires code change → redesign into configuration-driven logic.
+🔟 PHASE 10 — PERFORMANCE & EDGE CASE TESTING
+Test:
+Multiple jobs simultaneously
+Contract expiry during job
+Partial payment
+Multi-branch stock transfer
+Job cancellation after reservation
+Concurrent stock deduction
+Invoice edit after payment
+Rework after invoice
+Fix race conditions and inconsistent states.
+1️⃣1️⃣ FINAL CORRECTIVE ACTION
+For each issue found:
+Provide:
+Issue description
+Impact level (Critical / High / Medium / Low)
+Root cause
+Code location
+Corrective refactor
+Preventive recommendation
+No vague statements allowed.
+1️⃣2️⃣ FINAL VALIDATION CRITERIA
+Project passes only if:
+✅ No hard-coded business logic
+✅ All modules interconnected
+✅ No workflow bypass
+✅ Full traceability
+✅ No negative stock
+✅ No invoice without job
+✅ No job without customer
+✅ All roles enforced
+✅ All timestamps captured
+✅ No console errors
+✅ No API error leaks
+✅ No broken routes
+FINAL INSTRUCTION
+Do not summarize.
+Do not assume.
+Do not simulate.
+Perform a real deep inspection of the entire codebase and apply corrective refactoring wherever required.
+Deliver:
+Audit report
+List of corrections made
+Remaining risk items
+Production readiness status
