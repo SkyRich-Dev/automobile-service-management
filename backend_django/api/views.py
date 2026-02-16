@@ -7636,3 +7636,21 @@ class NotificationCenterViewSet(viewsets.GenericViewSet):
             ]
         }
         return Response(variables)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def seed_data_view(request):
+    """Temporary endpoint to seed sample data in production."""
+    import os
+    seed_key = request.data.get('seed_key', '')
+    if seed_key != 'autoserv_seed_2026':
+        return Response({'error': 'Invalid seed key'}, status=403)
+    try:
+        from django.core.management import call_command
+        import io
+        out = io.StringIO()
+        call_command('seed_sample_data', stdout=out)
+        return Response({'status': 'success', 'output': out.getvalue()})
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
