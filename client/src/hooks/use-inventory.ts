@@ -10,17 +10,112 @@ interface Part {
   min_stock: number;
   max_stock: number;
   price: string;
-  selling_price: string;
+  cost_price: string;
   reserved: number;
+  damaged: number;
+  in_transit: number;
   location: string | null;
   available_stock: number;
   is_low_stock: boolean;
   item_type: string;
   tax_category: string;
   hsn_code: string;
+  tax_rate: string;
+  cgst_rate: string;
+  sgst_rate: string;
+  igst_rate: string;
+  gst_type: string;
+  landing_cost: string;
+  margin_percent: string;
   warranty_eligible: boolean;
   is_returnable: boolean;
   expiry_date: string | null;
+  last_purchase_date: string | null;
+  brand: string;
+}
+
+interface StockMovement {
+  id: number;
+  ledger_id: string;
+  movement_type: string;
+  part: number;
+  part_name: string;
+  part_sku: string;
+  branch: number;
+  branch_name: string;
+  quantity: number;
+  stock_before: number;
+  stock_after: number;
+  reserved_before: number;
+  reserved_after: number;
+  available_before: number;
+  available_after: number;
+  reference_type: string;
+  reference_id: number | null;
+  reference_number: string;
+  reason: string;
+  performed_by_name: string;
+  timestamp: string;
+}
+
+interface SupplierInvoice {
+  id: number;
+  invoice_number: string;
+  supplier_name: string;
+  po_number: string;
+  grn_number: string;
+  branch_name: string;
+  status: string;
+  invoice_date: string;
+  due_date: string | null;
+  subtotal: string;
+  cgst_amount: string;
+  sgst_amount: string;
+  igst_amount: string;
+  total_tax: string;
+  freight_charges: string;
+  other_charges: string;
+  discount: string;
+  grand_total: string;
+  amount_paid: string;
+  balance_due: string;
+  supplier_gst_number: string;
+  created_at: string;
+}
+
+interface FastMovingItem {
+  part__id: number;
+  part__name: string;
+  part__sku: string;
+  part__stock: number;
+  part__min_stock: number;
+  issue_count: number;
+  total_issued: number;
+}
+
+interface DeadStockItem {
+  id: number;
+  name: string;
+  sku: string;
+  stock: number;
+  cost_price: string;
+  last_purchase_date: string | null;
+}
+
+interface ValuationReport {
+  by_category: {
+    category: string;
+    item_count: number;
+    total_stock: number;
+    cost_value: number;
+    selling_value: number;
+  }[];
+  totals: {
+    total_items: number;
+    total_stock: number;
+    total_cost_value: number;
+    total_selling_value: number;
+  };
 }
 
 interface PartReservation {
@@ -362,6 +457,7 @@ export function useGenerateAlerts() {
 interface InventoryDashboard {
   total_items: number;
   total_stock_value: number;
+  total_selling_value: number;
   low_stock_count: number;
   out_of_stock_count: number;
   overstock_count: number;
@@ -369,6 +465,9 @@ interface InventoryDashboard {
   pending_returns: number;
   pending_adjustments: number;
   items_expiring_soon: number;
+  total_reserved: number;
+  total_damaged: number;
+  total_in_transit: number;
   recent_movements: AuditLogEntry[];
 }
 
@@ -586,8 +685,80 @@ export function useAuditLog(params?: { part?: number; branch?: number; action?: 
   });
 }
 
+export function useStockMovements(params?: { part?: number; branch?: number; type?: string }) {
+  return useQuery<StockMovement[]>({
+    queryKey: ["stock-movements", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params?.part) searchParams.append("part", String(params.part));
+      if (params?.branch) searchParams.append("branch", String(params.branch));
+      if (params?.type) searchParams.append("type", params.type);
+      const res = await fetch(`${API_BASE}/inventory/stock_movements/?${searchParams}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stock movements");
+      return res.json();
+    },
+  });
+}
+
+export function useSupplierInvoices(params?: { status?: string; supplier?: number }) {
+  return useQuery<SupplierInvoice[]>({
+    queryKey: ["supplier-invoices", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params?.status) searchParams.append("status", String(params.status));
+      if (params?.supplier) searchParams.append("supplier", String(params.supplier));
+      const res = await fetch(`${API_BASE}/inventory/supplier_invoices/?${searchParams}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch supplier invoices");
+      return res.json();
+    },
+  });
+}
+
+export function useFastMovingItems(days?: number) {
+  return useQuery<FastMovingItem[]>({
+    queryKey: ["fast-moving", days],
+    queryFn: async () => {
+      const url = days
+        ? `${API_BASE}/inventory/fast_moving/?days=${days}`
+        : `${API_BASE}/inventory/fast_moving/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch fast-moving items");
+      return res.json();
+    },
+  });
+}
+
+export function useDeadStock(days?: number) {
+  return useQuery<DeadStockItem[]>({
+    queryKey: ["dead-stock", days],
+    queryFn: async () => {
+      const url = days
+        ? `${API_BASE}/inventory/dead_stock/?days=${days}`
+        : `${API_BASE}/inventory/dead_stock/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch dead stock");
+      return res.json();
+    },
+  });
+}
+
+export function useValuationReport(branchId?: number) {
+  return useQuery<ValuationReport>({
+    queryKey: ["valuation-report", branchId],
+    queryFn: async () => {
+      const url = branchId
+        ? `${API_BASE}/inventory/valuation_report/?branch=${branchId}`
+        : `${API_BASE}/inventory/valuation_report/`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch valuation report");
+      return res.json();
+    },
+  });
+}
+
 export type { 
   Part, PartReservation, GRN, GRNLine, StockTransfer, StockTransferLine, 
   PurchaseRequisition, PRLine, InventoryAlert, SupplierPerformance,
-  InventoryDashboard, StockOverviewItem, StockAdjustment, StockReturn, AuditLogEntry
+  InventoryDashboard, StockOverviewItem, StockAdjustment, StockReturn, AuditLogEntry,
+  StockMovement, SupplierInvoice, FastMovingItem, DeadStockItem, ValuationReport
 };

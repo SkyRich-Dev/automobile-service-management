@@ -1,0 +1,207 @@
+MASTER PROMPT — ENTERPRISE INVENTORY MODULE FIX & FULL UPGRADE
+(End-to-End Tracking | GST | Pricing | Allocation | Purchase-to-Sale Traceability)
+🎯 OBJECTIVE
+You are a senior ERP engineering team tasked with:
+Fixing and upgrading the existing Inventory Module so it becomes:
+End-to-end traceable
+Real-time stock accurate
+GST compliant
+Purchase-to-sale linked
+Contract-aware
+Job-card integrated
+Multi-branch ready
+Fully configurable via Admin Panel
+Zero hard-coded logic
+This module must support automobile spare parts, consumables, accessories, tools, and integrate deeply into service operations.
+1️⃣ CORE INVENTORY PRINCIPLES (NON-NEGOTIABLE)
+No stock movement without reference
+No manual stock edit without approval
+Every part must be traceable:
+Supplier → PO → GRN → Stock → Reservation → Job Card → Invoice
+Pricing must support purchase & sales margin control
+GST must be auto-calculated and configurable
+Inventory must never block service due to poor design
+2️⃣ ITEM MASTER – FIX & STANDARDIZE
+Item Master Must Include:
+Item ID (auto-generated)
+Item name (human readable)
+Part number (OEM / aftermarket)
+Category:
+Spare
+Consumable
+Accessory
+Tool
+Brand
+Compatible vehicles
+Unit of measure
+Purchase price
+Landing cost (auto-calculated)
+Selling price
+Margin %
+GST rate
+HSN/SAC code
+Reorder level
+Maximum stock level
+Warranty applicable (Y/N)
+Returnable (Y/N)
+Active / Discontinued
+Fix Required:
+Prevent duplicate items
+Enforce mandatory GST fields
+Enforce pricing validation
+Support bulk upload
+3️⃣ REAL-TIME STOCK TRACKING (CORE ENGINE)
+Inventory must track:
+Opening stock
+Purchased stock
+Reserved stock
+Issued stock
+Returned stock
+Damaged stock
+In-transit stock
+Available stock
+System must show:
+Available = Total – Reserved – Damaged
+No background calculation errors allowed.
+4️⃣ STOCK ALLOCATION & RESERVATION (JOB-CARD LINKED)
+At Estimate Stage:
+Auto check stock
+Auto reserve required parts
+Show stock status:
+Available
+Reserved
+Shortage
+At Job Execution:
+Issue parts only against Job Card ID
+Record:
+Issued by
+Issued to
+Date & time
+Allow partial issue
+Block double allocation
+If job cancelled:
+Auto release reserved stock
+5️⃣ PURCHASE FLOW (END-TO-END)
+Purchase Flow:
+Purchase Request → Approval → Purchase Order → GRN → Stock Update → Supplier Invoice → Accounts Posting
+GRN Must:
+Capture quantity
+Capture purchase price
+Capture GST
+Capture batch / serial (if applicable)
+Allow rejection handling
+Landing cost must auto-calculate:
+Purchase price + tax + freight
+6️⃣ SALES PRICING & GST CONTROL
+Sales Pricing Rules:
+Standard selling price
+Branch override allowed (with approval)
+Discount policy enforcement
+Minimum margin warning
+GST Handling:
+Auto GST calculation on invoice
+GST configuration from Admin Panel
+Separate CGST / SGST / IGST support
+GST report export
+7️⃣ END-TO-END TRACEABILITY
+Every inventory movement must log:
+Item
+Quantity
+From location
+To location
+Reference type:
+Job Card
+PO
+Transfer
+Adjustment
+User
+Date & time
+Reason
+No deletion allowed.
+Only reversal with reason.
+8️⃣ INTER-BRANCH INVENTORY CONTROL
+Branch-level stock visibility
+Transfer request approval
+In-transit tracking
+Receiving confirmation
+Auto stock update after receipt
+9️⃣ RETURNS & ADJUSTMENTS
+Return from Job:
+Mandatory reason
+Auto stock adjustment
+Linked to Job Card
+Supplier Return:
+Linked to PO
+Credit note mapping
+Manual Adjustment:
+Approval required
+Audit log mandatory
+🔟 INVENTORY & CONTRACT INTEGRATION
+If customer has live contract:
+Auto detect covered parts
+Mark as contract-covered
+Prevent billing
+Track contract consumption
+1️⃣1️⃣ INVENTORY & ACCOUNTS INTEGRATION
+COGS auto calculation
+Revenue vs cost margin tracking
+Stock valuation (FIFO / Weighted Average configurable)
+Journal entries auto-posted
+1️⃣2️⃣ INVENTORY DASHBOARDS
+Store Manager:
+Low stock alert
+Fast moving items
+Dead stock
+Expiry alerts
+Management:
+Inventory value
+Margin analysis
+Shrinkage report
+Supplier performance
+1️⃣3️⃣ ADMIN CONFIGURATION CONTROL
+Admin must configure:
+GST rates
+Reorder levels
+Approval limits
+Pricing policy
+Discount limits
+Stock valuation method
+Reservation rules
+No hard-coded pricing logic allowed.
+1️⃣4️⃣ UI/UX IMPROVEMENT REQUIREMENTS
+Clear stock indicators (Green/Yellow/Red)
+One-click reservation from Job Card
+Minimal technical jargon
+Guided workflow
+Prevent user mistakes
+Mobile-friendly store view
+1️⃣5️⃣ BACKEND STRUCTURE (HIGH LEVEL)
+Core Entities:
+Item
+StockLedger
+StockReservation
+StockIssue
+StockReturn
+PurchaseRequest
+PurchaseOrder
+GRN
+SupplierInvoice
+InventoryAuditLog
+All business rules enforced in service layer.
+1️⃣6️⃣ FINAL VALIDATION RULES
+After upgrade:
+✅ No stock mismatch
+✅ No billing of unavailable parts
+✅ Full purchase-to-sale traceability
+✅ GST correct in every invoice
+✅ Accurate stock valuation
+✅ Multi-branch ready
+✅ Fully auditable
+FINAL INSTRUCTION
+Upgrade this Inventory Module to enterprise standard so it can:
+Handle thousands of jobs per month
+Support audits
+Prevent revenue leakage
+Eliminate stock confusion
+Integrate seamlessly with Service, Accounts, Contracts & CRM
+This must feel simple for users but powerful internally.

@@ -108,6 +108,7 @@ class CustomerWithVehiclesSerializer(serializers.ModelSerializer):
 class PartSerializer(serializers.ModelSerializer):
     available_stock = serializers.IntegerField(read_only=True)
     is_low_stock = serializers.BooleanField(read_only=True)
+    stock_status = serializers.CharField(read_only=True)
     price = serializers.DecimalField(source='selling_price', max_digits=12, decimal_places=2)
     primary_supplier_name = serializers.CharField(source='primary_supplier.name', read_only=True, allow_null=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
@@ -115,14 +116,17 @@ class PartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Part
         fields = ['id', 'branch', 'branch_name', 'part_number', 'name', 'sku', 'category', 'subcategory', 
-                  'brand', 'item_type', 'is_oem', 'unit', 'cost_price', 'price', 'mrp', 'tax_rate',
-                  'tax_category', 'hsn_code', 'stock', 'min_stock', 'max_stock', 'reserved', 
-                  'reorder_quantity', 'location', 'rack_number', 'bin_number', 'batch_number',
+                  'brand', 'item_type', 'is_oem', 'unit', 'cost_price', 'landing_cost', 'price', 'mrp',
+                  'margin_percent', 'tax_rate', 'tax_category', 'gst_type', 'cgst_rate', 'sgst_rate',
+                  'igst_rate', 'hsn_code', 'stock', 'min_stock', 'max_stock', 'reserved', 'damaged',
+                  'in_transit', 'reorder_quantity', 'location', 'rack_number', 'bin_number', 'batch_number',
                   'serial_number', 'expiry_date', 'last_purchase_date', 'valuation_method',
                   'average_cost', 'compatible_vehicles', 'warranty_eligible', 'warranty_period_months',
                   'is_returnable', 'return_period_days', 'primary_supplier', 'primary_supplier_name',
-                  'lead_time_days', 'available_stock', 'is_low_stock', 'is_active', 'created_at']
-        read_only_fields = ['id', 'part_number', 'created_at']
+                  'lead_time_days', 'min_margin_percent', 'max_discount_percent', 'is_discontinued',
+                  'available_stock', 'is_low_stock', 'stock_status', 'is_active', 'created_at']
+        read_only_fields = ['id', 'part_number', 'landing_cost', 'margin_percent', 'cgst_rate',
+                           'sgst_rate', 'igst_rate', 'stock_status', 'created_at']
 
 
 class PartIssueSerializer(serializers.ModelSerializer):
@@ -2504,32 +2508,32 @@ class PartReservationSerializer(serializers.ModelSerializer):
 class StockOverviewSerializer(serializers.ModelSerializer):
     available_stock = serializers.IntegerField(read_only=True)
     is_low_stock = serializers.BooleanField(read_only=True)
-    stock_status = serializers.SerializerMethodField()
+    stock_status = serializers.CharField(read_only=True)
     inventory_value = serializers.SerializerMethodField()
+    selling_value = serializers.SerializerMethodField()
+    margin_value = serializers.SerializerMethodField()
     pending_reservations = serializers.SerializerMethodField()
     pending_orders = serializers.SerializerMethodField()
     
     class Meta:
         model = Part
         fields = ['id', 'part_number', 'name', 'sku', 'category', 'item_type', 'brand',
-                  'stock', 'reserved', 'available_stock', 'min_stock', 'max_stock',
-                  'reorder_quantity', 'is_low_stock', 'stock_status', 'cost_price',
-                  'selling_price', 'inventory_value', 'location', 'rack_number',
-                  'bin_number', 'pending_reservations', 'pending_orders', 'expiry_date']
-    
-    def get_stock_status(self, obj):
-        if obj.stock <= 0:
-            return 'OUT_OF_STOCK'
-        elif obj.available_stock <= 0:
-            return 'FULLY_RESERVED'
-        elif obj.is_low_stock:
-            return 'LOW_STOCK'
-        elif obj.stock >= obj.max_stock:
-            return 'OVERSTOCK'
-        return 'NORMAL'
+                  'stock', 'reserved', 'damaged', 'in_transit', 'available_stock', 'min_stock',
+                  'max_stock', 'reorder_quantity', 'is_low_stock', 'stock_status', 'cost_price',
+                  'landing_cost', 'selling_price', 'margin_percent', 'gst_type', 'cgst_rate',
+                  'sgst_rate', 'igst_rate', 'hsn_code', 'inventory_value', 'selling_value',
+                  'margin_value', 'location', 'rack_number', 'bin_number',
+                  'pending_reservations', 'pending_orders', 'expiry_date',
+                  'min_margin_percent', 'max_discount_percent']
     
     def get_inventory_value(self, obj):
         return float(obj.stock * obj.cost_price)
+
+    def get_selling_value(self, obj):
+        return float(obj.stock * obj.selling_price)
+
+    def get_margin_value(self, obj):
+        return float(obj.stock * (obj.selling_price - obj.cost_price))
     
     def get_pending_reservations(self, obj):
         from .models import ReservationStatus
@@ -2552,6 +2556,7 @@ class StockOverviewSerializer(serializers.ModelSerializer):
 class InventoryDashboardSerializer(serializers.Serializer):
     total_items = serializers.IntegerField()
     total_stock_value = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_selling_value = serializers.DecimalField(max_digits=14, decimal_places=2, required=False, default=0)
     low_stock_count = serializers.IntegerField()
     out_of_stock_count = serializers.IntegerField()
     overstock_count = serializers.IntegerField()
@@ -2559,7 +2564,78 @@ class InventoryDashboardSerializer(serializers.Serializer):
     pending_returns = serializers.IntegerField()
     pending_adjustments = serializers.IntegerField()
     items_expiring_soon = serializers.IntegerField()
+    total_reserved = serializers.IntegerField(required=False, default=0)
+    total_damaged = serializers.IntegerField(required=False, default=0)
+    total_in_transit = serializers.IntegerField(required=False, default=0)
     recent_movements = serializers.ListField()
+
+
+class StockLedgerSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+    part_sku = serializers.CharField(source='part.sku', read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    performed_by_name = serializers.SerializerMethodField()
+    movement_type_display = serializers.CharField(source='get_movement_type_display', read_only=True)
+
+    class Meta:
+        from .models import StockLedger
+        model = StockLedger
+        fields = ['id', 'ledger_id', 'part', 'part_name', 'part_sku', 'branch', 'branch_name',
+                  'movement_type', 'movement_type_display', 'quantity', 'unit_cost', 'total_cost',
+                  'stock_before', 'stock_after', 'reserved_before', 'reserved_after',
+                  'available_before', 'available_after', 'from_location', 'to_location',
+                  'reference_type', 'reference_id', 'reference_number', 'batch_number',
+                  'serial_number', 'reason', 'performed_by', 'performed_by_name', 'timestamp']
+        read_only_fields = ['id', 'ledger_id', 'timestamp']
+
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            return f"{obj.performed_by.first_name} {obj.performed_by.last_name}".strip() or obj.performed_by.username
+        return None
+
+
+class SupplierInvoiceLineSerializer(serializers.ModelSerializer):
+    part_name = serializers.CharField(source='part.name', read_only=True)
+
+    class Meta:
+        from .models import SupplierInvoiceLine
+        model = SupplierInvoiceLine
+        fields = ['id', 'part', 'part_name', 'grn_line', 'quantity', 'unit_price',
+                  'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount',
+                  'igst_rate', 'igst_amount', 'total', 'hsn_code']
+        read_only_fields = ['id', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total']
+
+
+class SupplierInvoiceSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    po_number = serializers.CharField(source='purchase_order.po_number', read_only=True)
+    grn_number = serializers.CharField(source='grn.grn_number', read_only=True, allow_null=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    lines = SupplierInvoiceLineSerializer(many=True, read_only=True)
+    verified_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import SupplierInvoice
+        model = SupplierInvoice
+        fields = ['id', 'invoice_number', 'supplier', 'supplier_name', 'purchase_order',
+                  'po_number', 'grn', 'grn_number', 'branch', 'branch_name', 'status',
+                  'invoice_date', 'due_date', 'subtotal', 'cgst_amount', 'sgst_amount',
+                  'igst_amount', 'total_tax', 'freight_charges', 'other_charges', 'discount',
+                  'grand_total', 'amount_paid', 'balance_due', 'tds_applicable', 'tds_rate',
+                  'tds_amount', 'supplier_gst_number', 'notes', 'verified_by', 'verified_by_name',
+                  'approved_by', 'approved_by_name', 'lines', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_tax', 'grand_total', 'balance_due', 'created_at', 'updated_at']
+
+    def get_verified_by_name(self, obj):
+        if obj.verified_by:
+            return f"{obj.verified_by.first_name} {obj.verified_by.last_name}".strip() or obj.verified_by.username
+        return None
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+        return None
 
 
 class NotificationEventSerializer(serializers.ModelSerializer):

@@ -470,6 +470,12 @@ class ValuationMethod(models.TextChoices):
     AVERAGE = 'AVERAGE', 'Weighted Average'
 
 
+class GSTType(models.TextChoices):
+    INTRA_STATE = 'INTRA_STATE', 'Intra-State (CGST+SGST)'
+    INTER_STATE = 'INTER_STATE', 'Inter-State (IGST)'
+    EXEMPT = 'EXEMPT', 'Exempt'
+
+
 class Part(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='parts', null=True, blank=True)
     part_number = models.CharField(max_length=100, unique=True, blank=True, null=True)
@@ -482,15 +488,23 @@ class Part(models.Model):
     is_oem = models.BooleanField(default=True)
     unit = models.CharField(max_length=50, default='Nos')
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    landing_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Auto-calculated: purchase price + tax + freight')
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     mrp = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text='Auto-calculated margin %')
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
     tax_category = models.CharField(max_length=20, choices=TaxCategory.choices, default=TaxCategory.GST_18)
+    gst_type = models.CharField(max_length=20, choices=GSTType.choices, default=GSTType.INTRA_STATE)
+    cgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=9)
+    sgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=9)
+    igst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
     hsn_code = models.CharField(max_length=20, blank=True)
     stock = models.IntegerField(default=0)
     min_stock = models.IntegerField(default=5)
     max_stock = models.IntegerField(default=100)
     reserved = models.IntegerField(default=0)
+    damaged = models.IntegerField(default=0)
+    in_transit = models.IntegerField(default=0)
     reorder_quantity = models.IntegerField(default=10)
     location = models.CharField(max_length=100, blank=True, null=True)
     rack_number = models.CharField(max_length=50, blank=True)
@@ -508,21 +522,73 @@ class Part(models.Model):
     return_period_days = models.IntegerField(default=7)
     primary_supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_parts')
     lead_time_days = models.IntegerField(default=3)
+    min_margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=10, help_text='Minimum allowed margin %')
+    max_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15, help_text='Maximum allowed discount %')
+    is_discontinued = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
 
     @property
     def available_stock(self):
-        return self.stock - self.reserved
+        return self.stock - self.reserved - self.damaged
 
     @property
     def is_low_stock(self):
         return self.available_stock <= self.min_stock
 
     @property
+    def is_out_of_stock(self):
+        return self.available_stock <= 0
+
+    @property
+    def is_overstock(self):
+        return self.stock >= self.max_stock
+
+    @property
+    def stock_status(self):
+        if self.available_stock <= 0:
+            return 'OUT_OF_STOCK'
+        elif self.available_stock <= self.min_stock:
+            return 'LOW_STOCK'
+        elif self.stock >= self.max_stock:
+            return 'OVERSTOCK'
+        return 'IN_STOCK'
+
+    @property
     def price(self):
         return self.selling_price
+
+    def calculate_margin(self):
+        if self.landing_cost and self.landing_cost > 0:
+            self.margin_percent = round(((self.selling_price - self.landing_cost) / self.landing_cost) * 100, 2)
+        elif self.cost_price and self.cost_price > 0:
+            self.margin_percent = round(((self.selling_price - self.cost_price) / self.cost_price) * 100, 2)
+
+    def calculate_landing_cost(self):
+        if self.cost_price:
+            tax_amount = self.cost_price * (self.tax_rate / 100)
+            self.landing_cost = self.cost_price + tax_amount
+
+    def update_gst_rates(self):
+        if self.gst_type == GSTType.INTRA_STATE:
+            self.cgst_rate = self.tax_rate / 2
+            self.sgst_rate = self.tax_rate / 2
+            self.igst_rate = 0
+        elif self.gst_type == GSTType.INTER_STATE:
+            self.cgst_rate = 0
+            self.sgst_rate = 0
+            self.igst_rate = self.tax_rate
+        else:
+            self.cgst_rate = 0
+            self.sgst_rate = 0
+            self.igst_rate = 0
+
+    def save(self, *args, **kwargs):
+        self.update_gst_rates()
+        self.calculate_landing_cost()
+        self.calculate_margin()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
@@ -1591,6 +1657,158 @@ class InventoryAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.log_id} - {self.part.name} - {self.action}"
+
+
+class StockMovementType(models.TextChoices):
+    OPENING = 'OPENING', 'Opening Stock'
+    PURCHASE = 'PURCHASE', 'Purchase (GRN)'
+    RESERVE = 'RESERVE', 'Reserved'
+    RELEASE = 'RELEASE', 'Released'
+    ISSUE = 'ISSUE', 'Issued to Job Card'
+    RETURN_JOB = 'RETURN_JOB', 'Return from Job Card'
+    RETURN_SUPPLIER = 'RETURN_SUPPLIER', 'Return to Supplier'
+    TRANSFER_OUT = 'TRANSFER_OUT', 'Transfer Out'
+    TRANSFER_IN = 'TRANSFER_IN', 'Transfer In'
+    ADJUSTMENT_IN = 'ADJUSTMENT_IN', 'Adjustment Increase'
+    ADJUSTMENT_OUT = 'ADJUSTMENT_OUT', 'Adjustment Decrease'
+    DAMAGE = 'DAMAGE', 'Damaged'
+    SCRAP = 'SCRAP', 'Scrapped'
+
+
+class StockLedger(models.Model):
+    ledger_id = models.CharField(max_length=50, unique=True, blank=True)
+    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='stock_ledger')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stock_ledger')
+    movement_type = models.CharField(max_length=20, choices=StockMovementType.choices)
+    quantity = models.IntegerField()
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_before = models.IntegerField(default=0)
+    stock_after = models.IntegerField(default=0)
+    reserved_before = models.IntegerField(default=0)
+    reserved_after = models.IntegerField(default=0)
+    available_before = models.IntegerField(default=0)
+    available_after = models.IntegerField(default=0)
+    from_location = models.CharField(max_length=100, blank=True)
+    to_location = models.CharField(max_length=100, blank=True)
+    reference_type = models.CharField(max_length=30, choices=[
+        ('JOB_CARD', 'Job Card'),
+        ('PO', 'Purchase Order'),
+        ('GRN', 'Goods Receipt'),
+        ('TRANSFER', 'Stock Transfer'),
+        ('ADJUSTMENT', 'Stock Adjustment'),
+        ('RETURN', 'Stock Return'),
+        ('RESERVATION', 'Part Reservation'),
+        ('PART_ISSUE', 'Part Issue'),
+        ('SUPPLIER_RETURN', 'Supplier Return'),
+        ('OPENING', 'Opening Balance'),
+    ])
+    reference_id = models.IntegerField(null=True, blank=True)
+    reference_number = models.CharField(max_length=100, blank=True)
+    batch_number = models.CharField(max_length=100, blank=True)
+    serial_number = models.CharField(max_length=100, blank=True)
+    reason = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_immutable = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['part', 'branch', 'timestamp']),
+            models.Index(fields=['movement_type', 'timestamp']),
+            models.Index(fields=['reference_type', 'reference_id']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk and self.is_immutable:
+            raise ValidationError("Stock ledger entries cannot be modified")
+        if not self.ledger_id:
+            self.ledger_id = f"SL-{uuid.uuid4().hex[:10].upper()}"
+        self.total_cost = self.quantity * self.unit_cost
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.ledger_id} - {self.part.name} - {self.movement_type} - {self.quantity}"
+
+
+class SupplierInvoiceStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_VERIFICATION = 'PENDING_VERIFICATION', 'Pending Verification'
+    VERIFIED = 'VERIFIED', 'Verified'
+    APPROVED = 'APPROVED', 'Approved'
+    PAID = 'PAID', 'Paid'
+    PARTIALLY_PAID = 'PARTIALLY_PAID', 'Partially Paid'
+    DISPUTED = 'DISPUTED', 'Disputed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class SupplierInvoice(models.Model):
+    invoice_number = models.CharField(max_length=100, unique=True)
+    supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE, related_name='invoices')
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='supplier_invoices')
+    grn = models.ForeignKey(GoodsReceiptNote, on_delete=models.SET_NULL, null=True, blank=True, related_name='supplier_invoices')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='supplier_invoices')
+    status = models.CharField(max_length=25, choices=SupplierInvoiceStatus.choices, default=SupplierInvoiceStatus.DRAFT)
+    invoice_date = models.DateField()
+    due_date = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    freight_charges = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    other_charges = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tds_applicable = models.BooleanField(default=False)
+    tds_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tds_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    supplier_gst_number = models.CharField(max_length=50, blank=True)
+    notes = models.TextField(blank=True)
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_supplier_invoices')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_supplier_invoices')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_supplier_invoices')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.total_tax = self.cgst_amount + self.sgst_amount + self.igst_amount
+        self.grand_total = self.subtotal + self.total_tax + self.freight_charges + self.other_charges - self.discount - self.tds_amount
+        self.balance_due = self.grand_total - self.amount_paid
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.supplier.name}"
+
+
+class SupplierInvoiceLine(models.Model):
+    invoice = models.ForeignKey(SupplierInvoice, on_delete=models.CASCADE, related_name='lines')
+    part = models.ForeignKey(Part, on_delete=models.CASCADE)
+    grn_line = models.ForeignKey(GRNLine, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_lines')
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    cgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sgst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    igst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    hsn_code = models.CharField(max_length=20, blank=True)
+
+    def save(self, *args, **kwargs):
+        line_subtotal = self.quantity * self.unit_price
+        self.cgst_amount = line_subtotal * self.cgst_rate / 100
+        self.sgst_amount = line_subtotal * self.sgst_rate / 100
+        self.igst_amount = line_subtotal * self.igst_rate / 100
+        self.total = line_subtotal + self.cgst_amount + self.sgst_amount + self.igst_amount
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.part.name} x {self.quantity}"
 
 
 class TechnicianSchedule(models.Model):

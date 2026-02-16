@@ -6362,6 +6362,7 @@ class InventoryViewSet(viewsets.GenericViewSet):
         """Get inventory dashboard metrics"""
         from .models import Part, PartReservation, StockReturn, StockAdjustment, InventoryAuditLog, ReservationStatus
         from .serializers import InventoryDashboardSerializer, InventoryAuditLogSerializer
+        from .stock_service import StockService
         from django.db.models import Sum, F
         from datetime import timedelta
         
@@ -6373,13 +6374,7 @@ class InventoryViewSet(viewsets.GenericViewSet):
         today = timezone.now().date()
         expiry_threshold = today + timedelta(days=30)
         
-        total_items = queryset.count()
-        total_stock_value = queryset.aggregate(
-            total=Sum(F('stock') * F('cost_price'))
-        )['total'] or 0
-        low_stock = queryset.filter(stock__lte=F('min_stock'), stock__gt=0).count()
-        out_of_stock = queryset.filter(stock__lte=0).count()
-        overstock = queryset.filter(stock__gte=F('max_stock')).count()
+        summary = StockService.get_stock_summary(branch_id)
         expiring = queryset.filter(expiry_date__lte=expiry_threshold, expiry_date__gte=today).count()
         
         pending_reservations = PartReservation.objects.filter(status=ReservationStatus.ACTIVE).count()
@@ -6389,15 +6384,19 @@ class InventoryViewSet(viewsets.GenericViewSet):
         recent_logs = InventoryAuditLog.objects.select_related('part', 'branch', 'performed_by')[:10]
         
         data = {
-            'total_items': total_items,
-            'total_stock_value': total_stock_value,
-            'low_stock_count': low_stock,
-            'out_of_stock_count': out_of_stock,
-            'overstock_count': overstock,
+            'total_items': summary['total_items'],
+            'total_stock_value': summary['total_stock_value'],
+            'total_selling_value': summary.get('total_selling_value', 0),
+            'low_stock_count': summary['low_stock'],
+            'out_of_stock_count': summary['out_of_stock'],
+            'overstock_count': summary['overstock'],
             'pending_reservations': pending_reservations,
             'pending_returns': pending_returns,
             'pending_adjustments': pending_adjustments,
             'items_expiring_soon': expiring,
+            'total_reserved': summary.get('total_reserved', 0),
+            'total_damaged': summary.get('total_damaged', 0),
+            'total_in_transit': summary.get('total_in_transit', 0),
             'recent_movements': InventoryAuditLogSerializer(recent_logs, many=True).data
         }
         
@@ -6458,8 +6457,8 @@ class InventoryViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'])
     def reserve_parts(self, request):
         """Reserve parts for a job card"""
-        from .models import PartReservation, ReservationStatus
         from .serializers import PartReservationSerializer
+        from .stock_service import StockService
         
         job_card_id = request.data.get('job_card_id')
         parts = request.data.get('parts', [])
@@ -6472,32 +6471,7 @@ class InventoryViewSet(viewsets.GenericViewSet):
         except JobCard.DoesNotExist:
             return Response({'error': 'Job card not found'}, status=404)
         
-        reservations = []
-        errors = []
-        
-        for part_data in parts:
-            part_id = part_data.get('part_id')
-            quantity = part_data.get('quantity', 1)
-            
-            try:
-                part = Part.objects.get(pk=part_id)
-                if part.available_stock >= quantity:
-                    reservation = PartReservation.objects.create(
-                        job_card=job_card,
-                        part=part,
-                        quantity=quantity,
-                        reserved_by=request.user,
-                        status=ReservationStatus.ACTIVE
-                    )
-                    reservations.append(reservation)
-                else:
-                    errors.append({
-                        'part_id': part_id,
-                        'part_name': part.name,
-                        'error': f'Insufficient stock. Available: {part.available_stock}, Requested: {quantity}'
-                    })
-            except Part.DoesNotExist:
-                errors.append({'part_id': part_id, 'error': 'Part not found'})
+        reservations, errors = StockService.reserve_parts_for_job(job_card, parts, request.user)
         
         return Response({
             'reservations': PartReservationSerializer(reservations, many=True).data,
@@ -6507,7 +6481,8 @@ class InventoryViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'])
     def issue_parts(self, request):
         """Issue parts from reservation to job card"""
-        from .models import PartReservation, PartIssue, ReservationStatus, InventoryAuditLog
+        from .models import PartReservation, ReservationStatus
+        from .stock_service import StockService
         
         reservation_ids = request.data.get('reservation_ids', [])
         
@@ -6524,39 +6499,7 @@ class InventoryViewSet(viewsets.GenericViewSet):
                     errors.append({'reservation_id': res_id, 'error': 'Reservation not active'})
                     continue
                 
-                stock_before = reservation.part.stock
-                reservation.part.stock -= reservation.quantity
-                reservation.part.reserved -= reservation.quantity
-                reservation.part.save()
-                
-                part_issue = PartIssue.objects.create(
-                    job_card=reservation.job_card,
-                    task=reservation.task,
-                    part=reservation.part,
-                    quantity=reservation.quantity,
-                    unit_price=reservation.part.selling_price,
-                    total=reservation.quantity * reservation.part.selling_price,
-                    issued_by=request.user
-                )
-                
-                reservation.status = ReservationStatus.ISSUED
-                reservation.issued_at = timezone.now()
-                reservation.save()
-                
-                InventoryAuditLog.objects.create(
-                    part=reservation.part,
-                    branch=reservation.job_card.branch,
-                    action='ISSUE',
-                    quantity=reservation.quantity,
-                    stock_before=stock_before,
-                    stock_after=reservation.part.stock,
-                    reference_type='PART_ISSUE',
-                    reference_id=part_issue.id,
-                    reference_number=part_issue.issue_number,
-                    reason=f'Issued for job {reservation.job_card.job_card_number}',
-                    performed_by=request.user
-                )
-                
+                part_issue = StockService.issue_from_reservation(reservation, request.user)
                 issued.append({
                     'reservation_id': res_id,
                     'issue_number': part_issue.issue_number
@@ -6564,6 +6507,8 @@ class InventoryViewSet(viewsets.GenericViewSet):
                 
             except PartReservation.DoesNotExist:
                 errors.append({'reservation_id': res_id, 'error': 'Reservation not found'})
+            except ValueError as e:
+                errors.append({'reservation_id': res_id, 'error': str(e)})
         
         return Response({'issued': issued, 'errors': errors})
     
@@ -6623,13 +6568,14 @@ class InventoryViewSet(viewsets.GenericViewSet):
         """Approve and restock a return"""
         from .models import StockReturn
         from .serializers import StockReturnSerializer
+        from .stock_service import StockService
         
         try:
-            stock_return = StockReturn.objects.get(pk=pk)
+            stock_return = StockReturn.objects.select_related('part', 'job_card', 'part_issue').get(pk=pk)
         except StockReturn.DoesNotExist:
             return Response({'error': 'Return not found'}, status=404)
         
-        stock_return.approve_and_restock(request.user)
+        StockService.process_return(stock_return, request.user)
         return Response(StockReturnSerializer(stock_return).data)
     
     @action(detail=False, methods=['get'])
@@ -6683,13 +6629,14 @@ class InventoryViewSet(viewsets.GenericViewSet):
         """Approve a stock adjustment"""
         from .models import StockAdjustment
         from .serializers import StockAdjustmentSerializer
+        from .stock_service import StockService
         
         try:
-            adjustment = StockAdjustment.objects.get(pk=pk)
+            adjustment = StockAdjustment.objects.select_related('part', 'branch').get(pk=pk)
         except StockAdjustment.DoesNotExist:
             return Response({'error': 'Adjustment not found'}, status=404)
         
-        adjustment.approve(request.user)
+        StockService.process_adjustment(adjustment, request.user)
         return Response(StockAdjustmentSerializer(adjustment).data)
     
     @action(detail=False, methods=['get'])
@@ -6762,6 +6709,193 @@ class InventoryViewSet(viewsets.GenericViewSet):
         alert.resolve(request.user, notes)
         
         return Response({'status': 'resolved', 'alert_id': alert.alert_id})
+
+    @action(detail=False, methods=['get'])
+    def stock_movements(self, request):
+        """Get stock ledger / movement history"""
+        from .models import StockLedger
+        from .serializers import StockLedgerSerializer
+        
+        queryset = StockLedger.objects.select_related('part', 'branch', 'performed_by')
+        
+        part_id = request.query_params.get('part')
+        branch_id = request.query_params.get('branch')
+        movement_type = request.query_params.get('type')
+        reference_type = request.query_params.get('ref_type')
+        
+        if part_id:
+            queryset = queryset.filter(part_id=part_id)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        if movement_type:
+            queryset = queryset.filter(movement_type=movement_type)
+        if reference_type:
+            queryset = queryset.filter(reference_type=reference_type)
+        
+        limit = min(int(request.query_params.get('limit', 100)), 500)
+        serializer = StockLedgerSerializer(queryset[:limit], many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def supplier_invoices(self, request):
+        """Get supplier invoices"""
+        from .models import SupplierInvoice
+        from .serializers import SupplierInvoiceSerializer
+        
+        queryset = SupplierInvoice.objects.select_related(
+            'supplier', 'purchase_order', 'grn', 'branch'
+        ).prefetch_related('lines')
+        
+        status_filter = request.query_params.get('status')
+        supplier_id = request.query_params.get('supplier')
+        branch_id = request.query_params.get('branch')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if supplier_id:
+            queryset = queryset.filter(supplier_id=supplier_id)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        serializer = SupplierInvoiceSerializer(queryset.order_by('-created_at'), many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def create_supplier_invoice(self, request):
+        """Create a supplier invoice from GRN"""
+        from .models import SupplierInvoice, SupplierInvoiceLine, GoodsReceiptNote
+        from .serializers import SupplierInvoiceSerializer
+        
+        grn_id = request.data.get('grn_id')
+        invoice_number = request.data.get('invoice_number')
+        invoice_date = request.data.get('invoice_date')
+        
+        if not all([grn_id, invoice_number, invoice_date]):
+            return Response({'error': 'grn_id, invoice_number, and invoice_date required'}, status=400)
+        
+        try:
+            grn = GoodsReceiptNote.objects.select_related('purchase_order', 'purchase_order__supplier').get(pk=grn_id)
+        except GoodsReceiptNote.DoesNotExist:
+            return Response({'error': 'GRN not found'}, status=404)
+        
+        supplier_invoice = SupplierInvoice.objects.create(
+            invoice_number=invoice_number,
+            supplier=grn.purchase_order.supplier,
+            purchase_order=grn.purchase_order,
+            grn=grn,
+            branch=grn.branch,
+            invoice_date=invoice_date,
+            due_date=request.data.get('due_date'),
+            freight_charges=request.data.get('freight_charges', 0),
+            other_charges=request.data.get('other_charges', 0),
+            discount=request.data.get('discount', 0),
+            supplier_gst_number=grn.purchase_order.supplier.gst_number,
+            notes=request.data.get('notes', ''),
+            created_by=request.user,
+            status='PENDING_VERIFICATION',
+        )
+        
+        subtotal = 0
+        for grn_line in grn.lines.all():
+            line_subtotal = grn_line.quantity_accepted * grn_line.po_line.unit_price
+            part = grn_line.part
+            
+            inv_line = SupplierInvoiceLine.objects.create(
+                invoice=supplier_invoice,
+                part=part,
+                grn_line=grn_line,
+                quantity=grn_line.quantity_accepted,
+                unit_price=grn_line.po_line.unit_price,
+                cgst_rate=part.cgst_rate,
+                sgst_rate=part.sgst_rate,
+                igst_rate=part.igst_rate,
+                hsn_code=part.hsn_code,
+            )
+            subtotal += line_subtotal
+        
+        supplier_invoice.subtotal = subtotal
+        cgst = sum(l.cgst_amount for l in supplier_invoice.lines.all())
+        sgst = sum(l.sgst_amount for l in supplier_invoice.lines.all())
+        igst = sum(l.igst_amount for l in supplier_invoice.lines.all())
+        supplier_invoice.cgst_amount = cgst
+        supplier_invoice.sgst_amount = sgst
+        supplier_invoice.igst_amount = igst
+        supplier_invoice.save()
+        
+        return Response(SupplierInvoiceSerializer(supplier_invoice).data, status=201)
+
+    @action(detail=False, methods=['get'])
+    def fast_moving(self, request):
+        """Get fast-moving items based on issue frequency"""
+        from .models import PartIssue
+        from django.db.models import Count, Sum
+        from datetime import timedelta
+        
+        days = int(request.query_params.get('days', 30))
+        limit = int(request.query_params.get('limit', 20))
+        since = timezone.now() - timedelta(days=days)
+        
+        fast_items = (
+            PartIssue.objects
+            .filter(issued_at__gte=since)
+            .values('part__id', 'part__name', 'part__sku', 'part__stock', 'part__min_stock')
+            .annotate(issue_count=Count('id'), total_issued=Sum('quantity'))
+            .order_by('-total_issued')[:limit]
+        )
+        
+        return Response(list(fast_items))
+
+    @action(detail=False, methods=['get'])
+    def dead_stock(self, request):
+        """Get dead stock items (no movement in N days)"""
+        from .models import PartIssue
+        from datetime import timedelta
+        
+        days = int(request.query_params.get('days', 90))
+        since = timezone.now() - timedelta(days=days)
+        
+        active_part_ids = PartIssue.objects.filter(issued_at__gte=since).values_list('part_id', flat=True).distinct()
+        
+        dead_items = Part.objects.filter(
+            is_active=True, stock__gt=0
+        ).exclude(id__in=active_part_ids).values(
+            'id', 'name', 'sku', 'stock', 'cost_price', 'last_purchase_date'
+        ).order_by('-stock')[:50]
+        
+        return Response(list(dead_items))
+
+    @action(detail=False, methods=['get'])
+    def valuation_report(self, request):
+        """Get inventory valuation report"""
+        from django.db.models import Sum, F
+        
+        branch_id = request.query_params.get('branch')
+        queryset = Part.objects.filter(is_active=True, stock__gt=0)
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        
+        by_category = (
+            queryset.values('category')
+            .annotate(
+                item_count=Count('id'),
+                total_stock=Sum('stock'),
+                cost_value=Sum(F('stock') * F('cost_price')),
+                selling_value=Sum(F('stock') * F('selling_price')),
+            )
+            .order_by('-cost_value')
+        )
+        
+        totals = queryset.aggregate(
+            total_items=Count('id'),
+            total_stock=Sum('stock'),
+            total_cost_value=Sum(F('stock') * F('cost_price')),
+            total_selling_value=Sum(F('stock') * F('selling_price')),
+        )
+        
+        return Response({
+            'by_category': list(by_category),
+            'totals': totals,
+        })
 
 
 class NotificationCenterViewSet(viewsets.GenericViewSet):

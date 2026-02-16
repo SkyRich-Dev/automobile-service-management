@@ -19,7 +19,13 @@ import {
   useStockAdjustments,
   useApproveAdjustment,
   useStockReturns,
-  useApproveReturn
+  useApproveReturn,
+  useStockMovements,
+  useSupplierInvoices,
+  useFastMovingItems,
+  useDeadStock,
+  useValuationReport,
+  useInventoryDashboard,
 } from "@/hooks/use-inventory";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X, RotateCcw, Scale } from "lucide-react";
+import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X, RotateCcw, Scale, TrendingUp, TrendingDown, BarChart3, History, Receipt, IndianRupee, CircleDot } from "lucide-react";
 
 function LoadingSkeleton() {
   const { isCollapsed } = useSidebar();
@@ -123,16 +129,30 @@ function PartsTab() {
 
   const lowStockCount = parts?.filter((p) => p.stock <= p.min_stock).length || 0;
 
+  const getStockIndicator = (part: { stock: number; min_stock: number; max_stock: number }) => {
+    if (part.stock === 0) return { color: "bg-red-500", label: "Out of Stock", textColor: "text-red-600 dark:text-red-400" };
+    if (part.stock <= part.min_stock) return { color: "bg-red-500", label: "Low", textColor: "text-red-600 dark:text-red-400" };
+    if (part.stock <= part.min_stock * 1.5) return { color: "bg-yellow-500", label: "Warning", textColor: "text-yellow-600 dark:text-yellow-400" };
+    if (part.max_stock > 0 && part.stock > part.max_stock) return { color: "bg-blue-500", label: "Overstock", textColor: "text-blue-600 dark:text-blue-400" };
+    return { color: "bg-green-500", label: "OK", textColor: "text-green-600 dark:text-green-400" };
+  };
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           {lowStockCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
               {lowStockCount} {t('inventory.lowStock', 'Low Stock')}
             </Badge>
           )}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-green-500" /> OK</span>
+            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-yellow-500" /> Warning</span>
+            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-red-500" /> Low/Out</span>
+            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-blue-500" /> Overstock</span>
+          </div>
         </div>
         <Button onClick={() => setOpen(true)} className="gap-2" data-testid="button-add-part">
           <Plus className="h-4 w-4" />
@@ -143,14 +163,15 @@ function PartsTab() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {parts?.map((part) => {
           const stockPercentage = Math.min((part.stock / (part.min_stock * 3)) * 100, 100);
-          const isLow = part.stock <= part.min_stock;
+          const indicator = getStockIndicator(part);
 
           return (
             <Card
               key={part.id}
               className={cn(
                 "border-border/50",
-                isLow && "border-destructive/30"
+                indicator.label === "Low" && "border-destructive/30",
+                indicator.label === "Out of Stock" && "border-destructive/50",
               )}
               data-testid={`card-part-${part.id}`}
             >
@@ -158,11 +179,11 @@ function PartsTab() {
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", indicator.color)} data-testid={`indicator-${part.id}`} />
                       <h3 className="truncate font-semibold">{part.name}</h3>
                     </div>
                     <p className="mt-1 font-mono text-xs text-muted-foreground">
-                      {part.sku}
+                      {part.sku} {part.hsn_code ? `| HSN: ${part.hsn_code}` : ''}
                     </p>
                   </div>
                   <div className="text-right">
@@ -176,26 +197,37 @@ function PartsTab() {
                 <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{t('inventory.stockLevel', 'Stock Level')}</span>
-                    <span
-                      className={cn(
-                        "flex items-center gap-1 font-semibold",
-                        isLow ? "text-destructive" : "text-foreground"
-                      )}
-                    >
-                      {isLow && <AlertTriangle className="h-3.5 w-3.5" />}
-                      {part.stock}
+                    <span className={cn("flex items-center gap-1 font-semibold", indicator.textColor)}>
+                      {(indicator.label === "Low" || indicator.label === "Out of Stock") && <AlertTriangle className="h-3.5 w-3.5" />}
+                      {part.stock} <span className="text-xs font-normal text-muted-foreground">/ avail: {part.available_stock}</span>
                     </span>
                   </div>
                   <Progress
                     value={stockPercentage}
-                    className={cn("h-2", isLow && "[&>div]:bg-destructive")}
+                    className={cn(
+                      "h-2",
+                      indicator.label === "Low" && "[&>div]:bg-red-500",
+                      indicator.label === "Out of Stock" && "[&>div]:bg-red-600",
+                      indicator.label === "Warning" && "[&>div]:bg-yellow-500",
+                      indicator.label === "Overstock" && "[&>div]:bg-blue-500",
+                    )}
                   />
                 </div>
 
-                <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground gap-2 flex-wrap">
                   <span>{t('inventory.min', 'Min')}: {part.min_stock}</span>
                   <span>{t('inventory.reserved', 'Reserved')}: {part.reserved}</span>
+                  {(part.damaged > 0) && <span className="text-destructive">Damaged: {part.damaged}</span>}
+                  {(part.in_transit > 0) && <span className="text-blue-500">In Transit: {part.in_transit}</span>}
                 </div>
+                
+                {Number(part.margin_percent) > 0 && (
+                  <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground gap-2">
+                    <span>Cost: {formatCurrency(Number(part.cost_price))}</span>
+                    <span>Margin: {Number(part.margin_percent).toFixed(1)}%</span>
+                    {part.tax_rate && <span>GST: {part.tax_rate}%</span>}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -997,6 +1029,376 @@ function AdjustmentsTab() {
   );
 }
 
+function StockMovementsTab() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
+  const { data: movements, isLoading } = useStockMovements();
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
+  const movementTypeColors: Record<string, string> = {
+    OPENING: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+    PURCHASE: "bg-green-500/10 text-green-600 dark:text-green-400",
+    RESERVE: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    RELEASE: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
+    ISSUE: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    RETURN_JOB: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+    RETURN_SUPPLIER: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+    TRANSFER_IN: "bg-green-500/10 text-green-600 dark:text-green-400",
+    TRANSFER_OUT: "bg-red-500/10 text-red-600 dark:text-red-400",
+    ADJUSTMENT_IN: "bg-green-500/10 text-green-600 dark:text-green-400",
+    ADJUSTMENT_OUT: "bg-red-500/10 text-red-600 dark:text-red-400",
+    DAMAGE: "bg-red-700/10 text-red-700 dark:text-red-400",
+    SCRAP: "bg-gray-700/10 text-gray-700 dark:text-gray-400",
+  };
+
+  return (
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Part</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Qty</TableHead>
+            <TableHead>Stock Before</TableHead>
+            <TableHead>Stock After</TableHead>
+            <TableHead>Reference</TableHead>
+            <TableHead>By</TableHead>
+            <TableHead>Notes</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {movements?.map((mv) => (
+            <TableRow key={mv.id} data-testid={`row-movement-${mv.id}`}>
+              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                {new Date(mv.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">{mv.part_name}</div>
+                <div className="text-xs text-muted-foreground">{mv.part_sku}</div>
+              </TableCell>
+              <TableCell>
+                <Badge className={movementTypeColors[mv.movement_type] || ""}>
+                  {mv.movement_type.replace(/_/g, ' ')}
+                </Badge>
+              </TableCell>
+              <TableCell className={cn(
+                "font-semibold",
+                ['PURCHASE','RETURN_JOB','TRANSFER_IN','ADJUSTMENT_IN','RELEASE'].includes(mv.movement_type) 
+                  ? "text-green-600 dark:text-green-400" 
+                  : "text-red-600 dark:text-red-400"
+              )}>
+                {['PURCHASE','RETURN_JOB','TRANSFER_IN','ADJUSTMENT_IN','RELEASE'].includes(mv.movement_type) ? '+' : '-'}{mv.quantity}
+              </TableCell>
+              <TableCell className="font-mono text-sm">{mv.stock_before}</TableCell>
+              <TableCell className="font-mono text-sm">{mv.stock_after}</TableCell>
+              <TableCell className="text-sm">
+                {mv.reference_number && (
+                  <span className="font-mono text-xs">{mv.reference_number}</span>
+                )}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">{mv.performed_by_name}</TableCell>
+              <TableCell className="max-w-xs truncate text-sm text-muted-foreground">{mv.reason}</TableCell>
+            </TableRow>
+          ))}
+          {(!movements || movements.length === 0) && (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <History className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                No stock movements recorded yet
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function SupplierInvoicesTab() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
+  const { data: invoices, isLoading } = useSupplierInvoices();
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
+  const statusColors: Record<string, string> = {
+    PENDING_VERIFICATION: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+    VERIFIED: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    APPROVED: "bg-green-500/10 text-green-600 dark:text-green-400",
+    POSTED_TO_ACCOUNTS: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+    PAID: "bg-green-700/10 text-green-700 dark:text-green-400",
+    DISPUTED: "bg-red-500/10 text-red-600 dark:text-red-400",
+    CANCELLED: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
+  };
+
+  return (
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Invoice #</TableHead>
+            <TableHead>Supplier</TableHead>
+            <TableHead>PO #</TableHead>
+            <TableHead>GRN #</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Subtotal</TableHead>
+            <TableHead>GST</TableHead>
+            <TableHead>Total</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invoices?.map((inv) => {
+            const totalGst = Number(inv.cgst_amount || 0) + Number(inv.sgst_amount || 0) + Number(inv.igst_amount || 0);
+            return (
+              <TableRow key={inv.id} data-testid={`row-supplier-invoice-${inv.id}`}>
+                <TableCell className="font-mono text-sm">{inv.invoice_number}</TableCell>
+                <TableCell>{inv.supplier_name}</TableCell>
+                <TableCell className="font-mono text-sm">{inv.po_number}</TableCell>
+                <TableCell className="font-mono text-sm">{inv.grn_number}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {new Date(inv.invoice_date).toLocaleDateString()}
+                </TableCell>
+                <TableCell>{formatCurrency(Number(inv.subtotal))}</TableCell>
+                <TableCell className="text-sm">
+                  <div>{formatCurrency(totalGst)}</div>
+                  {Number(inv.cgst_amount) > 0 && <div className="text-xs text-muted-foreground">CGST: {formatCurrency(Number(inv.cgst_amount))}</div>}
+                  {Number(inv.sgst_amount) > 0 && <div className="text-xs text-muted-foreground">SGST: {formatCurrency(Number(inv.sgst_amount))}</div>}
+                  {Number(inv.igst_amount) > 0 && <div className="text-xs text-muted-foreground">IGST: {formatCurrency(Number(inv.igst_amount))}</div>}
+                </TableCell>
+                <TableCell className="font-semibold">{formatCurrency(Number(inv.grand_total))}</TableCell>
+                <TableCell>
+                  <Badge className={statusColors[inv.status] || ""}>
+                    {inv.status.replace(/_/g, ' ')}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+          {(!invoices || invoices.length === 0) && (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <Receipt className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                No supplier invoices found
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function AnalyticsTab() {
+  const { t } = useTranslation();
+  const { formatCurrency } = useLocalization();
+  const { data: dashboard } = useInventoryDashboard();
+  const { data: fastMoving, isLoading: fastLoading } = useFastMovingItems(30);
+  const { data: deadStock, isLoading: deadLoading } = useDeadStock(90);
+  const { data: valuation, isLoading: valLoading } = useValuationReport();
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+            <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(valuation?.totals?.total_cost_value || 0)}</div>
+            <p className="text-xs text-muted-foreground">At cost price</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+            <CardTitle className="text-sm font-medium">Selling Value</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(valuation?.totals?.total_selling_value || 0)}</div>
+            <p className="text-xs text-muted-foreground">At selling price</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+            <CardTitle className="text-sm font-medium">Total Reserved</CardTitle>
+            <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboard?.total_reserved || 0}</div>
+            <p className="text-xs text-muted-foreground">Units reserved for jobs</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+            <CardTitle className="text-sm font-medium">Damaged / In Transit</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              <span className="text-destructive">{dashboard?.total_damaged || 0}</span>
+              <span className="text-muted-foreground mx-1">/</span>
+              <span className="text-blue-600 dark:text-blue-400">{dashboard?.total_in_transit || 0}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Damaged / In Transit units</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Fast Moving Items (30 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {fastLoading ? (
+              <div className="skeleton h-32 rounded-xl" />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Part</TableHead>
+                    <TableHead>Times Issued</TableHead>
+                    <TableHead>Total Qty</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fastMoving?.map((item, i) => (
+                    <TableRow key={item.part__id} data-testid={`row-fast-${item.part__id}`}>
+                      <TableCell>
+                        <div className="font-medium">{item.part__name}</div>
+                        <div className="text-xs text-muted-foreground">{item.part__sku}</div>
+                      </TableCell>
+                      <TableCell className="font-semibold">{item.issue_count}</TableCell>
+                      <TableCell>{item.total_issued}</TableCell>
+                      <TableCell className={cn(
+                        "font-semibold",
+                        item.part__stock <= item.part__min_stock ? "text-destructive" : "text-foreground"
+                      )}>
+                        {item.part__stock}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(!fastMoving || fastMoving.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                        No fast-moving items in the last 30 days
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-500" />
+              Dead Stock (90+ days no movement)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deadLoading ? (
+              <div className="skeleton h-32 rounded-xl" />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Part</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Cost Value</TableHead>
+                    <TableHead>Last Purchase</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deadStock?.map((item) => (
+                    <TableRow key={item.id} data-testid={`row-dead-${item.id}`}>
+                      <TableCell>
+                        <div className="font-medium">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.sku}</div>
+                      </TableCell>
+                      <TableCell>{item.stock}</TableCell>
+                      <TableCell>{formatCurrency(Number(item.cost_price) * item.stock)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {item.last_purchase_date ? new Date(item.last_purchase_date).toLocaleDateString() : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(!deadStock || deadStock.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                        No dead stock items found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {valuation && valuation.by_category.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Valuation by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Total Stock</TableHead>
+                  <TableHead>Cost Value</TableHead>
+                  <TableHead>Selling Value</TableHead>
+                  <TableHead>Margin</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {valuation.by_category.map((cat) => {
+                  const margin = cat.selling_value > 0 ? ((cat.selling_value - cat.cost_value) / cat.selling_value * 100) : 0;
+                  return (
+                    <TableRow key={cat.category} data-testid={`row-valuation-${cat.category}`}>
+                      <TableCell className="font-medium">{cat.category || 'Uncategorized'}</TableCell>
+                      <TableCell>{cat.item_count}</TableCell>
+                      <TableCell>{cat.total_stock}</TableCell>
+                      <TableCell>{formatCurrency(cat.cost_value || 0)}</TableCell>
+                      <TableCell>{formatCurrency(cat.selling_value || 0)}</TableCell>
+                      <TableCell className={cn(
+                        "font-semibold",
+                        margin > 20 ? "text-green-600 dark:text-green-400" : margin > 10 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+                      )}>
+                        {margin.toFixed(1)}%
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function Inventory() {
   const { t } = useTranslation();
   const { isCollapsed } = useSidebar();
@@ -1006,6 +1408,7 @@ export default function Inventory() {
   const { data: grns } = useGRNs();
   const { data: adjustments } = useStockAdjustments();
   const { data: returns } = useStockReturns();
+  const { data: dashboard } = useInventoryDashboard();
   
   const unresolvedAlerts = alerts?.filter(a => !a.is_resolved).length || 0;
   const activeReservations = reservations?.filter(r => r.status === "ACTIVE").length || 0;
@@ -1025,7 +1428,7 @@ export default function Inventory() {
           </p>
         </header>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
               <CardTitle className="text-sm font-medium">{t('inventory.tabs.parts', 'Parts')}</CardTitle>
@@ -1034,6 +1437,16 @@ export default function Inventory() {
             <CardContent>
               <div className="text-2xl font-bold">{totalParts}</div>
               <p className="text-xs text-muted-foreground">{t('inventory.totalItemsInInventory', 'Total items in inventory')}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+              <CardTitle className="text-sm font-medium">Stock Value</CardTitle>
+              <IndianRupee className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboard?.total_selling_value ? `${(dashboard.total_selling_value / 1000).toFixed(1)}K` : '0'}</div>
+              <p className="text-xs text-muted-foreground">Total selling value</p>
             </CardContent>
           </Card>
           <Card>
@@ -1062,7 +1475,7 @@ export default function Inventory() {
               <Scale className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className={cn("text-2xl font-bold", pendingAdjustments + pendingReturns > 0 && "text-warning")}>{pendingAdjustments + pendingReturns}</div>
+              <div className={cn("text-2xl font-bold", pendingAdjustments + pendingReturns > 0 && "text-yellow-600 dark:text-yellow-400")}>{pendingAdjustments + pendingReturns}</div>
               <p className="text-xs text-muted-foreground">{t('inventory.adjustments.pendingApprovals', 'Pending approvals')}</p>
             </CardContent>
           </Card>
@@ -1117,6 +1530,18 @@ export default function Inventory() {
                 <Badge variant="destructive" className="ml-1">{unresolvedAlerts}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="movements" className="gap-2" data-testid="tab-movements">
+              <History className="h-4 w-4" />
+              Stock Ledger
+            </TabsTrigger>
+            <TabsTrigger value="invoices" className="gap-2" data-testid="tab-invoices">
+              <Receipt className="h-4 w-4" />
+              Supplier Invoices
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2" data-testid="tab-analytics">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="parts">
@@ -1139,6 +1564,15 @@ export default function Inventory() {
           </TabsContent>
           <TabsContent value="alerts">
             <AlertsTab />
+          </TabsContent>
+          <TabsContent value="movements">
+            <StockMovementsTab />
+          </TabsContent>
+          <TabsContent value="invoices">
+            <SupplierInvoicesTab />
+          </TabsContent>
+          <TabsContent value="analytics">
+            <AnalyticsTab />
           </TabsContent>
         </Tabs>
       </main>
