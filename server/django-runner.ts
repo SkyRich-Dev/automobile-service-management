@@ -1,13 +1,45 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, execSync, ChildProcess } from "child_process";
 import path from "path";
 
 let djangoProcess: ChildProcess | null = null;
+
+function runDjangoMigrations(): void {
+  const djangoPath = path.resolve(process.cwd(), "backend_django");
+  try {
+    console.log("Running Django migrations...");
+    execSync("python manage.py migrate --noinput", {
+      cwd: djangoPath,
+      stdio: "inherit",
+    });
+    console.log("Django migrations complete");
+  } catch (err) {
+    console.error("Migration error (non-fatal):", err);
+  }
+}
+
+function seedSampleData(): void {
+  const djangoPath = path.resolve(process.cwd(), "backend_django");
+  try {
+    console.log("Seeding sample data...");
+    execSync("python manage.py seed_sample_data", {
+      cwd: djangoPath,
+      stdio: "inherit",
+      timeout: 120000,
+    });
+    console.log("Sample data seeded successfully");
+  } catch (err) {
+    console.error("Seed data error (non-fatal):", err);
+  }
+}
 
 export function startDjango(): Promise<void> {
   return new Promise((resolve, reject) => {
     const djangoPath = path.resolve(process.cwd(), "backend_django");
     
     console.log("Starting Django server...");
+
+    runDjangoMigrations();
+    seedSampleData();
     
     djangoProcess = spawn("python", ["manage.py", "runserver", "0.0.0.0:8000"], {
       cwd: djangoPath,
