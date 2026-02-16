@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useCustomers, useCreateCustomer, useCreateVehicle } from "@/hooks/use-crm";
+import { useCustomers } from "@/hooks/use-crm";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocalization } from "@/lib/currency-context";
@@ -187,10 +187,7 @@ export default function CRM() {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
   const { data: customers, isLoading: customersLoading } = useCustomers();
-  const createCustomer = useCreateCustomer();
-  const createVehicle = useCreateVehicle();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -213,23 +210,6 @@ export default function CRM() {
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns/"],
   });
-
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    loyalty_points: 0,
-    address: "",
-    notes: "",
-  });
-
-  const [customerVehicles, setCustomerVehicles] = useState<Array<{
-    make: string;
-    model: string;
-    plate_number: string;
-    vin: string;
-    year: string;
-  }>>([{ make: "", model: "", plate_number: "", vin: "", year: "" }]);
 
   const [leadFormData, setLeadFormData] = useState({
     name: "",
@@ -286,60 +266,9 @@ export default function CRM() {
     },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    const type = (e.target as HTMLInputElement).type;
-    setFormData({
-      ...formData,
-      [name]: type === "number" ? Number(value) : value,
-    });
-  };
-
   const handleLeadChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setLeadFormData({ ...leadFormData, [name]: value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const validVehicles = customerVehicles.filter(v => v.make.trim() || v.model.trim() || v.plate_number.trim());
-    
-    try {
-      const newCustomer = await new Promise<any>((resolve, reject) => {
-        createCustomer.mutate(formData, {
-          onSuccess: resolve,
-          onError: reject,
-        });
-      });
-      
-      if (validVehicles.length > 0 && newCustomer?.id) {
-        const vehiclePromises = validVehicles
-          .filter(vehicle => vehicle.make || vehicle.model || vehicle.plate_number)
-          .map(vehicle => 
-            apiRequest("POST", "/api/vehicles/", {
-              customer: newCustomer.id,
-              make: vehicle.make,
-              model: vehicle.model,
-              plate_number: vehicle.plate_number,
-              vin: vehicle.vin,
-              year: vehicle.year ? parseInt(vehicle.year) : null,
-              color: null,
-            })
-          );
-        
-        await Promise.all(vehiclePromises);
-        queryClient.invalidateQueries({ queryKey: ["/api/vehicles/"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/customers/"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/crm/dashboard/"] });
-      }
-      
-      toast({ title: t('crm.messages.customerAdded', 'Customer added successfully') });
-      setOpen(false);
-      setFormData({ name: "", email: "", phone: "", loyalty_points: 0, address: "", notes: "" });
-      setCustomerVehicles([{ make: "", model: "", plate_number: "", vin: "", year: "" }]);
-    } catch (error) {
-      toast({ title: t('crm.messages.customerCreateError', 'Failed to create customer'), variant: "destructive" });
-    }
   };
 
   const handleLeadSubmit = (e: React.FormEvent) => {
@@ -370,22 +299,6 @@ export default function CRM() {
     const updated = [...leadVehicles];
     updated[index][field] = value;
     setLeadVehicles(updated);
-  };
-
-  const addCustomerVehicle = () => {
-    setCustomerVehicles([...customerVehicles, { make: "", model: "", plate_number: "", vin: "", year: "" }]);
-  };
-
-  const removeCustomerVehicle = (index: number) => {
-    if (customerVehicles.length > 1) {
-      setCustomerVehicles(customerVehicles.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateCustomerVehicle = (index: number, field: keyof typeof customerVehicles[0], value: string) => {
-    const updated = [...customerVehicles];
-    updated[index][field] = value;
-    setCustomerVehicles(updated);
   };
 
   const isLoading = customersLoading || dashboardLoading;
@@ -419,10 +332,6 @@ export default function CRM() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => setOpen(true)} data-testid="button-add-customer">
-              <Plus className="h-4 w-4 mr-2" />
-              {t('crm.addCustomer', 'Add Customer')}
-            </Button>
             <Button onClick={() => setLeadDialogOpen(true)} data-testid="button-add-lead">
               <Plus className="h-4 w-4 mr-2" />
               {t('crm.newLead', 'New Lead')}
@@ -915,8 +824,10 @@ export default function CRM() {
                 <div className="col-span-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12">
                   <Users className="mb-3 h-10 w-10 text-muted-foreground/50" />
                   <p className="text-sm text-muted-foreground">{t('crm.noCustomersYet', 'No customers yet')}</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(true)}>
-                    {t('crm.addFirstCustomer', 'Add your first customer')}
+                  <p className="text-xs text-muted-foreground mt-1">{t('crm.customersFromLeads', 'Customers are added when leads reach the Customer stage')}</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => { setActiveTab("leads"); setLeadDialogOpen(true); }}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    {t('crm.createLeadToStart', 'Create a Lead to get started')}
                   </Button>
                 </div>
               )}
@@ -976,106 +887,6 @@ export default function CRM() {
             )}
           </TabsContent>
         </Tabs>
-
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t('crm.addNewCustomer', 'Add New Customer')}</DialogTitle>
-              <DialogDescription>{t('crm.addCustomerDetails', 'Add customer details')}</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t('crm.form.name', 'Name')}</Label>
-                <Input id="name" name="name" value={formData.name} onChange={handleChange} placeholder={t('crm.form.customerName', 'Customer name')} required data-testid="input-customer-name" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t('crm.form.email', 'Email')}</Label>
-                  <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder={t('crm.form.emailPlaceholder', 'email@example.com')} required data-testid="input-customer-email" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('crm.form.phone', 'Phone')}</Label>
-                  <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} placeholder={t('crm.form.phonePlaceholder', '+91 98765 43210')} required data-testid="input-customer-phone" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">{t('crm.form.address', 'Address')}</Label>
-                <Input id="address" name="address" value={formData.address} onChange={handleChange} placeholder={t('crm.form.streetAddress', 'Street address')} data-testid="input-customer-address" />
-              </div>
-              
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-medium">{t('crm.form.vehicles', 'Vehicles')}</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addCustomerVehicle} data-testid="button-add-customer-vehicle">
-                    <Plus className="h-3 w-3 mr-1" /> {t('crm.form.addVehicle', 'Add Vehicle')}
-                  </Button>
-                </div>
-                {customerVehicles.map((vehicle, index) => (
-                  <Card key={index} className="p-3">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 space-y-3">
-                        <div className="grid grid-cols-3 gap-2">
-                          <Input 
-                            value={vehicle.make} 
-                            onChange={(e) => updateCustomerVehicle(index, 'make', e.target.value)}
-                            placeholder={t('crm.form.make', 'Make')} 
-                            data-testid={`input-customer-vehicle-make-${index}`}
-                          />
-                          <Input 
-                            value={vehicle.model} 
-                            onChange={(e) => updateCustomerVehicle(index, 'model', e.target.value)}
-                            placeholder={t('crm.form.model', 'Model')} 
-                            data-testid={`input-customer-vehicle-model-${index}`}
-                          />
-                          <Input 
-                            value={vehicle.year} 
-                            onChange={(e) => updateCustomerVehicle(index, 'year', e.target.value)}
-                            placeholder={t('crm.form.year', 'Year')} 
-                            type="number"
-                            data-testid={`input-customer-vehicle-year-${index}`}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input 
-                            value={vehicle.plate_number} 
-                            onChange={(e) => updateCustomerVehicle(index, 'plate_number', e.target.value)}
-                            placeholder={t('crm.form.plateNumber', 'Plate Number')} 
-                            data-testid={`input-customer-vehicle-plate-${index}`}
-                          />
-                          <Input 
-                            value={vehicle.vin} 
-                            onChange={(e) => updateCustomerVehicle(index, 'vin', e.target.value)}
-                            placeholder={t('crm.form.vin', 'VIN (optional)')} 
-                            data-testid={`input-customer-vehicle-vin-${index}`}
-                          />
-                        </div>
-                      </div>
-                      {customerVehicles.length > 1 && (
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => removeCustomerVehicle(index)}
-                          data-testid={`button-remove-customer-vehicle-${index}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
-                <Button type="submit" disabled={createCustomer.isPending} data-testid="button-save-customer">
-                  {createCustomer.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {t('common.save', 'Save')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
           <DialogContent className="max-w-md">

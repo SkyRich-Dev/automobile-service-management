@@ -23,7 +23,7 @@ The system is divided into a backend and a frontend:
 ### Feature Specifications
 - **11-Stage Service Workflow:** Enforces a strict service lifecycle from appointment to completion.
 - **RBAC:** 17 hierarchical user roles with granular permissions for secure and controlled access.
-- **CRM Module:** Manages leads, customer interactions, tickets, tasks, and campaigns, including a customer scoring algorithm.
+- **CRM Module:** Manages leads, customer interactions, tickets, tasks, and campaigns, including a customer scoring algorithm. Customers are created exclusively through the lead pipeline (Customer stage is the final stage). Direct customer creation is not available.
 - **Contract Module:** Full lifecycle management for various contract types, including coverage rules, consumption tracking, and approval workflows.
 - **Enhanced Inventory & Supplier Module:** Features detailed part management, reservation system, Goods Receipt Notes (GRN), stock transfers, purchase requisitions, supplier performance tracking, and inventory alerts.
 - **Enterprise Accounts & Finance Module:** Implements a Chart of Accounts, tax rates, enhanced invoicing with full lifecycle, credit notes, payments, expense management, and double-entry bookkeeping.
