@@ -13,7 +13,7 @@ from .models import (
     Profile, Branch, Customer, Vehicle, Part, JobCard, Task, 
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
-    WorkflowStage, UserRole, ServiceEventType,
+    WorkflowStage, UserRole, ServiceEventType, StockMovementType,
     Notification, Contract, ContractStatus, ContractVehicle, ContractCoverageRule,
     ContractConsumption, ContractApproval, ContractApprovalStatus, ContractAuditLog, ContractAuditAction,
     Supplier, PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus,
@@ -518,8 +518,7 @@ class JobCardViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def allowed_transitions(self, request, pk=None):
         job_card = self.get_object()
-        from .models import WORKFLOW_TRANSITIONS
-        allowed = WORKFLOW_TRANSITIONS.get(job_card.workflow_stage, [])
+        allowed = job_card._get_allowed_transitions()
         return Response({
             'current_stage': job_card.workflow_stage,
             'allowed_transitions': [
@@ -837,19 +836,55 @@ class PartIssueViewSet(viewsets.ModelViewSet):
     serializer_class = PartIssueSerializer
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
-    def perform_create(self, serializer):
-        part_issue = serializer.save(issued_by=self.request.user)
-        part = part_issue.part
-        part.stock -= part_issue.quantity
-        part.save()
+    def create(self, request, *args, **kwargs):
+        from django.db import transaction
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        ServiceEvent.objects.create(
-            job_card=part_issue.job_card,
-            event_type=ServiceEventType.PART_ISSUED,
-            actor=self.request.user,
-            new_value=f'{part_issue.part.name} x {part_issue.quantity}',
-            metadata={'part_id': part.id, 'quantity': part_issue.quantity}
-        )
+        part_id = serializer.validated_data.get('part').id if hasattr(serializer.validated_data.get('part', None), 'id') else serializer.validated_data.get('part')
+        quantity = serializer.validated_data.get('quantity', 1)
+        
+        try:
+            part = Part.objects.select_for_update().get(pk=part_id)
+        except Part.DoesNotExist:
+            return Response({'error': 'Part not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if part.available_stock < quantity:
+            return Response({
+                'error': f'Insufficient stock for {part.name}. Available: {part.available_stock}, Requested: {quantity}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            part_issue = serializer.save(issued_by=self.request.user)
+            
+            from .stock_service import StockService
+            branch = part_issue.job_card.branch if part_issue.job_card else None
+            if branch:
+                StockService.record_movement(
+                    part=part,
+                    branch=branch,
+                    movement_type=StockMovementType.ISSUE,
+                    quantity=quantity,
+                    user=self.request.user,
+                    reference_type='PART_ISSUE',
+                    reference_id=part_issue.id,
+                    reference_number=f'PI-{part_issue.id}',
+                    unit_cost=part.selling_price,
+                    reason=f'Issued for job {part_issue.job_card.job_card_number}',
+                )
+            else:
+                part.stock = max(0, part.stock - quantity)
+                part.save()
+            
+            ServiceEvent.objects.create(
+                job_card=part_issue.job_card,
+                event_type=ServiceEventType.PART_ISSUED,
+                actor=self.request.user,
+                new_value=f'{part_issue.part.name} x {part_issue.quantity}',
+                metadata={'part_id': part.id, 'quantity': part_issue.quantity}
+            )
+        
+        return Response(self.get_serializer(part_issue).data, status=status.HTTP_201_CREATED)
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -868,6 +903,48 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(payment_status=status_filter)
         
         return queryset.order_by('-invoice_date')
+    
+    def perform_create(self, serializer):
+        job_card = serializer.validated_data.get('job_card')
+        if job_card:
+            allowed_stages = [WorkflowStage.BILLING, WorkflowStage.QC, WorkflowStage.DELIVERY, WorkflowStage.COMPLETED]
+            if job_card.workflow_stage not in allowed_stages:
+                raise ValidationError(
+                    f'Cannot create invoice. Job card must be at BILLING stage or later. '
+                    f'Current stage: {job_card.get_workflow_stage_display()}'
+                )
+        invoice = serializer.save(created_by=self.request.user)
+        if job_card:
+            ServiceEvent.objects.create(
+                job_card=job_card,
+                event_type=ServiceEventType.INVOICE_GENERATED,
+                actor=self.request.user,
+                new_value=f'Invoice {invoice.invoice_number} generated',
+                metadata={'invoice_id': invoice.id, 'grand_total': float(invoice.grand_total)}
+            )
+            try:
+                customer = invoice.customer
+                if customer:
+                    CustomerInteraction.objects.create(
+                        customer=customer,
+                        job_card=job_card,
+                        interaction_type='SERVICE_VISIT',
+                        channel='IN_APP',
+                        direction='outbound',
+                        subject=f"Invoice Generated - {invoice.invoice_number}",
+                        description=f"Invoice {invoice.invoice_number} generated for {invoice.grand_total} (Job: {job_card.job_card_number})",
+                        outcome='SUCCESSFUL',
+                        handled_by=self.request.user,
+                        metadata={
+                            'type': 'INVOICE_GENERATED',
+                            'invoice_id': invoice.id,
+                            'invoice_number': invoice.invoice_number,
+                            'grand_total': float(invoice.grand_total),
+                            'job_card_number': job_card.job_card_number,
+                        }
+                    )
+            except Exception:
+                pass
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -878,11 +955,30 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         payment = serializer.save(received_by=self.request.user)
         
+        invoice = payment.invoice
+        total_paid = Payment.objects.filter(invoice=invoice).aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        invoice.amount_paid = total_paid
+        invoice.balance_due = invoice.grand_total - total_paid
+        if invoice.balance_due <= 0:
+            invoice.payment_status = 'PAID'
+        elif total_paid > 0:
+            invoice.payment_status = 'PARTIAL'
+        invoice.save()
+        
+        if invoice.customer:
+            customer = invoice.customer
+            customer.outstanding_balance = Invoice.objects.filter(
+                customer=customer
+            ).aggregate(total=Sum('balance_due'))['total'] or 0
+            customer.save(update_fields=['outstanding_balance'])
+        
         ServiceEvent.objects.create(
             job_card=payment.invoice.job_card,
             event_type=ServiceEventType.PAYMENT_RECEIVED,
             actor=self.request.user,
-            new_value=f'Payment received: ${payment.amount}',
+            new_value=f'Payment received: {payment.amount}',
             metadata={'payment_id': payment.id, 'amount': float(payment.amount), 'method': payment.payment_method}
         )
         
@@ -3586,6 +3682,14 @@ class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
+        job_card = serializer.validated_data.get('job_card')
+        if job_card:
+            allowed_stages = [WorkflowStage.BILLING, WorkflowStage.QC, WorkflowStage.DELIVERY, WorkflowStage.COMPLETED]
+            if job_card.workflow_stage not in allowed_stages:
+                raise ValidationError(
+                    f'Cannot create enhanced invoice. Job card must be at BILLING stage or later. '
+                    f'Current stage: {job_card.get_workflow_stage_display()}'
+                )
         serializer.save(created_by=self.request.user)
     
     @action(detail=True, methods=['post'])
@@ -4277,7 +4381,7 @@ def finance_dashboard(request):
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4293,7 +4397,7 @@ class SkillViewSet(viewsets.ModelViewSet):
 class EmployeeSkillViewSet(viewsets.ModelViewSet):
     queryset = EmployeeSkill.objects.select_related('employee__user', 'skill', 'approved_by').all()
     serializer_class = EmployeeSkillSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4332,7 +4436,7 @@ class EmployeeSkillViewSet(viewsets.ModelViewSet):
 class EmployeeHRViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related('profile__user', 'reporting_manager__profile__user').all()
     serializer_class = EmployeeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4352,7 +4456,7 @@ class EmployeeHRViewSet(viewsets.ModelViewSet):
 class TrainingProgramViewSet(viewsets.ModelViewSet):
     queryset = TrainingProgram.objects.select_related('skill', 'created_by').prefetch_related('enrollments').all()
     serializer_class = TrainingProgramSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4372,7 +4476,7 @@ class TrainingProgramViewSet(viewsets.ModelViewSet):
 class TrainingEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = TrainingEnrollment.objects.select_related('program', 'employee__user', 'approved_by').all()
     serializer_class = TrainingEnrollmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4392,7 +4496,7 @@ class TrainingEnrollmentViewSet(viewsets.ModelViewSet):
 class IncentiveRuleViewSet(viewsets.ModelViewSet):
     queryset = IncentiveRule.objects.all()
     serializer_class = IncentiveRuleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4409,7 +4513,7 @@ class IncentiveRuleViewSet(viewsets.ModelViewSet):
 class EmployeeIncentiveViewSet(viewsets.ModelViewSet):
     queryset = EmployeeIncentive.objects.select_related('employee__user', 'rule', 'approved_by').all()
     serializer_class = EmployeeIncentiveSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4429,7 +4533,7 @@ class EmployeeIncentiveViewSet(viewsets.ModelViewSet):
 class LeaveTypeViewSet(viewsets.ModelViewSet):
     queryset = LeaveType.objects.all()
     serializer_class = LeaveTypeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4442,7 +4546,7 @@ class LeaveTypeViewSet(viewsets.ModelViewSet):
 class LeaveBalanceViewSet(viewsets.ModelViewSet):
     queryset = LeaveBalance.objects.select_related('employee__user', 'leave_type').all()
     serializer_class = LeaveBalanceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4459,7 +4563,7 @@ class LeaveBalanceViewSet(viewsets.ModelViewSet):
 class LeaveRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaveRequest.objects.select_related('employee__user', 'leave_type', 'reviewed_by').all()
     serializer_class = LeaveRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4498,7 +4602,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 class HolidayViewSet(viewsets.ModelViewSet):
     queryset = Holiday.objects.select_related('branch').all()
     serializer_class = HolidaySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4515,7 +4619,7 @@ class HolidayViewSet(viewsets.ModelViewSet):
 class HRShiftViewSet(viewsets.ModelViewSet):
     queryset = HRShift.objects.select_related('branch').all()
     serializer_class = HRShiftSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4532,7 +4636,7 @@ class HRShiftViewSet(viewsets.ModelViewSet):
 class EmployeeShiftViewSet(viewsets.ModelViewSet):
     queryset = EmployeeShift.objects.select_related('employee__user', 'shift').all()
     serializer_class = EmployeeShiftSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4549,7 +4653,7 @@ class EmployeeShiftViewSet(viewsets.ModelViewSet):
 class HRAttendanceViewSet(viewsets.ModelViewSet):
     queryset = HRAttendance.objects.select_related('employee__user', 'approved_by').all()
     serializer_class = HRAttendanceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4575,7 +4679,7 @@ class HRAttendanceViewSet(viewsets.ModelViewSet):
 class PayrollViewSet(viewsets.ModelViewSet):
     queryset = Payroll.objects.select_related('employee__user', 'generated_by', 'approved_by').all()
     serializer_class = PayrollSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4595,7 +4699,7 @@ class PayrollViewSet(viewsets.ModelViewSet):
 class SkillAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SkillAuditLog.objects.select_related('employee_skill__employee__user', 'employee_skill__skill', 'changed_by').all()
     serializer_class = SkillAuditLogSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4606,7 +4710,7 @@ class SkillAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SkillMatrixViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def list(self, request):
         from django.db.models import Count, Avg
@@ -4760,7 +4864,11 @@ class ConfigCategoryViewSet(viewsets.ModelViewSet):
     """ViewSet for managing configuration categories"""
     queryset = ConfigCategory.objects.all()
     serializer_class = ConfigCategorySerializer
-    permission_classes = [AllowAny]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'by_code']:
+            return [AllowAny()]
+        return [IsAuthenticated(), RoleBasedPermission()]
     
     def get_queryset(self):
         queryset = ConfigCategory.objects.prefetch_related('options').all()
@@ -5014,7 +5122,11 @@ class ConfigOptionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing configuration options"""
     queryset = ConfigOption.objects.all()
     serializer_class = ConfigOptionSerializer
-    permission_classes = [AllowAny]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated(), RoleBasedPermission()]
     
     def get_queryset(self):
         queryset = ConfigOption.objects.select_related('category').all()

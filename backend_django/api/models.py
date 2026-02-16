@@ -294,8 +294,24 @@ class JobCard(models.Model):
             self.service_tracking_id = f"ST-{uuid.uuid4().hex[:10].upper()}"
         super().save(*args, **kwargs)
 
+    def _get_allowed_transitions(self):
+        """Get allowed transitions, checking DB-driven WorkflowConfig first, then falling back to hard-coded dict."""
+        try:
+            wf_config = WorkflowConfig.objects.filter(
+                code='SERVICE_WORKFLOW',
+                workflow_type='SERVICE',
+                is_active=True,
+            ).first()
+            if wf_config and wf_config.transitions:
+                db_transitions = wf_config.transitions.get(self.workflow_stage, [])
+                if db_transitions:
+                    return db_transitions
+        except Exception:
+            pass
+        return WORKFLOW_TRANSITIONS.get(self.workflow_stage, [])
+
     def can_transition_to(self, new_stage):
-        allowed = WORKFLOW_TRANSITIONS.get(self.workflow_stage, [])
+        allowed = self._get_allowed_transitions()
         return new_stage in allowed
 
     def transition_to(self, new_stage, actor, comment=None):
