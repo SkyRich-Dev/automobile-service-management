@@ -4422,7 +4422,7 @@ class LeaveBalanceViewSet(viewsets.ModelViewSet):
 
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
-    queryset = LeaveRequest.objects.select_related('employee__user', 'leave_type', 'approved_by').all()
+    queryset = LeaveRequest.objects.select_related('employee__user', 'leave_type', 'reviewed_by').all()
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated]
     
@@ -4438,14 +4438,14 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
         if leave_type_id:
             queryset = queryset.filter(leave_type_id=leave_type_id)
-        return queryset.order_by('-created_at')
+        return queryset.order_by('-applied_at')
     
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         leave_request = self.get_object()
         leave_request.status = 'APPROVED'
-        leave_request.approved_by = request.user
-        leave_request.approved_date = timezone.now()
+        leave_request.reviewed_by = request.user
+        leave_request.reviewed_at = timezone.now()
         leave_request.save()
         return Response({'status': 'approved'})
     
@@ -4453,8 +4453,8 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         leave_request = self.get_object()
         leave_request.status = 'REJECTED'
-        leave_request.approved_by = request.user
-        leave_request.approved_date = timezone.now()
+        leave_request.reviewed_by = request.user
+        leave_request.reviewed_at = timezone.now()
         leave_request.rejection_reason = request.data.get('reason', '')
         leave_request.save()
         return Response({'status': 'rejected'})
@@ -4512,7 +4512,7 @@ class EmployeeShiftViewSet(viewsets.ModelViewSet):
 
 
 class HRAttendanceViewSet(viewsets.ModelViewSet):
-    queryset = HRAttendance.objects.select_related('employee__user', 'shift', 'approved_by').all()
+    queryset = HRAttendance.objects.select_related('employee__user', 'approved_by').all()
     serializer_class = HRAttendanceSerializer
     permission_classes = [IsAuthenticated]
     

@@ -1734,22 +1734,22 @@ class LeaveBalanceSerializer(serializers.ModelSerializer):
 class LeaveRequestSerializer(serializers.ModelSerializer):
     employee_name = serializers.SerializerMethodField()
     leave_type_name = serializers.CharField(source='leave_type.name', read_only=True)
-    approved_by_name = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = LeaveRequest
         fields = ['id', 'employee', 'employee_name', 'leave_type', 'leave_type_name',
-                  'start_date', 'end_date', 'days_count', 'is_half_day', 'half_day_type',
-                  'reason', 'status', 'approved_by', 'approved_by_name', 'approved_date',
-                  'rejection_reason', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+                  'start_date', 'end_date', 'days_count', 'is_half_day',
+                  'reason', 'status', 'reviewed_by', 'reviewed_by_name', 'reviewed_at',
+                  'rejection_reason', 'notes', 'applied_at']
+        read_only_fields = ['id', 'applied_at']
     
     def get_employee_name(self, obj):
         return f"{obj.employee.user.first_name} {obj.employee.user.last_name}".strip() or obj.employee.user.username
     
-    def get_approved_by_name(self, obj):
-        if obj.approved_by:
-            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+    def get_reviewed_by_name(self, obj):
+        if obj.reviewed_by:
+            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}".strip() or obj.reviewed_by.username
         return None
 
 
