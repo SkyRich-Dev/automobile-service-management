@@ -1,4 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCsrfToken } from "@/lib/queryClient";
+
+function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getCsrfToken();
+  if (token) headers["X-CSRFToken"] = token;
+  return headers;
+}
 
 interface Vehicle {
   id: number;
@@ -60,7 +68,7 @@ export function useCreateCustomer() {
     mutationFn: async (data: Omit<Customer, "id" | "created_at" | "updated_at" | "vehicles">) => {
       const res = await fetch(`${API_BASE}/customers/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -93,7 +101,7 @@ export function useCreateVehicle() {
     mutationFn: async (data: Omit<Vehicle, "id" | "customer_name">) => {
       const res = await fetch(`${API_BASE}/vehicles/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });

@@ -1,4 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCsrfToken } from "@/lib/queryClient";
+
+function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getCsrfToken();
+  if (token) headers["X-CSRFToken"] = token;
+  return headers;
+}
 
 const API_BASE = "/api/notification-center";
 
@@ -226,7 +234,7 @@ export function useCreateNotificationEvent() {
     mutationFn: async (data: Partial<NotificationEvent>) => {
       const res = await fetch(`${API_BASE}/events/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -246,7 +254,7 @@ export function useUpdateNotificationEvent() {
     mutationFn: async ({ id, ...data }: Partial<NotificationEvent> & { id: number }) => {
       const res = await fetch(`${API_BASE}/events/${id}/`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -281,7 +289,7 @@ export function useCreateNotificationTemplate() {
     mutationFn: async (data: Partial<NotificationTemplate>) => {
       const res = await fetch(`${API_BASE}/templates/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -301,7 +309,7 @@ export function useUpdateNotificationTemplate() {
     mutationFn: async ({ id, ...data }: Partial<NotificationTemplate> & { id: number }) => {
       const res = await fetch(`${API_BASE}/templates/${id}/`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -320,6 +328,7 @@ export function useDeleteNotificationTemplate() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/templates/${id}/`, {
         method: "DELETE",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to delete template");
@@ -336,7 +345,7 @@ export function usePreviewTemplate() {
     mutationFn: async (data: { content: string; variables: Record<string, string> }) => {
       const res = await fetch(`${API_BASE}/templates/preview/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -366,7 +375,7 @@ export function useSaveChannelConfig() {
     mutationFn: async (data: Partial<NotificationChannelConfig>) => {
       const res = await fetch(`${API_BASE}/channel-configs/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -400,7 +409,7 @@ export function useCreateNotificationRule() {
     mutationFn: async (data: Partial<NotificationRule>) => {
       const res = await fetch(`${API_BASE}/rules/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -434,7 +443,7 @@ export function useCreateRecipientRule() {
     mutationFn: async (data: Partial<NotificationRecipientRule>) => {
       const res = await fetch(`${API_BASE}/recipient-rules/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -467,7 +476,7 @@ export function useCreateEscalationRule() {
     mutationFn: async (data: Partial<NotificationEscalationRule>) => {
       const res = await fetch(`${API_BASE}/escalation-rules/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -532,7 +541,7 @@ export function useTestSendNotification() {
     }) => {
       const res = await fetch(`${API_BASE}/test-send/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });

@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCsrfToken } from "@/lib/queryClient";
 import { API_CONFIG } from "@/config";
+
+function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getCsrfToken();
+  if (token) headers["X-CSRFToken"] = token;
+  return headers;
+}
 
 interface Vehicle {
   id: number;
@@ -199,7 +207,7 @@ export function useTransitionJobCard() {
     mutationFn: async ({ id, newStage, comment }: { id: number; newStage: string; comment?: string }) => {
       const res = await fetch(`${API_BASE}/job-cards/${id}/transition/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ new_stage: newStage, comment }),
         credentials: "include",
       });
@@ -230,7 +238,7 @@ export function useCreateJobCard() {
     }) => {
       const res = await fetch(`${API_BASE}/job-cards/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -249,7 +257,7 @@ export function useUpdateJobCard() {
     mutationFn: async ({ id, ...updates }: { id: number } & Partial<JobCard>) => {
       const res = await fetch(`${API_BASE}/job-cards/${id}/`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(updates),
         credentials: "include",
       });
@@ -269,6 +277,7 @@ export function useJobCardAIInsight() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/job-cards/${id}/ai_insight/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to generate AI insight");
@@ -293,7 +302,7 @@ export function useCreateTask() {
     }) => {
       const res = await fetch(`${API_BASE}/tasks/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -312,7 +321,7 @@ export function useUpdateTask() {
     mutationFn: async ({ id, jobCardId, ...updates }: { id: number; jobCardId: number } & Partial<Task>) => {
       const res = await fetch(`${API_BASE}/tasks/${id}/`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(updates),
         credentials: "include",
       });
@@ -331,6 +340,7 @@ export function useStartTask() {
     mutationFn: async ({ taskId, jobCardId }: { taskId: number; jobCardId: number }) => {
       const res = await fetch(`${API_BASE}/tasks/${taskId}/start/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to start task");
@@ -354,7 +364,7 @@ export function useCompleteTask() {
     }) => {
       const res = await fetch(`${API_BASE}/tasks/${taskId}/complete/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ checklist, evidence_photos, notes }),
         credentials: "include",
       });
@@ -376,7 +386,7 @@ export function useAddRemark() {
     mutationFn: async ({ jobCardId, remark }: { jobCardId: number; remark: string }) => {
       const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/add_remark/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ remark }),
         credentials: "include",
       });
@@ -398,7 +408,7 @@ export function useNotifyCustomer() {
     mutationFn: async ({ jobCardId, message, channel }: { jobCardId: number; message?: string; channel?: string }) => {
       const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/notify_customer/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ message, channel }),
         credentials: "include",
       });
@@ -420,7 +430,7 @@ export function useEscalate() {
     mutationFn: async ({ jobCardId, reason, level }: { jobCardId: number; reason: string; level?: string }) => {
       const res = await fetch(`${API_BASE}/job-cards/${jobCardId}/escalate/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ reason, level }),
         credentials: "include",
       });

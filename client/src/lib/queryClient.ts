@@ -7,7 +7,7 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-function getCsrfToken(): string | null {
+export function getCsrfToken(): string | null {
   const name = 'csrftoken';
   const cookies = document.cookie.split(';');
   for (let cookie of cookies) {

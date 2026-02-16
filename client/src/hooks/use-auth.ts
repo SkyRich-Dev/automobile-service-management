@@ -1,5 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getCsrfToken } from "@/lib/queryClient";
+
+function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getCsrfToken();
+  if (token) headers["X-CSRFToken"] = token;
+  return headers;
+}
 
 interface User {
   id: number;
@@ -42,27 +49,10 @@ async function fetchUser(): Promise<AuthResponse | null> {
   return response.json();
 }
 
-function getCsrfToken(): string | null {
-  const cookies = document.cookie.split(';');
-  for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=');
-    if (name === 'csrftoken') {
-      return value;
-    }
-  }
-  return null;
-}
-
 async function loginUser(credentials: { username: string; password: string }): Promise<AuthResponse> {
-  const csrfToken = getCsrfToken();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (csrfToken) {
-    headers["X-CSRFToken"] = csrfToken;
-  }
-  
   const response = await fetch(`${API_BASE}/auth/login/`, {
     method: "POST",
-    headers,
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(credentials),
   });
@@ -84,7 +74,7 @@ async function registerUser(data: {
 }): Promise<AuthResponse> {
   const response = await fetch(`${API_BASE}/auth/register/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(data),
   });
@@ -100,6 +90,7 @@ async function registerUser(data: {
 async function logoutUser(): Promise<void> {
   await fetch(`${API_BASE}/auth/logout/`, {
     method: "POST",
+    headers: csrfHeaders(),
     credentials: "include",
   });
 }

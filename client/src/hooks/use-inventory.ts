@@ -1,4 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCsrfToken } from "@/lib/queryClient";
+
+function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getCsrfToken();
+  if (token) headers["X-CSRFToken"] = token;
+  return headers;
+}
 
 interface Part {
   id: number;
@@ -263,7 +271,7 @@ export function useCreatePart() {
     mutationFn: async (data: Omit<Part, "id" | "available_stock" | "is_low_stock">) => {
       const res = await fetch(`${API_BASE}/parts/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -282,7 +290,7 @@ export function useUpdatePart() {
     mutationFn: async ({ id, ...updates }: { id: number } & Partial<Part>) => {
       const res = await fetch(`${API_BASE}/parts/${id}/`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(updates),
         credentials: "include",
       });
@@ -312,7 +320,7 @@ export function useIssueReservation() {
     mutationFn: async ({ id, unit_price }: { id: number; unit_price?: number }) => {
       const res = await fetch(`${API_BASE}/part-reservations/${id}/issue/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ unit_price }),
         credentials: "include",
       });
@@ -332,6 +340,7 @@ export function useReleaseReservation() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/part-reservations/${id}/release/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to release reservation");
@@ -405,6 +414,7 @@ export function useAcknowledgeAlert() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/inventory-alerts/${id}/acknowledge/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to acknowledge alert");
@@ -422,7 +432,7 @@ export function useResolveAlert() {
     mutationFn: async ({ id, notes }: { id: number; notes?: string }) => {
       const res = await fetch(`${API_BASE}/inventory-alerts/${id}/resolve/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ notes }),
         credentials: "include",
       });
@@ -441,7 +451,7 @@ export function useGenerateAlerts() {
     mutationFn: async (branch_id: number) => {
       const res = await fetch(`${API_BASE}/inventory-alerts/generate_alerts/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ branch_id }),
         credentials: "include",
       });
@@ -604,7 +614,7 @@ export function useCreateAdjustment() {
     mutationFn: async (data: { part_id: number; adjustment_type: string; quantity: number; reason: string }) => {
       const res = await fetch(`${API_BASE}/inventory/create_adjustment/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -624,6 +634,7 @@ export function useApproveAdjustment() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/inventory/${id}/approve-adjustment/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to approve adjustment");
@@ -657,6 +668,7 @@ export function useApproveReturn() {
     mutationFn: async (id: number) => {
       const res = await fetch(`${API_BASE}/inventory/${id}/approve-return/`, {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to approve return");
