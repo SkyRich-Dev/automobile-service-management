@@ -1703,28 +1703,33 @@ class Command(BaseCommand):
 
         perf_count = 0
         supplier_list = list(suppliers) if suppliers else []
-        for supplier in supplier_list[:5]:
+        for i, supplier in enumerate(supplier_list[:8]):
             try:
-                total_orders = random.randint(5, 20)
-                on_time = random.randint(3, total_orders)
-                total_items = random.randint(50, 200)
-                accepted = random.randint(40, total_items)
-                sp = SP.objects.create(
-                    supplier=supplier,
-                    period_start=timezone.now().date() - timedelta(days=90),
-                    period_end=timezone.now().date(),
-                    total_orders=total_orders,
-                    orders_on_time=on_time,
-                    orders_late=total_orders - on_time,
-                    total_items_ordered=total_items,
-                    items_accepted=accepted,
-                    items_rejected=total_items - accepted,
-                    total_value=random.randint(50000, 500000),
-                    price_variance=round(random.uniform(-5000, 5000), 2),
-                    avg_delivery_days=round(random.uniform(2, 7), 2),
-                )
-                sp.calculate_scores()
-                perf_count += 1
+                for q in range(3):
+                    total_orders = random.randint(5, 20)
+                    on_time = random.randint(3, total_orders)
+                    total_items = random.randint(50, 200)
+                    accepted = random.randint(40, total_items)
+                    p_end = timezone.now().date() - timedelta(days=q * 90)
+                    p_start = p_end - timedelta(days=90)
+                    sp, _ = SP.objects.update_or_create(
+                        supplier=supplier,
+                        period_start=p_start,
+                        period_end=p_end,
+                        defaults={
+                            'total_orders': total_orders,
+                            'orders_on_time': on_time,
+                            'orders_late': total_orders - on_time,
+                            'total_items_ordered': total_items,
+                            'items_accepted': accepted,
+                            'items_rejected': total_items - accepted,
+                            'total_value': random.randint(50000, 500000),
+                            'price_variance': round(random.uniform(-5, 5), 2),
+                            'avg_delivery_days': round(random.uniform(2, 7), 2),
+                        }
+                    )
+                    sp.calculate_scores()
+                    perf_count += 1
             except Exception:
                 pass
         self.stdout.write(f'    {perf_count} supplier performance records')

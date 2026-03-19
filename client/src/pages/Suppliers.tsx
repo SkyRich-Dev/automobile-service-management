@@ -28,6 +28,17 @@ import {
   Clock,
   CheckCircle,
   Trash2,
+  Edit,
+  Eye,
+  AlertTriangle,
+  ShieldCheck,
+  FileText,
+  ArrowUpDown,
+  Calendar,
+  CreditCard,
+  Award,
+  XCircle,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -49,6 +61,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 
 interface Supplier {
   id: number;
@@ -81,7 +113,11 @@ interface PurchaseOrder {
   order_date: string;
   expected_delivery: string;
   grand_total: string;
+  subtotal: string;
+  tax: string;
+  created_by_name: string;
   created_at: string;
+  lines: any[];
 }
 
 const PO_STATUS_COLORS: Record<string, string> = {
@@ -94,13 +130,22 @@ const PO_STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
+const PAYMENT_TERMS_OPTIONS = [
+  { value: "IMMEDIATE", label: "Immediate" },
+  { value: "NET_15", label: "Net 15" },
+  { value: "NET_30", label: "Net 30" },
+  { value: "NET_45", label: "Net 45" },
+  { value: "NET_60", label: "Net 60" },
+  { value: "NET_90", label: "Net 90" },
+];
+
 export default function Suppliers() {
   const { isCollapsed } = useSidebar();
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { toast } = useToast();
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<"suppliers" | "orders" | "performance">("suppliers");
+  const [activeTab, setActiveTab] = useState("suppliers");
   const { data: supplierPerformance = [], isLoading: performanceLoading } = useSupplierPerformance();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -109,8 +154,16 @@ export default function Suppliers() {
   const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [poDialogOpen, setPoDialogOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [viewingSupplier, setViewingSupplier] = useState<Supplier | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [perfSearchQuery, setPerfSearchQuery] = useState("");
+  const [perfScoreFilter, setPerfScoreFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<string>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const [supplierForm, setSupplierForm] = useState({
+  const emptySupplierForm = {
     name: "",
     contact_person: "",
     phone: "",
@@ -123,7 +176,9 @@ export default function Suppliers() {
     payment_terms: "NET_30",
     credit_limit: "",
     categories: "",
-  });
+  };
+
+  const [supplierForm, setSupplierForm] = useState(emptySupplierForm);
 
   interface POLineItem {
     part: string;
@@ -158,24 +213,50 @@ export default function Suppliers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       setSupplierDialogOpen(false);
-      setSupplierForm({
-        name: "",
-        contact_person: "",
-        phone: "",
-        email: "",
-        address: "",
-        city: "",
-        state: "",
-        gst_number: "",
-        pan_number: "",
-        payment_terms: "NET_30",
-        credit_limit: "",
-        categories: "",
-      });
+      setSupplierForm(emptySupplierForm);
       toast({ title: t('suppliers.messages.supplierCreated', 'Supplier created successfully') });
     },
     onError: (error) => {
       toast({ title: t('suppliers.messages.supplierCreateError', 'Failed to create supplier'), description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateSupplier = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof supplierForm }) => {
+      const categoriesArray = data.categories
+        ? data.categories.split(",").map((c) => c.trim()).filter(Boolean)
+        : [];
+      const res = await apiRequest("PATCH", `/api/suppliers/${id}/`, {
+        ...data,
+        credit_limit: data.credit_limit || "0",
+        categories: categoriesArray,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      setEditingSupplier(null);
+      setSupplierDialogOpen(false);
+      setSupplierForm(emptySupplierForm);
+      toast({ title: t('suppliers.messages.supplierUpdated', 'Supplier updated successfully') });
+    },
+    onError: (error) => {
+      toast({ title: t('suppliers.messages.supplierUpdateError', 'Failed to update supplier'), description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteSupplier = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/suppliers/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      setDeleteConfirmOpen(false);
+      setSupplierToDelete(null);
+      toast({ title: t('suppliers.messages.supplierDeleted', 'Supplier deleted successfully') });
+    },
+    onError: (error) => {
+      toast({ title: t('suppliers.messages.supplierDeleteError', 'Failed to delete supplier'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -219,7 +300,41 @@ export default function Suppliers() {
       toast({ title: t('suppliers.messages.namePhoneRequired', 'Name and phone are required'), variant: "destructive" });
       return;
     }
-    createSupplier.mutate(supplierForm);
+    if (editingSupplier) {
+      updateSupplier.mutate({ id: editingSupplier.id, data: supplierForm });
+    } else {
+      createSupplier.mutate(supplierForm);
+    }
+  };
+
+  const handleEditSupplier = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    setSupplierForm({
+      name: supplier.name,
+      contact_person: supplier.contact_person || "",
+      phone: supplier.phone,
+      email: supplier.email || "",
+      address: supplier.address || "",
+      city: supplier.city || "",
+      state: supplier.state || "",
+      gst_number: supplier.gst_number || "",
+      pan_number: supplier.pan_number || "",
+      payment_terms: supplier.payment_terms || "NET_30",
+      credit_limit: supplier.credit_limit || "",
+      categories: supplier.categories?.join(", ") || "",
+    });
+    setSupplierDialogOpen(true);
+  };
+
+  const handleNewSupplier = () => {
+    setEditingSupplier(null);
+    setSupplierForm(emptySupplierForm);
+    setSupplierDialogOpen(true);
+  };
+
+  const handleDeleteClick = (supplier: Supplier) => {
+    setSupplierToDelete(supplier);
+    setDeleteConfirmOpen(true);
   };
 
   const handlePOSubmit = (e: React.FormEvent) => {
@@ -272,21 +387,23 @@ export default function Suppliers() {
   });
 
   const { data: purchaseOrders = [], isLoading: ordersLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ["purchase-orders", statusFilter],
+    queryKey: ["purchase-orders"],
     queryFn: async () => {
-      let url = "/api/purchase-orders/";
-      if (statusFilter !== "all") {
-        url += `?status=${statusFilter}`;
-      }
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch("/api/purchase-orders/", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
       return res.json();
     },
   });
 
   const activeSuppliers = suppliers.filter((s) => s.is_active);
+  const inactiveSuppliers = suppliers.filter((s) => !s.is_active);
   const totalOutstanding = suppliers.reduce((sum, s) => sum + parseFloat(s.outstanding_balance || "0"), 0);
+  const totalCreditLimit = suppliers.reduce((sum, s) => sum + parseFloat(s.credit_limit || "0"), 0);
   const pendingOrders = purchaseOrders.filter((po) => ["PENDING_APPROVAL", "APPROVED", "ORDERED"].includes(po.status));
+  const totalPOValue = purchaseOrders.reduce((sum, po) => sum + parseFloat(po.grand_total || "0"), 0);
+  const avgRating = suppliers.length > 0
+    ? suppliers.reduce((sum, s) => sum + parseFloat(s.rating || "0"), 0) / suppliers.length
+    : 0;
 
   const allCategories = useMemo(() => {
     const cats = new Set<string>();
@@ -297,43 +414,96 @@ export default function Suppliers() {
   }, [suppliers]);
 
   const filteredSuppliers = useMemo(() => {
-    return suppliers.filter((supplier) => {
-      // Search logic
+    let result = suppliers.filter((supplier) => {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = !searchQuery || 
+      const matchesSearch = !searchQuery ||
         supplier.name?.toLowerCase().includes(query) ||
         supplier.contact_person?.toLowerCase().includes(query) ||
         supplier.phone?.toLowerCase().includes(query) ||
-        supplier.supplier_id?.toLowerCase().includes(query);
+        supplier.email?.toLowerCase().includes(query) ||
+        supplier.supplier_id?.toLowerCase().includes(query) ||
+        supplier.gst_number?.toLowerCase().includes(query) ||
+        supplier.city?.toLowerCase().includes(query);
 
-      // Category filter
-      const matchesCategory = categoryFilter === "all" || 
+      const matchesCategory = categoryFilter === "all" ||
         (supplier.categories && supplier.categories.includes(categoryFilter));
 
-      // Status filter
-      const matchesStatus = activeFilter === "all" || 
+      const matchesStatus = activeFilter === "all" ||
         (activeFilter === "active" ? supplier.is_active : !supplier.is_active);
 
-      // Rating filter
-      const matchesRating = ratingFilter === "all" || 
-        (supplier.rating && parseInt(supplier.rating) >= parseInt(ratingFilter));
+      const matchesRating = ratingFilter === "all" ||
+        (supplier.rating && parseFloat(supplier.rating) >= parseInt(ratingFilter));
 
       return matchesSearch && matchesCategory && matchesStatus && matchesRating;
     });
-  }, [suppliers, searchQuery, categoryFilter, activeFilter, ratingFilter]);
+
+    result.sort((a, b) => {
+      let valA: any, valB: any;
+      switch (sortField) {
+        case "name": valA = a.name; valB = b.name; break;
+        case "rating": valA = parseFloat(a.rating || "0"); valB = parseFloat(b.rating || "0"); break;
+        case "outstanding": valA = parseFloat(a.outstanding_balance || "0"); valB = parseFloat(b.outstanding_balance || "0"); break;
+        case "credit_limit": valA = parseFloat(a.credit_limit || "0"); valB = parseFloat(b.credit_limit || "0"); break;
+        default: valA = a.name; valB = b.name;
+      }
+      if (typeof valA === "string") {
+        return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortDir === "asc" ? valA - valB : valB - valA;
+    });
+
+    return result;
+  }, [suppliers, searchQuery, categoryFilter, activeFilter, ratingFilter, sortField, sortDir]);
 
   const filteredOrders = useMemo(() => {
     return purchaseOrders.filter((po) => {
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return (
-          po.po_number?.toLowerCase().includes(query) ||
-          po.supplier_name?.toLowerCase().includes(query)
-        );
-      }
-      return true;
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery ||
+        po.po_number?.toLowerCase().includes(query) ||
+        po.supplier_name?.toLowerCase().includes(query) ||
+        po.branch_name?.toLowerCase().includes(query);
+      const matchesStatus = statusFilter === "all" || po.status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [purchaseOrders, searchQuery]);
+  }, [purchaseOrders, searchQuery, statusFilter]);
+
+  const filteredPerformance = useMemo(() => {
+    return supplierPerformance.filter((perf: any) => {
+      const query = perfSearchQuery.toLowerCase();
+      const matchesSearch = !perfSearchQuery ||
+        perf.supplier_name?.toLowerCase().includes(query);
+      const score = parseFloat(perf.overall_score || "0");
+      const matchesScore = perfScoreFilter === "all" ||
+        (perfScoreFilter === "excellent" && score >= 80) ||
+        (perfScoreFilter === "good" && score >= 60 && score < 80) ||
+        (perfScoreFilter === "poor" && score < 60);
+      return matchesSearch && matchesScore;
+    });
+  }, [supplierPerformance, perfSearchQuery, perfScoreFilter]);
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const getScoreColor = (score: number | string) => {
+    const s = typeof score === "string" ? parseFloat(score) : score;
+    if (s >= 80) return "text-green-600";
+    if (s >= 60) return "text-yellow-600";
+    return "text-red-600";
+  };
+  const getScoreBg = (score: number | string) => {
+    const s = typeof score === "string" ? parseFloat(score) : score;
+    if (s >= 80) return "bg-green-500/10";
+    if (s >= 60) return "bg-yellow-500/10";
+    return "bg-red-500/10";
+  };
+
+  const creditUtilization = totalCreditLimit > 0 ? (totalOutstanding / totalCreditLimit) * 100 : 0;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -346,10 +516,10 @@ export default function Suppliers() {
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('suppliers.title', 'Suppliers & Procurement')}</h1>
-              <p className="text-muted-foreground">{t('suppliers.subtitle', 'Manage vendors and purchase orders')}</p>
+              <p className="text-muted-foreground">{t('suppliers.subtitle', 'Manage vendors, purchase orders, and supplier performance')}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setSupplierDialogOpen(true)} data-testid="button-new-supplier">
+              <Button variant="outline" onClick={handleNewSupplier} data-testid="button-new-supplier">
                 <Building className="h-4 w-4 mr-2" />
                 {t('suppliers.addSupplier', 'Add Supplier')}
               </Button>
@@ -360,13 +530,19 @@ export default function Suppliers() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.activeSuppliers', 'Active Suppliers')}</p>
-                    <p className="text-2xl font-bold" data-testid="text-total-suppliers">{activeSuppliers.length}</p>
+                    <p className="text-xs text-muted-foreground">{t('suppliers.metrics.totalSuppliers', 'Total Suppliers')}</p>
+                    <p className="text-2xl font-bold" data-testid="text-total-suppliers">{suppliers.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <span className="text-green-600 font-medium">{activeSuppliers.length}</span> active
+                      {inactiveSuppliers.length > 0 && (
+                        <span className="ml-1">/ <span className="text-red-500">{inactiveSuppliers.length}</span> inactive</span>
+                      )}
+                    </p>
                   </div>
                   <Truck className="h-8 w-8 text-primary opacity-50" />
                 </div>
@@ -376,8 +552,9 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.pendingOrders', 'Pending Orders')}</p>
-                    <p className="text-2xl font-bold text-blue-600">{pendingOrders.length}</p>
+                    <p className="text-xs text-muted-foreground">{t('suppliers.metrics.pendingOrders', 'Pending Orders')}</p>
+                    <p className="text-2xl font-bold text-blue-600" data-testid="text-pending-orders">{pendingOrders.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{purchaseOrders.length} total orders</p>
                   </div>
                   <Package className="h-8 w-8 text-blue-500 opacity-50" />
                 </div>
@@ -387,12 +564,11 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.outstandingBalance', 'Outstanding Balance')}</p>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(totalOutstanding)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t('suppliers.metrics.totalPOValue', 'Total PO Value')}</p>
+                    <p className="text-2xl font-bold" data-testid="text-total-po-value">{formatCurrency(totalPOValue)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{purchaseOrders.filter(p => p.status === 'RECEIVED').length} received</p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-orange-500 opacity-50" />
+                  <DollarSign className="h-8 w-8 text-green-500 opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -400,57 +576,66 @@ export default function Suppliers() {
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('suppliers.metrics.totalOrders', 'Total Orders')}</p>
-                    <p className="text-2xl font-bold">{purchaseOrders.length}</p>
+                    <p className="text-xs text-muted-foreground">{t('suppliers.metrics.outstandingBalance', 'Outstanding')}</p>
+                    <p className={cn("text-2xl font-bold", totalOutstanding > 0 ? "text-orange-600" : "text-green-600")} data-testid="text-outstanding">
+                      {formatCurrency(totalOutstanding)}
+                    </p>
+                    <div className="mt-1">
+                      <Progress value={Math.min(creditUtilization, 100)} className="h-1.5" />
+                      <p className="text-xs text-muted-foreground">{creditUtilization.toFixed(0)}% credit used</p>
+                    </div>
                   </div>
-                  <Package className="h-8 w-8 text-muted-foreground opacity-50" />
+                  <CreditCard className="h-8 w-8 text-orange-500 opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{t('suppliers.metrics.avgRating', 'Avg Rating')}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-2xl font-bold" data-testid="text-avg-rating">{avgRating.toFixed(1)}</p>
+                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{supplierPerformance.length} evaluations</p>
+                  </div>
+                  <Award className="h-8 w-8 text-yellow-500 opacity-50" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="flex items-center gap-4 border-b">
-            <Button
-              variant={activeTab === "suppliers" ? "default" : "ghost"}
-              onClick={() => setActiveTab("suppliers")}
-              data-testid="tab-suppliers"
-            >
-              <Building className="h-4 w-4 mr-2" />
-              {t('suppliers.tabs.suppliers', 'Suppliers')}
-            </Button>
-            <Button
-              variant={activeTab === "orders" ? "default" : "ghost"}
-              onClick={() => setActiveTab("orders")}
-              data-testid="tab-orders"
-            >
-              <Package className="h-4 w-4 mr-2" />
-              {t('suppliers.tabs.orders', 'Purchase Orders')}
-            </Button>
-            <Button
-              variant={activeTab === "performance" ? "default" : "ghost"}
-              onClick={() => setActiveTab("performance")}
-              data-testid="tab-performance"
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              {t('suppliers.tabs.performance', 'Performance')}
-            </Button>
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="suppliers" data-testid="tab-suppliers">
+                <Building className="h-4 w-4 mr-2" />
+                {t('suppliers.tabs.suppliers', 'Suppliers')} ({suppliers.length})
+              </TabsTrigger>
+              <TabsTrigger value="orders" data-testid="tab-orders">
+                <Package className="h-4 w-4 mr-2" />
+                {t('suppliers.tabs.orders', 'Purchase Orders')} ({purchaseOrders.length})
+              </TabsTrigger>
+              <TabsTrigger value="performance" data-testid="tab-performance">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                {t('suppliers.tabs.performance', 'Performance')} ({supplierPerformance.length})
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={activeTab === "suppliers" ? t('suppliers.searchSuppliers', 'Search by name, contact or phone...') : t('suppliers.searchOrders', 'Search orders...')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
-              />
-            </div>
-            {activeTab === "suppliers" && (
-              <>
+            <TabsContent value="suppliers" className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('suppliers.searchSuppliers', 'Search by name, contact, phone, GST...')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-search-suppliers"
+                  />
+                </div>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-48" data-testid="select-category-filter">
+                  <SelectTrigger className="w-44" data-testid="select-category-filter">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue placeholder={t('suppliers.filters.category', 'Category')} />
                   </SelectTrigger>
@@ -461,10 +646,8 @@ export default function Suppliers() {
                     ))}
                   </SelectContent>
                 </Select>
-
                 <Select value={activeFilter} onValueChange={setActiveFilter}>
-                  <SelectTrigger className="w-40" data-testid="select-status-filter">
-                    <CheckCircle className="h-4 w-4 mr-2" />
+                  <SelectTrigger className="w-36" data-testid="select-status-filter">
                     <SelectValue placeholder={t('common.status', 'Status')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -473,9 +656,8 @@ export default function Suppliers() {
                     <SelectItem value="inactive">{t('common.inactive', 'Inactive')}</SelectItem>
                   </SelectContent>
                 </Select>
-
                 <Select value={ratingFilter} onValueChange={setRatingFilter}>
-                  <SelectTrigger className="w-40" data-testid="select-rating-filter">
+                  <SelectTrigger className="w-36" data-testid="select-rating-filter">
                     <Star className="h-4 w-4 mr-2" />
                     <SelectValue placeholder={t('suppliers.filters.rating', 'Rating')} />
                   </SelectTrigger>
@@ -486,266 +668,614 @@ export default function Suppliers() {
                     <SelectItem value="2">{t('suppliers.filters.twoPlus', '2+ Stars')}</SelectItem>
                   </SelectContent>
                 </Select>
-              </>
-            )}
-            {activeTab === "orders" && (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48" data-testid="select-status-filter">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder={t('common.status', 'Status')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('suppliers.status.all', 'All Status')}</SelectItem>
-                  <SelectItem value="DRAFT">{t('suppliers.status.DRAFT', 'Draft')}</SelectItem>
-                  <SelectItem value="PENDING_APPROVAL">{t('suppliers.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
-                  <SelectItem value="APPROVED">{t('suppliers.status.APPROVED', 'Approved')}</SelectItem>
-                  <SelectItem value="ORDERED">{t('suppliers.status.ORDERED', 'Ordered')}</SelectItem>
-                  <SelectItem value="PARTIALLY_RECEIVED">{t('suppliers.status.PARTIALLY_RECEIVED', 'Partially Received')}</SelectItem>
-                  <SelectItem value="RECEIVED">{t('suppliers.status.RECEIVED', 'Received')}</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+              </div>
 
-          {activeTab === "suppliers" && (
-            suppliersLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-              </div>
-            ) : filteredSuppliers.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">{t('suppliers.noSuppliersFound', 'No suppliers found')}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredSuppliers.map((supplier) => (
-                  <Card
-                    key={supplier.id}
-                    className={cn(!supplier.is_active && "opacity-60")}
-                    data-testid={`card-supplier-${supplier.id}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <CardTitle className="text-sm font-medium">{supplier.name}</CardTitle>
-                          <p className="text-xs text-muted-foreground">{supplier.supplier_id}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                          <span className="text-sm font-medium">{supplier.rating || t('common.na', 'N/A')}</span>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {supplier.contact_person && (
-                        <p className="text-sm font-medium">{supplier.contact_person}</p>
-                      )}
-                      <div className="flex items-center gap-2 text-sm">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{supplier.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="truncate">{supplier.email}</span>
-                      </div>
-                      {(supplier.city || supplier.state) && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span>{[supplier.city, supplier.state].filter(Boolean).join(", ")}</span>
-                        </div>
-                      )}
-                      {supplier.categories && supplier.categories.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-2">
-                          {supplier.categories.slice(0, 3).map((cat) => (
-                            <Badge key={cat} variant="secondary" className="text-xs">
-                              {cat}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      <div className="pt-2 border-t flex justify-between text-sm">
-                        <span className="text-muted-foreground">{t('suppliers.outstanding', 'Outstanding')}</span>
-                        <span className={cn(
-                          "font-medium",
-                          parseFloat(supplier.outstanding_balance) > 0 && "text-orange-600"
-                        )}>
-                          {formatCurrency(parseFloat(supplier.outstanding_balance || "0"))}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )
-          )}
-
-          {activeTab === "orders" && (
-            ordersLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">{t('suppliers.noOrdersFound', 'No purchase orders found')}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredOrders.map((po) => (
-                  <Card key={po.id} data-testid={`card-po-${po.id}`}>
-                    <CardContent className="py-4">
-                      <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div className="flex items-center gap-4">
-                          <div>
-                            <Link href={`/purchase-orders/${po.id}`}>
-                              <span
-                                className="font-medium text-primary underline-offset-4 hover:underline cursor-pointer"
-                                data-testid={`link-po-${po.id}`}
-                              >
-                                {po.po_number}
-                              </span>
-                            </Link>
-                            <p className="text-sm text-muted-foreground">{po.supplier_name}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">{t('common.total', 'Total')}</p>
-                            <p className="font-medium">{formatCurrency(parseFloat(po.grand_total))}</p>
-                          </div>
-                          {po.expected_delivery && (
-                            <div className="text-right">
-                              <p className="text-sm text-muted-foreground">{t('suppliers.expected', 'Expected')}</p>
-                              <p className="text-sm">{po.expected_delivery}</p>
-                            </div>
-                          )}
-                          <Badge className={cn("text-xs", PO_STATUS_COLORS[po.status])}>
-                            {t(`suppliers.status.${po.status}`, po.status.replace(/_/g, " "))}
-                          </Badge>
-                          <Link href={`/purchase-orders/${po.id}`}>
-                            <Button size="sm" variant="outline" data-testid={`button-view-po-${po.id}`}>
-                              {t('common.view', 'View')}
+              {suppliersLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : filteredSuppliers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      {suppliers.length === 0
+                        ? t('suppliers.noSuppliers', 'No suppliers yet. Add your first supplier to get started.')
+                        : t('suppliers.noSuppliersMatch', 'No suppliers match your current filters.')}
+                    </p>
+                    {suppliers.length === 0 && (
+                      <Button className="mt-4" onClick={handleNewSupplier}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        {t('suppliers.addFirstSupplier', 'Add First Supplier')}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>
+                            <Button variant="ghost" size="sm" onClick={() => toggleSort("name")} className="h-8 -ml-3 font-medium">
+                              {t('suppliers.table.supplier', 'Supplier')}
+                              <ArrowUpDown className="h-3 w-3 ml-1" />
                             </Button>
-                          </Link>
-                        </div>
-                      </div>
+                          </TableHead>
+                          <TableHead>{t('suppliers.table.contact', 'Contact')}</TableHead>
+                          <TableHead>{t('suppliers.table.location', 'Location')}</TableHead>
+                          <TableHead>{t('suppliers.table.categories', 'Categories')}</TableHead>
+                          <TableHead>
+                            <Button variant="ghost" size="sm" onClick={() => toggleSort("rating")} className="h-8 -ml-3 font-medium">
+                              {t('suppliers.table.rating', 'Rating')}
+                              <ArrowUpDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button variant="ghost" size="sm" onClick={() => toggleSort("outstanding")} className="h-8 -ml-3 font-medium">
+                              {t('suppliers.table.outstanding', 'Outstanding')}
+                              <ArrowUpDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </TableHead>
+                          <TableHead>{t('suppliers.table.status', 'Status')}</TableHead>
+                          <TableHead className="w-[120px]">{t('common.actions', 'Actions')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredSuppliers.map((supplier) => (
+                          <TableRow
+                            key={supplier.id}
+                            className={cn(!supplier.is_active && "opacity-60")}
+                            data-testid={`row-supplier-${supplier.id}`}
+                          >
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{supplier.name}</p>
+                                <p className="text-xs text-muted-foreground">{supplier.supplier_id}</p>
+                                {supplier.gst_number && (
+                                  <p className="text-xs text-muted-foreground">GST: {supplier.gst_number}</p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-0.5">
+                                {supplier.contact_person && (
+                                  <p className="text-sm font-medium">{supplier.contact_person}</p>
+                                )}
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Phone className="h-3 w-3" />
+                                  <span>{supplier.phone}</span>
+                                </div>
+                                {supplier.email && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Mail className="h-3 w-3" />
+                                    <span className="truncate max-w-[140px]">{supplier.email}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {(supplier.city || supplier.state) ? (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                                  <span>{[supplier.city, supplier.state].filter(Boolean).join(", ")}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {supplier.categories?.slice(0, 2).map((cat) => (
+                                  <Badge key={cat} variant="secondary" className="text-xs">{cat}</Badge>
+                                ))}
+                                {(supplier.categories?.length || 0) > 2 && (
+                                  <Badge variant="outline" className="text-xs">+{(supplier.categories?.length || 0) - 2}</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+                                <span className="font-medium text-sm">{parseFloat(supplier.rating || "0").toFixed(1)}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className={cn(
+                                  "font-medium text-sm",
+                                  parseFloat(supplier.outstanding_balance) > 0 && "text-orange-600"
+                                )}>
+                                  {formatCurrency(parseFloat(supplier.outstanding_balance || "0"))}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Limit: {formatCurrency(parseFloat(supplier.credit_limit || "0"))}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={supplier.is_active ? "default" : "secondary"} className="text-xs">
+                                {supplier.is_active ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => setViewingSupplier(supplier)}
+                                  data-testid={`button-view-supplier-${supplier.id}`}
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => handleEditSupplier(supplier)}
+                                  data-testid={`button-edit-supplier-${supplier.id}`}
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-500 hover:text-red-700"
+                                  onClick={() => handleDeleteClick(supplier)}
+                                  data-testid={`button-delete-supplier-${supplier.id}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                  <div className="px-4 py-3 border-t text-sm text-muted-foreground">
+                    Showing {filteredSuppliers.length} of {suppliers.length} suppliers
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="orders" className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('suppliers.searchOrders', 'Search by PO #, supplier, branch...')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-search-orders"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-52" data-testid="select-po-status-filter">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder={t('common.status', 'Status')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('suppliers.status.all', 'All Status')}</SelectItem>
+                    <SelectItem value="DRAFT">{t('suppliers.status.DRAFT', 'Draft')}</SelectItem>
+                    <SelectItem value="PENDING_APPROVAL">{t('suppliers.status.PENDING_APPROVAL', 'Pending Approval')}</SelectItem>
+                    <SelectItem value="APPROVED">{t('suppliers.status.APPROVED', 'Approved')}</SelectItem>
+                    <SelectItem value="ORDERED">{t('suppliers.status.ORDERED', 'Ordered')}</SelectItem>
+                    <SelectItem value="PARTIALLY_RECEIVED">{t('suppliers.status.PARTIALLY_RECEIVED', 'Partially Received')}</SelectItem>
+                    <SelectItem value="RECEIVED">{t('suppliers.status.RECEIVED', 'Received')}</SelectItem>
+                    <SelectItem value="CANCELLED">{t('suppliers.status.CANCELLED', 'Cancelled')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-4 mb-4">
+                {[
+                  { label: "Draft", status: "DRAFT", color: "text-gray-600" },
+                  { label: "Pending Approval", status: "PENDING_APPROVAL", color: "text-yellow-600" },
+                  { label: "Ordered", status: "ORDERED", color: "text-indigo-600" },
+                  { label: "Received", status: "RECEIVED", color: "text-green-600" },
+                ].map((s) => (
+                  <Card key={s.status} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter(s.status)}>
+                    <CardContent className="py-3 px-4">
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                      <p className={cn("text-xl font-bold", s.color)}>
+                        {purchaseOrders.filter(po => po.status === s.status).length}
+                      </p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
-            )
-          )}
 
-          {activeTab === "performance" && (
-            performanceLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              {ordersLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : filteredOrders.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      {purchaseOrders.length === 0
+                        ? t('suppliers.noOrders', 'No purchase orders yet. Create your first PO to get started.')
+                        : t('suppliers.noOrdersMatch', 'No orders match your current filters.')}
+                    </p>
+                    {purchaseOrders.length === 0 && (
+                      <Button className="mt-4" onClick={() => setPoDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        {t('suppliers.createFirstPO', 'Create First PO')}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('suppliers.table.poNumber', 'PO Number')}</TableHead>
+                          <TableHead>{t('suppliers.table.supplier', 'Supplier')}</TableHead>
+                          <TableHead>{t('suppliers.table.branch', 'Branch')}</TableHead>
+                          <TableHead>{t('suppliers.table.orderDate', 'Order Date')}</TableHead>
+                          <TableHead>{t('suppliers.table.expectedDelivery', 'Expected Delivery')}</TableHead>
+                          <TableHead>{t('suppliers.table.items', 'Items')}</TableHead>
+                          <TableHead className="text-right">{t('suppliers.table.total', 'Total')}</TableHead>
+                          <TableHead>{t('common.status', 'Status')}</TableHead>
+                          <TableHead className="w-[80px]">{t('common.actions', 'Actions')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredOrders.map((po) => (
+                          <TableRow key={po.id} data-testid={`row-po-${po.id}`}>
+                            <TableCell>
+                              <Link href={`/purchase-orders/${po.id}`}>
+                                <span className="font-medium text-primary underline-offset-4 hover:underline cursor-pointer" data-testid={`link-po-${po.id}`}>
+                                  {po.po_number}
+                                </span>
+                              </Link>
+                            </TableCell>
+                            <TableCell className="font-medium">{po.supplier_name}</TableCell>
+                            <TableCell className="text-sm">{po.branch_name}</TableCell>
+                            <TableCell className="text-sm">{po.order_date || '-'}</TableCell>
+                            <TableCell>
+                              {po.expected_delivery ? (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Calendar className="h-3 w-3 text-muted-foreground" />
+                                  <span>{po.expected_delivery}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Not set</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {po.lines?.length || 0} items
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(parseFloat(po.grand_total || "0"))}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("text-xs whitespace-nowrap", PO_STATUS_COLORS[po.status])}>
+                                {t(`suppliers.status.${po.status}`, po.status.replace(/_/g, " "))}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/purchase-orders/${po.id}`}>
+                                <Button size="sm" variant="ghost" className="h-7" data-testid={`button-view-po-${po.id}`}>
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  {t('common.view', 'View')}
+                                </Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                  <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Showing {filteredOrders.length} of {purchaseOrders.length} orders</span>
+                    <span>Total Value: <strong className="text-foreground">{formatCurrency(filteredOrders.reduce((s, po) => s + parseFloat(po.grand_total || "0"), 0))}</strong></span>
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="performance" className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('suppliers.searchPerformance', 'Search by supplier name...')}
+                    value={perfSearchQuery}
+                    onChange={(e) => setPerfSearchQuery(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-search-performance"
+                  />
+                </div>
+                <Select value={perfScoreFilter} onValueChange={setPerfScoreFilter}>
+                  <SelectTrigger className="w-44" data-testid="select-score-filter">
+                    <Award className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Score Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Scores</SelectItem>
+                    <SelectItem value="excellent">Excellent (80%+)</SelectItem>
+                    <SelectItem value="good">Good (60-79%)</SelectItem>
+                    <SelectItem value="poor">Needs Improvement (&lt;60%)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ) : supplierPerformance.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">{t('suppliers.noPerformanceData', 'No supplier performance data available')}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {supplierPerformance.map((perf) => {
-                  const getScoreColor = (score: number) => {
-                    if (score >= 80) return "text-green-600";
-                    if (score >= 60) return "text-yellow-600";
-                    return "text-red-600";
-                  };
-                  const getScoreBg = (score: number) => {
-                    if (score >= 80) return "bg-green-500/10";
-                    if (score >= 60) return "bg-yellow-500/10";
-                    return "bg-red-500/10";
-                  };
-                  return (
-                    <Card key={perf.id} data-testid={`card-performance-${perf.id}`}>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <CardTitle className="text-sm font-medium">{perf.supplier_name}</CardTitle>
-                          <Badge className={cn("text-lg font-bold", getScoreBg(perf.overall_score), getScoreColor(perf.overall_score))}>
-                            {perf.overall_score}%
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {perf.period_start} - {perf.period_end}
-                        </p>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
+
+              {(() => {
+                const avgOnTime = supplierPerformance.length > 0
+                  ? supplierPerformance.reduce((s: number, p: any) => s + parseFloat(p.on_time_rate || "0"), 0) / supplierPerformance.length
+                  : 0;
+                const avgQuality = supplierPerformance.length > 0
+                  ? supplierPerformance.reduce((s: number, p: any) => s + parseFloat(p.quality_rate || "0"), 0) / supplierPerformance.length
+                  : 0;
+                const avgOverall = supplierPerformance.length > 0
+                  ? supplierPerformance.reduce((s: number, p: any) => s + parseFloat(p.overall_score || "0"), 0) / supplierPerformance.length
+                  : 0;
+                const totalRejected = supplierPerformance.reduce((s: number, p: any) => s + (parseInt(p.items_rejected) || 0), 0);
+                return (
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <Card>
+                      <CardContent className="py-3 px-4">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>{t('suppliers.performance.onTimeRate', 'On-Time Rate')}</span>
-                          </div>
-                          <span className={cn("font-medium", getScoreColor(perf.on_time_rate))}>
-                            {perf.on_time_rate}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                            <span>{t('suppliers.performance.qualityRate', 'Quality Rate')}</span>
-                          </div>
-                          <span className={cn("font-medium", getScoreColor(perf.quality_rate))}>
-                            {perf.quality_rate}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm">
-                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            <span>{t('suppliers.performance.priceVariance', 'Price Variance')}</span>
-                          </div>
-                          <span className={cn("font-medium", parseFloat(perf.price_variance) > 0 ? "text-red-600" : "text-green-600")}>
-                            {parseFloat(perf.price_variance) > 0 ? "+" : ""}{perf.price_variance}%
-                          </span>
-                        </div>
-                        <div className="pt-2 border-t grid grid-cols-3 gap-2 text-center text-xs">
                           <div>
-                            <p className="text-muted-foreground">{t('suppliers.performance.orders', 'Orders')}</p>
-                            <p className="font-medium">{perf.total_orders}</p>
+                            <p className="text-xs text-muted-foreground">Avg Overall Score</p>
+                            <p className={cn("text-xl font-bold", getScoreColor(avgOverall))}>{avgOverall.toFixed(1)}%</p>
                           </div>
-                          <div>
-                            <p className="text-muted-foreground">{t('suppliers.performance.onTime', 'On Time')}</p>
-                            <p className="font-medium text-green-600">{perf.orders_on_time}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{t('suppliers.performance.rejected', 'Rejected')}</p>
-                            <p className="font-medium text-red-600">{perf.items_rejected}</p>
-                          </div>
+                          <Award className="h-6 w-6 text-muted-foreground opacity-50" />
                         </div>
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </div>
-            )
-          )}
+                    <Card>
+                      <CardContent className="py-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg On-Time Rate</p>
+                            <p className={cn("text-xl font-bold", getScoreColor(avgOnTime))}>{avgOnTime.toFixed(1)}%</p>
+                          </div>
+                          <Clock className="h-6 w-6 text-muted-foreground opacity-50" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="py-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Quality Rate</p>
+                            <p className={cn("text-xl font-bold", getScoreColor(avgQuality))}>{avgQuality.toFixed(1)}%</p>
+                          </div>
+                          <ShieldCheck className="h-6 w-6 text-muted-foreground opacity-50" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="py-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total Rejected Items</p>
+                            <p className="text-xl font-bold text-red-600">{totalRejected}</p>
+                          </div>
+                          <XCircle className="h-6 w-6 text-red-500 opacity-50" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })()}
+
+              {performanceLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : filteredPerformance.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      {supplierPerformance.length === 0
+                        ? t('suppliers.noPerformanceData', 'No supplier performance data available yet. Performance metrics are calculated from completed purchase orders.')
+                        : t('suppliers.noPerformanceMatch', 'No performance records match your current filters.')}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('suppliers.table.supplier', 'Supplier')}</TableHead>
+                          <TableHead>{t('suppliers.performance.period', 'Period')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.overallScore', 'Overall Score')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.onTimeRate', 'On-Time Rate')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.qualityRate', 'Quality Rate')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.priceVariance', 'Price Variance')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.orders', 'Orders')}</TableHead>
+                          <TableHead className="text-center">{t('suppliers.performance.rejected', 'Rejected')}</TableHead>
+                          <TableHead className="text-right">{t('suppliers.performance.value', 'Value')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPerformance.map((perf: any) => (
+                          <TableRow key={perf.id} data-testid={`row-performance-${perf.id}`}>
+                            <TableCell className="font-medium">{perf.supplier_name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {perf.period_start} to {perf.period_end}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={cn("font-bold", getScoreBg(perf.overall_score), getScoreColor(perf.overall_score))}>
+                                {perf.overall_score}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={cn("font-medium", getScoreColor(perf.on_time_rate))}>
+                                {perf.on_time_rate}%
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={cn("font-medium", getScoreColor(perf.quality_rate))}>
+                                {perf.quality_rate}%
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={cn("font-medium", parseFloat(perf.price_variance) > 0 ? "text-red-600" : "text-green-600")}>
+                                {parseFloat(perf.price_variance) > 0 ? "+" : ""}{perf.price_variance}%
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div>
+                                <span className="font-medium">{perf.total_orders}</span>
+                                <span className="text-xs text-muted-foreground ml-1">
+                                  ({perf.orders_on_time} on time)
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={cn("font-medium", perf.items_rejected > 0 && "text-red-600")}>
+                                {perf.items_rejected}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(parseFloat(perf.total_value || "0"))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                  <div className="px-4 py-3 border-t text-sm text-muted-foreground">
+                    Showing {filteredPerformance.length} of {supplierPerformance.length} records
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
-      <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+      <Dialog open={viewingSupplier !== null} onOpenChange={(open) => !open && setViewingSupplier(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{t('suppliers.dialog.addSupplier', 'Add New Supplier')}</DialogTitle>
+            <DialogTitle>{viewingSupplier?.name}</DialogTitle>
+            <DialogDescription>{viewingSupplier?.supplier_id}</DialogDescription>
+          </DialogHeader>
+          {viewingSupplier && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Contact Person</p>
+                  <p className="font-medium">{viewingSupplier.contact_person || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge variant={viewingSupplier.is_active ? "default" : "secondary"}>
+                    {viewingSupplier.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone</p>
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-3 w-3 text-muted-foreground" />
+                    <p className="font-medium">{viewingSupplier.phone}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Email</p>
+                  <div className="flex items-center gap-1">
+                    <Mail className="h-3 w-3 text-muted-foreground" />
+                    <p className="font-medium text-sm">{viewingSupplier.email || '-'}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Address</p>
+                <p className="text-sm">{[viewingSupplier.address, viewingSupplier.city, viewingSupplier.state].filter(Boolean).join(", ") || '-'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">GST Number</p>
+                  <p className="font-medium text-sm">{viewingSupplier.gst_number || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">PAN Number</p>
+                  <p className="font-medium text-sm">{viewingSupplier.pan_number || '-'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Payment Terms</p>
+                  <p className="font-medium text-sm">{viewingSupplier.payment_terms}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Credit Limit</p>
+                  <p className="font-medium text-sm">{formatCurrency(parseFloat(viewingSupplier.credit_limit || "0"))}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Outstanding</p>
+                  <p className={cn("font-medium text-sm", parseFloat(viewingSupplier.outstanding_balance) > 0 && "text-orange-600")}>
+                    {formatCurrency(parseFloat(viewingSupplier.outstanding_balance || "0"))}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Rating</p>
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    <span className="font-medium">{parseFloat(viewingSupplier.rating || "0").toFixed(1)}</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Categories</p>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {viewingSupplier.categories?.map((cat) => (
+                      <Badge key={cat} variant="secondary" className="text-xs">{cat}</Badge>
+                    )) || <span className="text-sm text-muted-foreground">-</span>}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Created</p>
+                <p className="text-sm">{viewingSupplier.created_at ? new Date(viewingSupplier.created_at).toLocaleDateString() : '-'}</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setViewingSupplier(null); handleEditSupplier(viewingSupplier); }}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Supplier
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={supplierDialogOpen} onOpenChange={(open) => { setSupplierDialogOpen(open); if (!open) { setEditingSupplier(null); setSupplierForm(emptySupplierForm); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSupplier ? t('suppliers.dialog.editSupplier', 'Edit Supplier') : t('suppliers.dialog.addSupplier', 'Add New Supplier')}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSupplierSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">{t('suppliers.form.companyName', 'Company Name')}</Label>
+                <Label htmlFor="name">{t('suppliers.form.companyName', 'Company Name')} *</Label>
                 <Input
                   id="name"
                   value={supplierForm.name}
                   onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
                   placeholder={t('suppliers.form.companyNamePlaceholder', 'Company name')}
                   required
+                  data-testid="input-supplier-name"
                 />
               </div>
               <div className="space-y-2">
@@ -755,19 +1285,20 @@ export default function Suppliers() {
                   value={supplierForm.contact_person}
                   onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })}
                   placeholder={t('suppliers.form.contactNamePlaceholder', 'Contact name')}
+                  data-testid="input-contact-person"
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">{t('suppliers.form.phone', 'Phone')}</Label>
+                <Label htmlFor="phone">{t('suppliers.form.phone', 'Phone')} *</Label>
                 <Input
                   id="phone"
                   value={supplierForm.phone}
                   onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-                  placeholder={t('suppliers.form.phonePlaceholder', 'Phone number')}
+                  placeholder={t('suppliers.form.phonePlaceholder', '+91 XXXXX XXXXX')}
                   required
+                  data-testid="input-phone"
                 />
               </div>
               <div className="space-y-2">
@@ -777,11 +1308,11 @@ export default function Suppliers() {
                   type="email"
                   value={supplierForm.email}
                   onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
-                  placeholder={t('suppliers.form.emailPlaceholder', 'Email address')}
+                  placeholder={t('suppliers.form.emailPlaceholder', 'vendor@example.com')}
+                  data-testid="input-email"
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="address">{t('suppliers.form.address', 'Address')}</Label>
               <Textarea
@@ -790,9 +1321,9 @@ export default function Suppliers() {
                 onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
                 placeholder={t('suppliers.form.addressPlaceholder', 'Full address')}
                 rows={2}
+                data-testid="textarea-address"
               />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="city">{t('suppliers.form.city', 'City')}</Label>
@@ -801,6 +1332,7 @@ export default function Suppliers() {
                   value={supplierForm.city}
                   onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })}
                   placeholder={t('suppliers.form.cityPlaceholder', 'City')}
+                  data-testid="input-city"
                 />
               </div>
               <div className="space-y-2">
@@ -810,10 +1342,10 @@ export default function Suppliers() {
                   value={supplierForm.state}
                   onChange={(e) => setSupplierForm({ ...supplierForm, state: e.target.value })}
                   placeholder={t('suppliers.form.statePlaceholder', 'State')}
+                  data-testid="input-state"
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="gst_number">{t('suppliers.form.gstNumber', 'GST Number')}</Label>
@@ -821,7 +1353,8 @@ export default function Suppliers() {
                   id="gst_number"
                   value={supplierForm.gst_number}
                   onChange={(e) => setSupplierForm({ ...supplierForm, gst_number: e.target.value })}
-                  placeholder={t('suppliers.form.gstNumberPlaceholder', 'GST Number')}
+                  placeholder={t('suppliers.form.gstPlaceholder', '29ABCDE1234F1Z5')}
+                  data-testid="input-gst"
                 />
               </div>
               <div className="space-y-2">
@@ -830,27 +1363,22 @@ export default function Suppliers() {
                   id="pan_number"
                   value={supplierForm.pan_number}
                   onChange={(e) => setSupplierForm({ ...supplierForm, pan_number: e.target.value })}
-                  placeholder={t('suppliers.form.panNumberPlaceholder', 'PAN Number')}
+                  placeholder={t('suppliers.form.panPlaceholder', 'ABCDE1234F')}
+                  data-testid="input-pan"
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="payment_terms">{t('suppliers.form.paymentTerms', 'Payment Terms')}</Label>
-                <Select
-                  value={supplierForm.payment_terms}
-                  onValueChange={(value) => setSupplierForm({ ...supplierForm, payment_terms: value })}
-                >
-                  <SelectTrigger>
+                <Select value={supplierForm.payment_terms} onValueChange={(v) => setSupplierForm({ ...supplierForm, payment_terms: v })}>
+                  <SelectTrigger data-testid="select-payment-terms">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="IMMEDIATE">{t('suppliers.paymentTerms.IMMEDIATE', 'Immediate')}</SelectItem>
-                    <SelectItem value="NET_15">{t('suppliers.paymentTerms.NET_15', 'Net 15')}</SelectItem>
-                    <SelectItem value="NET_30">{t('suppliers.paymentTerms.NET_30', 'Net 30')}</SelectItem>
-                    <SelectItem value="NET_45">{t('suppliers.paymentTerms.NET_45', 'Net 45')}</SelectItem>
-                    <SelectItem value="NET_60">{t('suppliers.paymentTerms.NET_60', 'Net 60')}</SelectItem>
+                    {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -861,37 +1389,34 @@ export default function Suppliers() {
                   type="number"
                   value={supplierForm.credit_limit}
                   onChange={(e) => setSupplierForm({ ...supplierForm, credit_limit: e.target.value })}
-                  placeholder="0.00"
+                  placeholder="0"
+                  data-testid="input-credit-limit"
                 />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="categories">{t('suppliers.form.categories', 'Item Categories (comma-separated)')}</Label>
+              <Label htmlFor="categories">{t('suppliers.form.categories', 'Categories (comma separated)')}</Label>
               <Input
                 id="categories"
                 value={supplierForm.categories}
                 onChange={(e) => setSupplierForm({ ...supplierForm, categories: e.target.value })}
-                placeholder={t('suppliers.form.categoriesPlaceholder', 'e.g., Filters, Oil, Brakes, Tyres')}
-                data-testid="input-supplier-categories"
+                placeholder={t('suppliers.form.categoriesPlaceholder', 'Brakes, Filters, Engine Parts')}
+                data-testid="input-categories"
               />
-              <p className="text-xs text-muted-foreground">
-                {t('suppliers.form.categoriesHelp', 'Enter the types of items this supplier delivers')}
-              </p>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setSupplierDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => { setSupplierDialogOpen(false); setEditingSupplier(null); setSupplierForm(emptySupplierForm); }} data-testid="button-cancel-supplier">
                 {t('common.cancel', 'Cancel')}
               </Button>
-              <Button type="submit" disabled={createSupplier.isPending} data-testid="button-submit-supplier">
-                {createSupplier.isPending ? (
+              <Button type="submit" disabled={createSupplier.isPending || updateSupplier.isPending} data-testid="button-submit-supplier">
+                {(createSupplier.isPending || updateSupplier.isPending) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('suppliers.creating', 'Creating...')}
+                    {t('common.saving', 'Saving...')}
                   </>
                 ) : (
-                  t('suppliers.createSupplier', 'Create Supplier')
+                  editingSupplier ? t('common.update', 'Update') : t('common.create', 'Create')
                 )}
               </Button>
             </DialogFooter>
@@ -899,32 +1424,54 @@ export default function Suppliers() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('suppliers.dialog.deleteTitle', 'Delete Supplier')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('suppliers.dialog.deleteDescription', 'Are you sure you want to delete')} <strong>{supplierToDelete?.name}</strong>?
+              {t('suppliers.dialog.deleteWarning', ' This action cannot be undone and will remove all associated data.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">{t('common.cancel', 'Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => supplierToDelete && deleteSupplier.mutate(supplierToDelete.id)}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              {deleteSupplier.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {t('common.delete', 'Delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('suppliers.dialog.createPO', 'Create Purchase Order')}</DialogTitle>
+            <DialogDescription>Create a new purchase order for parts procurement</DialogDescription>
           </DialogHeader>
           <form onSubmit={handlePOSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="po_supplier">{t('suppliers.form.supplier', 'Supplier')}</Label>
-                <Select
-                  value={poForm.supplier}
-                  onValueChange={(value) => setPoForm({ ...poForm, supplier: value })}
-                >
+                <Label htmlFor="po_supplier">{t('suppliers.form.supplier', 'Supplier')} *</Label>
+                <Select value={poForm.supplier} onValueChange={(v) => setPoForm({ ...poForm, supplier: v })}>
                   <SelectTrigger data-testid="select-po-supplier">
                     <SelectValue placeholder={t('suppliers.form.selectSupplier', 'Select supplier')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.filter(s => s.is_active).map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                        {supplier.name}
-                      </SelectItem>
+                    {suppliers.filter((s) => s.is_active).map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="expected_delivery">{t('suppliers.form.expectedDelivery', 'Expected Delivery')}</Label>
                 <Input
@@ -937,58 +1484,46 @@ export default function Suppliers() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <Label>{t('suppliers.form.lineItems', 'Line Items')}</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={addLineItem}
-                  data-testid="button-add-line"
-                >
+                <Button type="button" size="sm" variant="outline" onClick={addLineItem} data-testid="button-add-line">
                   <Plus className="h-4 w-4 mr-1" />
                   {t('suppliers.form.addItem', 'Add Item')}
                 </Button>
               </div>
 
-              <div className="space-y-2 border rounded-md p-3">
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_80px_100px_36px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                  <span>Part</span>
+                  <span>Qty</span>
+                  <span>Unit Price</span>
+                  <span></span>
+                </div>
                 {poLineItems.map((line, index) => (
-                  <div key={index} className="flex items-center gap-2" data-testid={`line-item-${index}`}>
-                    <div className="flex-1">
-                      <Select
-                        value={line.part}
-                        onValueChange={(value) => {
-                          updateLineItem(index, "part", value);
-                          const selectedPart = parts.find((p) => p.id.toString() === value);
-                          if (selectedPart && !line.unit_price) {
-                            updateLineItem(index, "unit_price", selectedPart.price);
-                          }
-                        }}
-                      >
-                        <SelectTrigger data-testid={`select-part-${index}`}>
-                          <SelectValue placeholder={t('suppliers.form.selectPart', 'Select part')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {partsLoading ? (
-                            <SelectItem value="" disabled>
-                              {t('common.loading', 'Loading...')}
-                            </SelectItem>
-                          ) : (
-                            parts.map((part) => (
-                              <SelectItem key={part.id} value={part.id.toString()}>
-                                {part.name} ({part.sku})
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div key={index} className="grid grid-cols-[1fr_80px_100px_36px] gap-2 items-center" data-testid={`po-line-${index}`}>
+                    <Select value={line.part} onValueChange={(v) => {
+                      updateLineItem(index, "part", v);
+                      const selectedPart = parts.find((p: any) => String(p.id) === v);
+                      if (selectedPart && selectedPart.cost_price && !line.unit_price) {
+                        updateLineItem(index, "unit_price", String(selectedPart.cost_price));
+                      }
+                    }}>
+                      <SelectTrigger data-testid={`select-part-${index}`}>
+                        <SelectValue placeholder="Select part" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {parts.map((p: any) => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name} ({p.sku})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
                       type="number"
                       min="1"
-                      placeholder={t('suppliers.form.qtyPlaceholder', 'Qty')}
-                      className="w-20"
+                      placeholder="Qty"
                       value={line.quantity_ordered}
                       onChange={(e) => updateLineItem(index, "quantity_ordered", e.target.value)}
                       data-testid={`input-qty-${index}`}
@@ -997,8 +1532,7 @@ export default function Suppliers() {
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder={t('suppliers.form.pricePlaceholder', 'Price')}
-                      className="w-24"
+                      placeholder="Price"
                       value={line.unit_price}
                       onChange={(e) => updateLineItem(index, "unit_price", e.target.value)}
                       data-testid={`input-price-${index}`}
@@ -1007,6 +1541,7 @@ export default function Suppliers() {
                       type="button"
                       size="icon"
                       variant="ghost"
+                      className="h-8 w-8"
                       onClick={() => removeLineItem(index)}
                       disabled={poLineItems.length === 1}
                       data-testid={`button-remove-line-${index}`}
@@ -1017,12 +1552,13 @@ export default function Suppliers() {
                 ))}
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 border-t">
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">{t('suppliers.estimatedSubtotal', 'Estimated Subtotal')}</p>
                   <p className="text-lg font-semibold" data-testid="text-subtotal">
                     {formatCurrency(calculateSubtotal())}
                   </p>
+                  <p className="text-xs text-muted-foreground">+ 18% GST = {formatCurrency(calculateSubtotal() * 1.18)}</p>
                 </div>
               </div>
             </div>

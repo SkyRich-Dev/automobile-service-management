@@ -4,6 +4,7 @@ import { useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { cn } from "@/lib/utils";
 import { useLocalization } from "@/lib/currency-context";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Package,
@@ -11,10 +12,17 @@ import {
   Building,
   Truck,
   ChevronRight,
+  FileText,
+  User,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -48,12 +56,15 @@ interface PurchaseOrderDetail {
   status: string;
   order_date: string;
   expected_delivery: string | null;
+  actual_delivery: string | null;
   subtotal: string;
-  tax_amount: string;
-  shipping_cost: string;
+  tax: string;
+  shipping: string;
   grand_total: string;
   notes: string;
+  created_by_name: string;
   created_at: string;
+  updated_at: string;
   lines: POLine[];
 }
 
@@ -77,10 +88,13 @@ const PO_STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
+const STATUS_STEPS = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ORDERED", "RECEIVED"];
+
 export default function PODetail() {
   const { isCollapsed } = useSidebar();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
 
   const { data: order, isLoading, error } = useQuery<PurchaseOrderDetail>({
@@ -163,6 +177,11 @@ export default function PODetail() {
   }
 
   const lines = order.lines || [];
+  const totalQtyOrdered = lines.reduce((s, l) => s + l.quantity_ordered, 0);
+  const totalQtyReceived = lines.reduce((s, l) => s + l.quantity_received, 0);
+  const receiptProgress = totalQtyOrdered > 0 ? (totalQtyReceived / totalQtyOrdered) * 100 : 0;
+  const currentStepIndex = STATUS_STEPS.indexOf(order.status);
+  const isCancelled = order.status === "CANCELLED";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -181,41 +200,68 @@ export default function PODetail() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold" data-testid="text-po-number">{order.po_number}</h1>
-                <p className="text-muted-foreground">Purchase Order Details</p>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold" data-testid="text-po-number">{order.po_number}</h1>
+                  <Badge className={cn("text-sm", PO_STATUS_COLORS[order.status])} data-testid="badge-status">
+                    {order.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground text-sm">Purchase Order Details</p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge className={cn("text-sm", PO_STATUS_COLORS[order.status])} data-testid="badge-status">
-                {order.status.replace(/_/g, " ")}
-              </Badge>
               {transitions?.allowed_transitions && transitions.allowed_transitions.length > 0 && (
-                <>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  {transitions.allowed_transitions.map((t) => (
-                    <Button
-                      key={t.value}
-                      size="sm"
-                      variant={t.value === "CANCELLED" ? "destructive" : "default"}
-                      onClick={() => updateStatus.mutate(t.value)}
-                      disabled={updateStatus.isPending}
-                      data-testid={`button-transition-${t.value.toLowerCase()}`}
-                    >
-                      {t.label}
-                    </Button>
-                  ))}
-                </>
+                transitions.allowed_transitions.map((tr) => (
+                  <Button
+                    key={tr.value}
+                    size="sm"
+                    variant={tr.value === "CANCELLED" ? "destructive" : "default"}
+                    onClick={() => updateStatus.mutate(tr.value)}
+                    disabled={updateStatus.isPending}
+                    data-testid={`button-transition-${tr.value.toLowerCase()}`}
+                  >
+                    {updateStatus.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    {tr.value === "CANCELLED" ? "Cancel Order" : tr.label}
+                  </Button>
+                ))
               )}
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          {!isCancelled && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-2">
+                  {STATUS_STEPS.map((step, i) => (
+                    <div key={step} className="flex items-center gap-1">
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2",
+                        i <= currentStepIndex
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted text-muted-foreground border-muted"
+                      )}>
+                        {i <= currentStepIndex ? <CheckCircle className="h-3.5 w-3.5" /> : i + 1}
+                      </div>
+                      <span className={cn("text-xs hidden sm:inline", i <= currentStepIndex ? "text-foreground font-medium" : "text-muted-foreground")}>
+                        {step.replace(/_/g, " ")}
+                      </span>
+                      {i < STATUS_STEPS.length - 1 && (
+                        <div className={cn("w-8 md:w-16 h-0.5 mx-1", i < currentStepIndex ? "bg-primary" : "bg-muted")} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center gap-3">
                   <Truck className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Supplier</p>
+                    <p className="text-xs text-muted-foreground">Supplier</p>
                     <p className="font-medium" data-testid="text-supplier-name">{order.supplier_name}</p>
                   </div>
                 </div>
@@ -226,7 +272,7 @@ export default function PODetail() {
                 <div className="flex items-center gap-3">
                   <Building className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Branch</p>
+                    <p className="text-xs text-muted-foreground">Branch</p>
                     <p className="font-medium" data-testid="text-branch-name">{order.branch_name}</p>
                   </div>
                 </div>
@@ -237,8 +283,8 @@ export default function PODetail() {
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Order Date</p>
-                    <p className="font-medium" data-testid="text-order-date">{order.order_date}</p>
+                    <p className="text-xs text-muted-foreground">Order Date</p>
+                    <p className="font-medium" data-testid="text-order-date">{order.order_date || 'Not set'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -248,108 +294,204 @@ export default function PODetail() {
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Expected Delivery</p>
+                    <p className="text-xs text-muted-foreground">Expected Delivery</p>
                     <p className="font-medium" data-testid="text-expected-delivery">
                       {order.expected_delivery || "Not set"}
                     </p>
+                    {order.actual_delivery && (
+                      <p className="text-xs text-green-600">Delivered: {order.actual_delivery}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
+          {(order.status === "ORDERED" || order.status === "PARTIALLY_RECEIVED" || order.status === "RECEIVED") && (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Receipt Progress</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {totalQtyReceived} / {totalQtyOrdered} items ({receiptProgress.toFixed(0)}%)
+                  </span>
+                </div>
+                <Progress value={receiptProgress} className="h-2" />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Line Items</CardTitle>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Line Items ({lines.length})</CardTitle>
+                <div className="text-sm text-muted-foreground">
+                  {totalQtyOrdered} items ordered
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {lines.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
-                  No line items in this order
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No line items in this order</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>#</TableHead>
                       <TableHead>Part</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead className="text-right">Qty Ordered</TableHead>
                       <TableHead className="text-right">Qty Received</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                       <TableHead className="text-right">Unit Price</TableHead>
                       <TableHead className="text-right">Tax Rate</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lines.map((line, index) => (
-                      <TableRow key={line.id} data-testid={`row-line-${index}`}>
-                        <TableCell className="font-medium" data-testid={`text-part-name-${index}`}>
-                          {line.part_name}
-                        </TableCell>
-                        <TableCell data-testid={`text-part-sku-${index}`}>
-                          {line.part_sku}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-qty-ordered-${index}`}>
-                          {line.quantity_ordered}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-qty-received-${index}`}>
-                          {line.quantity_received}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-unit-price-${index}`}>
-                          {formatCurrency(parseFloat(line.unit_price))}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-tax-rate-${index}`}>
-                          {parseFloat(line.tax_rate).toFixed(1)}%
-                        </TableCell>
-                        <TableCell className="text-right font-medium" data-testid={`text-line-total-${index}`}>
-                          {formatCurrency(parseFloat(line.total))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {lines.map((line, index) => {
+                      const isFullyReceived = line.quantity_received >= line.quantity_ordered;
+                      const isPartiallyReceived = line.quantity_received > 0 && line.quantity_received < line.quantity_ordered;
+                      return (
+                        <TableRow key={line.id} data-testid={`row-line-${index}`}>
+                          <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium" data-testid={`text-part-name-${index}`}>
+                            {line.part_name}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground" data-testid={`text-part-sku-${index}`}>
+                            {line.part_sku}
+                          </TableCell>
+                          <TableCell className="text-right" data-testid={`text-qty-ordered-${index}`}>
+                            {line.quantity_ordered}
+                          </TableCell>
+                          <TableCell className="text-right" data-testid={`text-qty-received-${index}`}>
+                            <span className={cn(
+                              isFullyReceived && "text-green-600 font-medium",
+                              isPartiallyReceived && "text-orange-600 font-medium"
+                            )}>
+                              {line.quantity_received}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {isFullyReceived ? (
+                              <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+                                Received
+                              </Badge>
+                            ) : isPartiallyReceived ? (
+                              <Badge variant="default" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">
+                                Partial
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Pending</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right" data-testid={`text-unit-price-${index}`}>
+                            {formatCurrency(parseFloat(line.unit_price))}
+                          </TableCell>
+                          <TableCell className="text-right" data-testid={`text-tax-rate-${index}`}>
+                            {parseFloat(line.tax_rate).toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right font-medium" data-testid={`text-line-total-${index}`}>
+                            {formatCurrency(parseFloat(line.total))}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex justify-between w-64 gap-4">
-                  <span className="text-muted-foreground">Subtotal:</span>
-                  <span className="font-medium" data-testid="text-subtotal">
-                    {formatCurrency(parseFloat(order.subtotal))}
-                  </span>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium" data-testid="text-subtotal">
+                      {formatCurrency(parseFloat(order.subtotal || "0"))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax (GST)</span>
+                    <span className="font-medium" data-testid="text-tax">
+                      {formatCurrency(parseFloat(order.tax || "0"))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Shipping</span>
+                    <span className="font-medium" data-testid="text-shipping">
+                      {formatCurrency(parseFloat(order.shipping || "0"))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-3 border-t">
+                    <span className="font-semibold text-lg">Grand Total</span>
+                    <span className="font-bold text-lg text-primary" data-testid="text-grand-total">
+                      {formatCurrency(parseFloat(order.grand_total || "0"))}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between w-64 gap-4">
-                  <span className="text-muted-foreground">Tax:</span>
-                  <span className="font-medium" data-testid="text-tax">
-                    {formatCurrency(parseFloat(order.tax_amount))}
-                  </span>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Order Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {order.created_by_name && (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Created by:</span>
+                      <span className="text-sm font-medium">{order.created_by_name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Created:</span>
+                    <span className="text-sm font-medium">
+                      {order.created_at ? new Date(order.created_at).toLocaleString() : '-'}
+                    </span>
+                  </div>
+                  {order.updated_at && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Last updated:</span>
+                      <span className="text-sm font-medium">
+                        {new Date(order.updated_at).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {order.actual_delivery && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-sm text-muted-foreground">Delivered:</span>
+                      <span className="text-sm font-medium text-green-600">{order.actual_delivery}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between w-64 gap-4">
-                  <span className="text-muted-foreground">Shipping:</span>
-                  <span className="font-medium" data-testid="text-shipping">
-                    {formatCurrency(parseFloat(order.shipping_cost))}
-                  </span>
-                </div>
-                <div className="flex justify-between w-64 gap-4 pt-2 border-t">
-                  <span className="font-semibold">Grand Total:</span>
-                  <span className="font-bold text-lg" data-testid="text-grand-total">
-                    {formatCurrency(parseFloat(order.grand_total))}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
           {order.notes && (
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Notes</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground" data-testid="text-notes">{order.notes}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap" data-testid="text-notes">{order.notes}</p>
               </CardContent>
             </Card>
           )}
