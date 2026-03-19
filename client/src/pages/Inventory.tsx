@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
@@ -51,8 +51,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X, RotateCcw, Scale, TrendingUp, TrendingDown, BarChart3, History, Receipt, IndianRupee, CircleDot } from "lucide-react";
+import { Plus, AlertTriangle, Package, Loader2, BookmarkCheck, FileText, ArrowRightLeft, ClipboardList, Bell, Check, X, RotateCcw, Scale, TrendingUp, TrendingDown, BarChart3, History, Receipt, IndianRupee, CircleDot, Search, Filter } from "lucide-react";
+
+function SearchFilterBar({ children, searchValue, onSearchChange, searchPlaceholder, searchTestId = "input-search" }: {
+  children?: React.ReactNode;
+  searchValue: string;
+  onSearchChange: (v: string) => void;
+  searchPlaceholder: string;
+  searchTestId?: string;
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-3 flex-wrap">
+      <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder={searchPlaceholder}
+          value={searchValue}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="pl-10"
+          data-testid={searchTestId}
+        />
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function LoadingSkeleton() {
   const { isCollapsed } = useSidebar();
@@ -81,6 +112,9 @@ function PartsTab() {
   const { data: parts, isLoading } = useParts();
   const createPart = useCreatePart();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -123,12 +157,6 @@ function PartsTab() {
     });
   };
 
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
-
-  const lowStockCount = parts?.filter((p) => p.stock <= p.min_stock).length || 0;
-
   const getStockIndicator = (part: { stock: number; min_stock: number; max_stock: number }) => {
     if (part.stock === 0) return { color: "bg-red-500", label: "Out of Stock", textColor: "text-red-600 dark:text-red-400" };
     if (part.stock <= part.min_stock) return { color: "bg-red-500", label: "Low", textColor: "text-red-600 dark:text-red-400" };
@@ -137,31 +165,80 @@ function PartsTab() {
     return { color: "bg-green-500", label: "OK", textColor: "text-green-600 dark:text-green-400" };
   };
 
+  const allCategories = [...new Set(parts?.map(p => p.category).filter(Boolean) || [])].sort();
+
+  const filteredParts = useMemo(() => {
+    return (parts || []).filter(part => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || part.name?.toLowerCase().includes(q) || part.sku?.toLowerCase().includes(q) || part.category?.toLowerCase().includes(q) || part.hsn_code?.toLowerCase().includes(q);
+      const matchCategory = categoryFilter === "all" || part.category === categoryFilter;
+      const indicator = getStockIndicator(part);
+      const matchStock = stockFilter === "all" ||
+        (stockFilter === "low" && (indicator.label === "Low" || indicator.label === "Out of Stock")) ||
+        (stockFilter === "warning" && indicator.label === "Warning") ||
+        (stockFilter === "ok" && indicator.label === "OK") ||
+        (stockFilter === "overstock" && indicator.label === "Overstock");
+      return matchSearch && matchCategory && matchStock;
+    });
+  }, [parts, search, categoryFilter, stockFilter]);
+
+  const lowStockCount = parts?.filter((p) => p.stock <= p.min_stock).length || 0;
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          {lowStockCount > 0 && (
-            <Badge variant="destructive" className="gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {lowStockCount} {t('inventory.lowStock', 'Low Stock')}
-            </Badge>
-          )}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-green-500" /> OK</span>
-            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-yellow-500" /> Warning</span>
-            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-red-500" /> Low/Out</span>
-            <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-blue-500" /> Overstock</span>
-          </div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by name, SKU, category or HSN..." searchTestId="input-search-parts">
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-44" data-testid="select-category-filter">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {allCategories.map(cat => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={stockFilter} onValueChange={setStockFilter}>
+          <SelectTrigger className="w-44" data-testid="select-stock-filter">
+            <SelectValue placeholder="Stock Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="ok">OK</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+            <SelectItem value="low">Low / Out of Stock</SelectItem>
+            <SelectItem value="overstock">Overstock</SelectItem>
+          </SelectContent>
+        </Select>
+        {lowStockCount > 0 && (
+          <Badge variant="destructive" className="gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            {lowStockCount} Low Stock
+          </Badge>
+        )}
+        <div className="ml-auto">
+          <Button onClick={() => setOpen(true)} className="gap-2" data-testid="button-add-part">
+            <Plus className="h-4 w-4" />
+            {t('inventory.addPart', 'Add Part')}
+          </Button>
         </div>
-        <Button onClick={() => setOpen(true)} className="gap-2" data-testid="button-add-part">
-          <Plus className="h-4 w-4" />
-          {t('inventory.addPart', 'Add Part')}
-        </Button>
+      </SearchFilterBar>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+        <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-green-500" /> OK</span>
+        <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-yellow-500" /> Warning</span>
+        <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-red-500" /> Low/Out</span>
+        <span className="flex items-center gap-1"><CircleDot className="h-3 w-3 text-blue-500" /> Overstock</span>
+        <span className="ml-2 text-muted-foreground">Showing {filteredParts.length} of {parts?.length || 0}</span>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {parts?.map((part) => {
+        {filteredParts.map((part) => {
           const stockPercentage = Math.min((part.stock / (part.min_stock * 3)) * 100, 100);
           const indicator = getStockIndicator(part);
 
@@ -233,18 +310,17 @@ function PartsTab() {
           );
         })}
 
-        {(!parts || parts.length === 0) && (
+        {filteredParts.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12">
             <Package className="mb-3 h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">{t('inventory.noPartsInInventory', 'No parts in inventory')}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => setOpen(true)}
-            >
-              {t('inventory.addFirstPart', 'Add your first part')}
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              {(parts?.length || 0) > 0 ? "No parts match your filters" : t('inventory.noPartsInInventory', 'No parts in inventory')}
+            </p>
+            {(parts?.length || 0) === 0 && (
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(true)}>
+                {t('inventory.addFirstPart', 'Add your first part')}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -358,6 +434,8 @@ function ReservationsTab() {
   const { data: reservations, isLoading } = usePartReservations();
   const issueReservation = useIssueReservation();
   const releaseReservation = useReleaseReservation();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const handleIssue = (id: number) => {
     issueReservation.mutate({ id }, {
@@ -373,18 +451,41 @@ function ReservationsTab() {
     });
   };
 
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
-
   const statusColors: Record<string, string> = {
     ACTIVE: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     ISSUED: "bg-green-500/10 text-green-600 dark:text-green-400",
     RELEASED: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
   };
 
+  const filtered = useMemo(() => {
+    return (reservations || []).filter(r => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || r.reservation_number?.toLowerCase().includes(q) || r.job_card_number?.toLowerCase().includes(q) || r.part_name?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || r.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [reservations, search, statusFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by reservation #, job card or part..." searchTestId="input-search-reservations">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40" data-testid="select-reservation-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="ACTIVE">Active</SelectItem>
+            <SelectItem value="ISSUED">Issued</SelectItem>
+            <SelectItem value="RELEASED">Released</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {reservations?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -398,7 +499,7 @@ function ReservationsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {reservations?.map((reservation) => (
+          {filtered.map((reservation) => (
             <TableRow key={reservation.id} data-testid={`row-reservation-${reservation.id}`}>
               <TableCell className="font-mono text-sm">{reservation.reservation_number}</TableCell>
               <TableCell>{reservation.job_card_number}</TableCell>
@@ -439,11 +540,11 @@ function ReservationsTab() {
               </TableCell>
             </TableRow>
           ))}
-          {(!reservations || reservations.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <BookmarkCheck className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                {t('inventory.reservations.noReservations', 'No part reservations found')}
+                {(reservations?.length || 0) > 0 ? "No reservations match your filters" : t('inventory.reservations.noReservations', 'No part reservations found')}
               </TableCell>
             </TableRow>
           )}
@@ -456,10 +557,8 @@ function ReservationsTab() {
 function GRNsTab() {
   const { t } = useTranslation();
   const { data: grns, isLoading } = useGRNs();
-
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const statusColors: Record<string, string> = {
     DRAFT: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
@@ -470,8 +569,38 @@ function GRNsTab() {
     REJECTED: "bg-red-500/10 text-red-600 dark:text-red-400",
   };
 
+  const filtered = useMemo(() => {
+    return (grns || []).filter(g => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || g.grn_number?.toLowerCase().includes(q) || g.po_number?.toLowerCase().includes(q) || g.branch_name?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || g.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [grns, search, statusFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by GRN #, PO # or branch..." searchTestId="input-search-grns">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48" data-testid="select-grn-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="DRAFT">Draft</SelectItem>
+            <SelectItem value="PENDING_INSPECTION">Pending Inspection</SelectItem>
+            <SelectItem value="INSPECTED">Inspected</SelectItem>
+            <SelectItem value="ACCEPTED">Accepted</SelectItem>
+            <SelectItem value="PARTIAL_ACCEPT">Partial Accept</SelectItem>
+            <SelectItem value="REJECTED">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {grns?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -486,7 +615,7 @@ function GRNsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {grns?.map((grn) => (
+          {filtered.map((grn) => (
             <TableRow key={grn.id} data-testid={`row-grn-${grn.id}`}>
               <TableCell className="font-mono text-sm">{grn.grn_number}</TableCell>
               <TableCell>{grn.po_number}</TableCell>
@@ -504,11 +633,11 @@ function GRNsTab() {
               </TableCell>
             </TableRow>
           ))}
-          {(!grns || grns.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                {t('inventory.grns.noGRNs', 'No GRNs found')}
+                {(grns?.length || 0) > 0 ? "No GRNs match your filters" : t('inventory.grns.noGRNs', 'No GRNs found')}
               </TableCell>
             </TableRow>
           )}
@@ -521,10 +650,8 @@ function GRNsTab() {
 function StockTransfersTab() {
   const { t } = useTranslation();
   const { data: transfers, isLoading } = useStockTransfers();
-
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const statusColors: Record<string, string> = {
     DRAFT: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
@@ -535,8 +662,38 @@ function StockTransfersTab() {
     CANCELLED: "bg-red-500/10 text-red-600 dark:text-red-400",
   };
 
+  const filtered = useMemo(() => {
+    return (transfers || []).filter(tr => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || tr.transfer_number?.toLowerCase().includes(q) || tr.from_branch_name?.toLowerCase().includes(q) || tr.to_branch_name?.toLowerCase().includes(q) || tr.vehicle_number?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || tr.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [transfers, search, statusFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by transfer #, branch or vehicle..." searchTestId="input-search-transfers">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48" data-testid="select-transfer-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="DRAFT">Draft</SelectItem>
+            <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+            <SelectItem value="APPROVED">Approved</SelectItem>
+            <SelectItem value="IN_TRANSIT">In Transit</SelectItem>
+            <SelectItem value="RECEIVED">Received</SelectItem>
+            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {transfers?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -550,7 +707,7 @@ function StockTransfersTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transfers?.map((transfer) => (
+          {filtered.map((transfer) => (
             <TableRow key={transfer.id} data-testid={`row-transfer-${transfer.id}`}>
               <TableCell className="font-mono text-sm">{transfer.transfer_number}</TableCell>
               <TableCell>{transfer.from_branch_name}</TableCell>
@@ -569,11 +726,11 @@ function StockTransfersTab() {
               </TableCell>
             </TableRow>
           ))}
-          {(!transfers || transfers.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <ArrowRightLeft className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                {t('inventory.transfers.noTransfers', 'No stock transfers found')}
+                {(transfers?.length || 0) > 0 ? "No transfers match your filters" : t('inventory.transfers.noTransfers', 'No stock transfers found')}
               </TableCell>
             </TableRow>
           )}
@@ -586,10 +743,9 @@ function StockTransfersTab() {
 function PurchaseRequisitionsTab() {
   const { t } = useTranslation();
   const { data: prs, isLoading } = usePurchaseRequisitions();
-
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
 
   const statusColors: Record<string, string> = {
     DRAFT: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
@@ -606,8 +762,50 @@ function PurchaseRequisitionsTab() {
     URGENT: "bg-red-500/10 text-red-600",
   };
 
+  const filtered = useMemo(() => {
+    return (prs || []).filter(pr => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || pr.pr_number?.toLowerCase().includes(q) || pr.branch_name?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || pr.status === statusFilter;
+      const matchPriority = priorityFilter === "all" || pr.priority === priorityFilter;
+      return matchSearch && matchStatus && matchPriority;
+    });
+  }, [prs, search, statusFilter, priorityFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by PR # or branch..." searchTestId="input-search-requisitions">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-44" data-testid="select-pr-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="DRAFT">Draft</SelectItem>
+            <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+            <SelectItem value="APPROVED">Approved</SelectItem>
+            <SelectItem value="REJECTED">Rejected</SelectItem>
+            <SelectItem value="CONVERTED">Converted</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger className="w-36" data-testid="select-pr-priority">
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Priority</SelectItem>
+            <SelectItem value="LOW">Low</SelectItem>
+            <SelectItem value="MEDIUM">Medium</SelectItem>
+            <SelectItem value="HIGH">High</SelectItem>
+            <SelectItem value="URGENT">Urgent</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {prs?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -621,7 +819,7 @@ function PurchaseRequisitionsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {prs?.map((pr) => (
+          {filtered.map((pr) => (
             <TableRow key={pr.id} data-testid={`row-pr-${pr.id}`}>
               <TableCell className="font-mono text-sm">{pr.pr_number}</TableCell>
               <TableCell>{pr.branch_name}</TableCell>
@@ -642,11 +840,11 @@ function PurchaseRequisitionsTab() {
               </TableCell>
             </TableRow>
           ))}
-          {(!prs || prs.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <ClipboardList className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                {t('inventory.requisitions.noRequisitions', 'No purchase requisitions found')}
+                {(prs?.length || 0) > 0 ? "No requisitions match your filters" : t('inventory.requisitions.noRequisitions', 'No purchase requisitions found')}
               </TableCell>
             </TableRow>
           )}
@@ -664,6 +862,38 @@ function AlertsTab() {
   const acknowledgeAlert = useAcknowledgeAlert();
   const resolveAlert = useResolveAlert();
   const generateAlerts = useGenerateAlerts();
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [resolvedFilter, setResolvedFilter] = useState("all");
+
+  const severityColors: Record<string, string> = {
+    LOW: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
+    MEDIUM: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+    HIGH: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    CRITICAL: "bg-red-500/10 text-red-600 dark:text-red-400",
+  };
+
+  const typeColors: Record<string, string> = {
+    LOW_STOCK: "bg-red-500/10 text-red-600",
+    OVERSTOCK: "bg-blue-500/10 text-blue-600",
+    EXPIRY_WARNING: "bg-yellow-500/10 text-yellow-600",
+    EXPIRED: "bg-red-500/10 text-red-600",
+    REORDER: "bg-purple-500/10 text-purple-600",
+  };
+
+  const unresolvedCount = alerts?.filter(a => !a.is_resolved).length || 0;
+
+  const filtered = useMemo(() => {
+    return (alerts || []).filter(a => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || a.alert_number?.toLowerCase().includes(q) || a.part_name?.toLowerCase().includes(q) || a.message?.toLowerCase().includes(q);
+      const matchType = typeFilter === "all" || a.alert_type === typeFilter;
+      const matchSeverity = severityFilter === "all" || a.severity === severityFilter;
+      const matchResolved = resolvedFilter === "all" || (resolvedFilter === "resolved" && a.is_resolved) || (resolvedFilter === "unresolved" && !a.is_resolved);
+      return matchSearch && matchType && matchSeverity && matchResolved;
+    });
+  }, [alerts, search, typeFilter, severityFilter, resolvedFilter]);
 
   const handleAcknowledge = (id: number) => {
     acknowledgeAlert.mutate(id, {
@@ -690,47 +920,66 @@ function AlertsTab() {
     return <div className="skeleton h-48 rounded-xl" />;
   }
 
-  const severityColors: Record<string, string> = {
-    LOW: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
-    MEDIUM: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-    HIGH: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-    CRITICAL: "bg-red-500/10 text-red-600 dark:text-red-400",
-  };
-
-  const typeColors: Record<string, string> = {
-    LOW_STOCK: "bg-red-500/10 text-red-600",
-    OVERSTOCK: "bg-blue-500/10 text-blue-600",
-    EXPIRY_WARNING: "bg-yellow-500/10 text-yellow-600",
-    EXPIRED: "bg-red-500/10 text-red-600",
-    REORDER: "bg-purple-500/10 text-purple-600",
-  };
-
-  const unresolvedCount = alerts?.filter(a => !a.is_resolved).length || 0;
-
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {unresolvedCount > 0 && (
-            <Badge variant="destructive" className="gap-1">
-              <Bell className="h-3 w-3" />
-              {unresolvedCount} {t('inventory.alerts.unresolved', 'Unresolved').replace('{{count}} ', '')}
-            </Badge>
-          )}
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by alert #, part or message..." searchTestId="input-search-alerts">
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-40" data-testid="select-alert-type">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="LOW_STOCK">Low Stock</SelectItem>
+            <SelectItem value="OVERSTOCK">Overstock</SelectItem>
+            <SelectItem value="EXPIRY_WARNING">Expiry Warning</SelectItem>
+            <SelectItem value="EXPIRED">Expired</SelectItem>
+            <SelectItem value="REORDER">Reorder</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+          <SelectTrigger className="w-36" data-testid="select-alert-severity">
+            <SelectValue placeholder="Severity" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Severity</SelectItem>
+            <SelectItem value="LOW">Low</SelectItem>
+            <SelectItem value="MEDIUM">Medium</SelectItem>
+            <SelectItem value="HIGH">High</SelectItem>
+            <SelectItem value="CRITICAL">Critical</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={resolvedFilter} onValueChange={setResolvedFilter}>
+          <SelectTrigger className="w-36" data-testid="select-alert-resolved">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="unresolved">Unresolved</SelectItem>
+            <SelectItem value="resolved">Resolved</SelectItem>
+          </SelectContent>
+        </Select>
+        {unresolvedCount > 0 && (
+          <Badge variant="destructive" className="gap-1">
+            <Bell className="h-3 w-3" />
+            {unresolvedCount} Unresolved
+          </Badge>
+        )}
+        <div className="ml-auto">
+          <Button
+            onClick={handleGenerateAlerts}
+            disabled={generateAlerts.isPending}
+            data-testid="button-generate-alerts"
+          >
+            {generateAlerts.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Bell className="mr-2 h-4 w-4" />
+            )}
+            {t('inventory.alerts.scanForAlerts', 'Scan for Alerts')}
+          </Button>
         </div>
-        <Button
-          onClick={handleGenerateAlerts}
-          disabled={generateAlerts.isPending}
-          data-testid="button-generate-alerts"
-        >
-          {generateAlerts.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Bell className="mr-2 h-4 w-4" />
-          )}
-          {t('inventory.alerts.scanForAlerts', 'Scan for Alerts')}
-        </Button>
-      </div>
+      </SearchFilterBar>
+      <span className="text-xs text-muted-foreground mb-2 block">Showing {filtered.length} of {alerts?.length || 0}</span>
 
       <Table>
         <TableHeader>
@@ -745,7 +994,7 @@ function AlertsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {alerts?.map((alert) => (
+          {filtered.map((alert) => (
             <TableRow key={alert.id} data-testid={`row-alert-${alert.id}`} className={cn(!alert.is_read && "bg-muted/30")}>
               <TableCell className="font-mono text-sm">{alert.alert_number}</TableCell>
               <TableCell>{alert.part_name}</TableCell>
@@ -796,11 +1045,11 @@ function AlertsTab() {
               </TableCell>
             </TableRow>
           ))}
-          {(!alerts || alerts.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 <Bell className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                {t('inventory.alerts.noAlerts', 'No inventory alerts found')}
+                {(alerts?.length || 0) > 0 ? "No alerts match your filters" : t('inventory.alerts.noAlerts', 'No inventory alerts found')}
               </TableCell>
             </TableRow>
           )}
@@ -817,6 +1066,12 @@ function AdjustmentsTab() {
   const { data: returns, isLoading: returnsLoading } = useStockReturns();
   const approveAdjustment = useApproveAdjustment();
   const approveReturn = useApproveReturn();
+  const [adjSearch, setAdjSearch] = useState("");
+  const [adjTypeFilter, setAdjTypeFilter] = useState("all");
+  const [adjStatusFilter, setAdjStatusFilter] = useState("all");
+  const [retSearch, setRetSearch] = useState("");
+  const [retStatusFilter, setRetStatusFilter] = useState("all");
+  const [retConditionFilter, setRetConditionFilter] = useState("all");
 
   const handleApproveAdjustment = (id: number) => {
     approveAdjustment.mutate(id, {
@@ -831,10 +1086,6 @@ function AdjustmentsTab() {
       onError: (error) => toast({ title: t('inventory.messages.returnApproveError', 'Failed to approve return'), description: error.message, variant: "destructive" }),
     });
   };
-
-  if (adjustmentsLoading || returnsLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
 
   const adjustmentTypeColors: Record<string, string> = {
     INCREASE: "bg-green-500/10 text-green-600",
@@ -859,6 +1110,30 @@ function AdjustmentsTab() {
     DAMAGED: "bg-red-500/10 text-red-600",
     WRONG_PART: "bg-blue-500/10 text-blue-600",
   };
+
+  const filteredAdj = useMemo(() => {
+    return (adjustments || []).filter(a => {
+      const q = adjSearch.toLowerCase();
+      const matchSearch = !adjSearch || a.adjustment_number?.toLowerCase().includes(q) || a.part_name?.toLowerCase().includes(q) || a.part_sku?.toLowerCase().includes(q) || a.reason?.toLowerCase().includes(q);
+      const matchType = adjTypeFilter === "all" || a.adjustment_type === adjTypeFilter;
+      const matchStatus = adjStatusFilter === "all" || a.status === adjStatusFilter;
+      return matchSearch && matchType && matchStatus;
+    });
+  }, [adjustments, adjSearch, adjTypeFilter, adjStatusFilter]);
+
+  const filteredRet = useMemo(() => {
+    return (returns || []).filter(r => {
+      const q = retSearch.toLowerCase();
+      const matchSearch = !retSearch || r.return_number?.toLowerCase().includes(q) || r.part_name?.toLowerCase().includes(q) || r.job_card_number?.toLowerCase().includes(q);
+      const matchStatus = retStatusFilter === "all" || r.status === retStatusFilter;
+      const matchCondition = retConditionFilter === "all" || r.condition === retConditionFilter;
+      return matchSearch && matchStatus && matchCondition;
+    });
+  }, [returns, retSearch, retStatusFilter, retConditionFilter]);
+
+  if (adjustmentsLoading || returnsLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
 
   const pendingAdjustments = adjustments?.filter(a => a.status === "PENDING_APPROVAL").length || 0;
   const pendingReturns = returns?.filter(r => r.status === "PENDING").length || 0;
@@ -888,6 +1163,35 @@ function AdjustmentsTab() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <SearchFilterBar searchValue={adjSearch} onSearchChange={setAdjSearch} searchPlaceholder="Search by adjustment #, part or reason..." searchTestId="input-search-adjustments">
+            <Select value={adjTypeFilter} onValueChange={setAdjTypeFilter}>
+              <SelectTrigger className="w-40" data-testid="select-adj-type">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="INCREASE">Increase</SelectItem>
+                <SelectItem value="DECREASE">Decrease</SelectItem>
+                <SelectItem value="SCRAP">Scrap</SelectItem>
+                <SelectItem value="DAMAGE">Damage</SelectItem>
+                <SelectItem value="THEFT">Theft</SelectItem>
+                <SelectItem value="CORRECTION">Correction</SelectItem>
+                <SelectItem value="OPENING_STOCK">Opening Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={adjStatusFilter} onValueChange={setAdjStatusFilter}>
+              <SelectTrigger className="w-44" data-testid="select-adj-status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">Showing {filteredAdj.length} of {adjustments?.length || 0}</span>
+          </SearchFilterBar>
           <Table>
             <TableHeader>
               <TableRow>
@@ -902,7 +1206,7 @@ function AdjustmentsTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {adjustments?.map((adj) => (
+              {filteredAdj.map((adj) => (
                 <TableRow key={adj.id} data-testid={`row-adjustment-${adj.id}`}>
                   <TableCell className="font-mono text-sm">{adj.adjustment_number}</TableCell>
                   <TableCell>
@@ -939,11 +1243,11 @@ function AdjustmentsTab() {
                   </TableCell>
                 </TableRow>
               ))}
-              {(!adjustments || adjustments.length === 0) && (
+              {filteredAdj.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     <Scale className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                    {t('inventory.adjustments.noAdjustments', 'No stock adjustments found')}
+                    {(adjustments?.length || 0) > 0 ? "No adjustments match your filters" : t('inventory.adjustments.noAdjustments', 'No stock adjustments found')}
                   </TableCell>
                 </TableRow>
               )}
@@ -960,6 +1264,32 @@ function AdjustmentsTab() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <SearchFilterBar searchValue={retSearch} onSearchChange={setRetSearch} searchPlaceholder="Search by return #, job card or part..." searchTestId="input-search-returns">
+            <Select value={retStatusFilter} onValueChange={setRetStatusFilter}>
+              <SelectTrigger className="w-40" data-testid="select-ret-status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={retConditionFilter} onValueChange={setRetConditionFilter}>
+              <SelectTrigger className="w-36" data-testid="select-ret-condition">
+                <SelectValue placeholder="Condition" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Condition</SelectItem>
+                <SelectItem value="GOOD">Good</SelectItem>
+                <SelectItem value="DEFECTIVE">Defective</SelectItem>
+                <SelectItem value="DAMAGED">Damaged</SelectItem>
+                <SelectItem value="WRONG_PART">Wrong Part</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">Showing {filteredRet.length} of {returns?.length || 0}</span>
+          </SearchFilterBar>
           <Table>
             <TableHeader>
               <TableRow>
@@ -974,7 +1304,7 @@ function AdjustmentsTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {returns?.map((ret) => (
+              {filteredRet.map((ret) => (
                 <TableRow key={ret.id} data-testid={`row-return-${ret.id}`}>
                   <TableCell className="font-mono text-sm">{ret.return_number}</TableCell>
                   <TableCell>{ret.job_card_number}</TableCell>
@@ -1009,11 +1339,11 @@ function AdjustmentsTab() {
                   </TableCell>
                 </TableRow>
               ))}
-              {(!returns || returns.length === 0) && (
+              {filteredRet.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     <RotateCcw className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                    {t('inventory.returns.noReturns', 'No stock returns found')}
+                    {(returns?.length || 0) > 0 ? "No returns match your filters" : t('inventory.returns.noReturns', 'No stock returns found')}
                   </TableCell>
                 </TableRow>
               )}
@@ -1029,10 +1359,8 @@ function StockMovementsTab() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { data: movements, isLoading } = useStockMovements();
-
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const movementTypeColors: Record<string, string> = {
     OPENING: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
@@ -1050,8 +1378,37 @@ function StockMovementsTab() {
     SCRAP: "bg-gray-700/10 text-gray-700 dark:text-gray-400",
   };
 
+  const allTypes = [...new Set(movements?.map(m => m.movement_type).filter(Boolean) || [])].sort();
+
+  const filtered = useMemo(() => {
+    return (movements || []).filter(mv => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || mv.part_name?.toLowerCase().includes(q) || mv.part_sku?.toLowerCase().includes(q) || mv.reference_number?.toLowerCase().includes(q) || mv.performed_by_name?.toLowerCase().includes(q) || mv.reason?.toLowerCase().includes(q);
+      const matchType = typeFilter === "all" || mv.movement_type === typeFilter;
+      return matchSearch && matchType;
+    });
+  }, [movements, search, typeFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by part, reference, user or notes..." searchTestId="input-search-movements">
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-44" data-testid="select-movement-type">
+            <SelectValue placeholder="Movement Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {allTypes.map(type => (
+              <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {movements?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -1067,7 +1424,7 @@ function StockMovementsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {movements?.map((mv) => (
+          {filtered.map((mv) => (
             <TableRow key={mv.id} data-testid={`row-movement-${mv.id}`}>
               <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                 {new Date(mv.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
@@ -1100,11 +1457,11 @@ function StockMovementsTab() {
               <TableCell className="max-w-xs truncate text-sm text-muted-foreground">{mv.reason}</TableCell>
             </TableRow>
           ))}
-          {(!movements || movements.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 <History className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No stock movements recorded yet
+                {(movements?.length || 0) > 0 ? "No movements match your filters" : "No stock movements recorded yet"}
               </TableCell>
             </TableRow>
           )}
@@ -1118,10 +1475,8 @@ function SupplierInvoicesTab() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { data: invoices, isLoading } = useSupplierInvoices();
-
-  if (isLoading) {
-    return <div className="skeleton h-48 rounded-xl" />;
-  }
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const statusColors: Record<string, string> = {
     PENDING_VERIFICATION: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
@@ -1133,8 +1488,39 @@ function SupplierInvoicesTab() {
     CANCELLED: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
   };
 
+  const filtered = useMemo(() => {
+    return (invoices || []).filter(inv => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || inv.invoice_number?.toLowerCase().includes(q) || inv.supplier_name?.toLowerCase().includes(q) || inv.po_number?.toLowerCase().includes(q) || inv.grn_number?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || inv.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [invoices, search, statusFilter]);
+
+  if (isLoading) {
+    return <div className="skeleton h-48 rounded-xl" />;
+  }
+
   return (
     <div>
+      <SearchFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by invoice #, supplier, PO # or GRN #..." searchTestId="input-search-invoices">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48" data-testid="select-invoice-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="PENDING_VERIFICATION">Pending Verification</SelectItem>
+            <SelectItem value="VERIFIED">Verified</SelectItem>
+            <SelectItem value="APPROVED">Approved</SelectItem>
+            <SelectItem value="POSTED_TO_ACCOUNTS">Posted to Accounts</SelectItem>
+            <SelectItem value="PAID">Paid</SelectItem>
+            <SelectItem value="DISPUTED">Disputed</SelectItem>
+            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">Showing {filtered.length} of {invoices?.length || 0}</span>
+      </SearchFilterBar>
       <Table>
         <TableHeader>
           <TableRow>
@@ -1150,7 +1536,7 @@ function SupplierInvoicesTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invoices?.map((inv) => {
+          {filtered.map((inv) => {
             const totalGst = Number(inv.cgst_amount || 0) + Number(inv.sgst_amount || 0) + Number(inv.igst_amount || 0);
             return (
               <TableRow key={inv.id} data-testid={`row-supplier-invoice-${inv.id}`}>
@@ -1177,11 +1563,11 @@ function SupplierInvoicesTab() {
               </TableRow>
             );
           })}
-          {(!invoices || invoices.length === 0) && (
+          {filtered.length === 0 && (
             <TableRow>
               <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 <Receipt className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                No supplier invoices found
+                {(invoices?.length || 0) > 0 ? "No invoices match your filters" : "No supplier invoices found"}
               </TableCell>
             </TableRow>
           )}
