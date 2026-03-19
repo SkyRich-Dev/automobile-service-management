@@ -25,6 +25,7 @@ class Command(BaseCommand):
             GoodsReceiptNote, GRNLine, StockTransfer, StockTransferLine,
             PurchaseRequisition, PRLine, StockAdjustment, StockLedger,
             SupplierPerformance,
+            ContractCoverageRule, ContractVehicle, ContractAuditLog, ContractAuditAction,
             ConfigCategory, ConfigOption,
             WorkflowStage, TaskStatus, UserRole, ItemType, TaxCategory,
             PurchaseOrderStatus, AccountCategory, AccountType, InvoiceStatus, InvoiceType,
@@ -60,6 +61,8 @@ class Command(BaseCommand):
             'PurchaseRequisition': PurchaseRequisition, 'PRLine': PRLine,
             'StockAdjustment': StockAdjustment, 'StockLedger': StockLedger,
             'SupplierPerformance': SupplierPerformance,
+            'ContractCoverageRule': ContractCoverageRule, 'ContractVehicle': ContractVehicle,
+            'ContractAuditLog': ContractAuditLog,
             'ConfigCategory': ConfigCategory, 'ConfigOption': ConfigOption,
         }
         self.enums = {
@@ -76,7 +79,8 @@ class Command(BaseCommand):
             'StockAdjustmentType': StockAdjustmentType, 'StockAdjustmentStatus': StockAdjustmentStatus,
             'StockMovementType': StockMovementType, 'AlertType': AlertType,
             'ContractType': ContractType, 'ContractStatus': ContractStatus,
-            'BillingModel': BillingModel, 'LeadSource': LeadSource, 'LeadStatus': LeadStatus,
+            'BillingModel': BillingModel, 'ContractAuditAction': ContractAuditAction,
+            'LeadSource': LeadSource, 'LeadStatus': LeadStatus,
             'ServiceEventType': ServiceEventType,
         }
 
@@ -701,37 +705,139 @@ class Command(BaseCommand):
         ContractType = self.enums['ContractType']
         ContractStatus = self.enums['ContractStatus']
         BillingModel = self.enums['BillingModel']
-        types = [ContractType.AMC, ContractType.WARRANTY, ContractType.INSURANCE, ContractType.SERVICE_PACKAGE]
-        statuses = [ContractStatus.ACTIVE, ContractStatus.ACTIVE, ContractStatus.DRAFT, ContractStatus.EXPIRED, ContractStatus.PENDING_APPROVAL]
+        ContractCoverageRule = self.models['ContractCoverageRule']
+        ContractAuditLog = self.models['ContractAuditLog']
+        ContractAuditAction = self.enums['ContractAuditAction']
+        ContractVehicle = self.models['ContractVehicle']
+
+        types = [ContractType.AMC, ContractType.WARRANTY, ContractType.INSURANCE, ContractType.SERVICE_PACKAGE,
+                 ContractType.FLEET, ContractType.EXTENDED_WARRANTY, ContractType.SUBSCRIPTION, ContractType.CORPORATE]
+        statuses = [ContractStatus.ACTIVE, ContractStatus.ACTIVE, ContractStatus.ACTIVE, ContractStatus.DRAFT,
+                    ContractStatus.EXPIRED, ContractStatus.PENDING_APPROVAL, ContractStatus.SUSPENDED, ContractStatus.ACTIVE]
+        providers = ['AutoServ Direct', 'Partner Network', 'OEM Warranty', 'Tata Motors', 'Maruti Shield',
+                     'Honda Care', 'ICICI Lombard', 'Bajaj Allianz']
         sa = users[8] if len(users) > 8 else users[0]
+        mgr = users[2] if len(users) > 2 else users[0]
         contracts = []
         for i in range(12):
             cust = customers[i % len(customers)]
             vehs = Vehicle.objects.filter(customer=cust)
             veh = vehs.first() if vehs.exists() else vehicles[i % len(vehicles)]
-            start = date.today() - timedelta(days=random.randint(0, 180))
+            start = date.today() - timedelta(days=random.randint(30, 300))
+            ct = types[i % len(types)]
+            st = statuses[i % len(statuses)]
+            svc_count = random.randint(1, 5) if st in [ContractStatus.ACTIVE, ContractStatus.EXPIRED] else 0
+            max_svc = random.choice([4, 6, 8, 12]) if ct != ContractType.INSURANCE else None
             try:
-                c, _ = Contract.objects.get_or_create(
-                    customer=cust, contract_type=types[i % len(types)], vehicle=veh,
+                c, created = Contract.objects.get_or_create(
+                    customer=cust, contract_type=ct, vehicle=veh,
                     defaults={
-                        'branch': branches[0], 'status': statuses[i % len(statuses)],
+                        'branch': branches[i % len(branches)], 'status': st,
                         'start_date': start, 'end_date': start + timedelta(days=365),
                         'coverage_period_months': 12,
-                        'contract_value': Decimal(str(random.choice([15000, 25000, 40000, 60000, 100000]))),
+                        'contract_value': Decimal(str(random.choice([15000, 25000, 35000, 45000, 60000, 80000, 100000]))),
                         'billing_model': random.choice([BillingModel.ONE_TIME, BillingModel.MONTHLY, BillingModel.QUARTERLY]),
-                        'max_services': random.choice([4, 6, 12, None]),
-                        'services_used': random.randint(0, 3),
+                        'max_services': max_svc,
+                        'services_used': min(svc_count, max_svc) if max_svc else svc_count,
                         'coverage_km_limit': random.choice([10000, 20000, 50000, None]),
-                        'labor_coverage_percent': Decimal(str(random.choice([80, 100]))),
-                        'services_included': ['Oil Change', 'General Service', 'Brake Service'],
+                        'km_used': random.randint(0, 5000),
+                        'labor_coverage_percent': Decimal(str(random.choice([50, 75, 80, 100]))),
+                        'consumables_included': random.choice([True, False]),
+                        'priority_handling': ct in [ContractType.FLEET, ContractType.CORPORATE],
+                        'auto_renewal': random.choice([True, False]),
+                        'response_time_hours': random.choice([4, 8, 24, 48]),
+                        'resolution_time_hours': random.choice([24, 48, 72]),
+                        'tax_rate': Decimal('18.00'),
+                        'discount_percent': Decimal(str(random.choice([0, 5, 10, 15]))),
+                        'services_included': random.sample(
+                            ['Oil Change', 'General Service', 'Brake Service', 'AC Service',
+                             'Engine Tune-Up', 'Wheel Alignment', 'Battery Replacement',
+                             'Suspension Check', 'Transmission Service'], k=random.randint(2, 5)),
                         'created_by': sa,
-                        'provider': random.choice(['AutoServ Direct', 'Partner Network', 'OEM Warranty']),
+                        'approved_by': mgr if st in [ContractStatus.ACTIVE, ContractStatus.SUSPENDED, ContractStatus.EXPIRED] else None,
+                        'approved_at': timezone.now() - timedelta(days=random.randint(1, 60)) if st in [ContractStatus.ACTIVE, ContractStatus.SUSPENDED, ContractStatus.EXPIRED] else None,
+                        'provider': providers[i % len(providers)],
+                        'terms_conditions': 'Standard terms and conditions apply. Coverage excludes accidental damage and misuse.',
+                        'suspension_reason': 'Non-payment of quarterly installment' if st == ContractStatus.SUSPENDED else '',
+                        'suspended_at': timezone.now() - timedelta(days=random.randint(1, 15)) if st == ContractStatus.SUSPENDED else None,
                     }
                 )
                 contracts.append(c)
             except Exception:
                 pass
-        self.stdout.write(f'    {len(contracts)} contracts')
+
+        coverage_services = [
+            ('Oil Change', 100, 5000, 4),
+            ('General Service', 80, 10000, 2),
+            ('Brake Service', 100, 8000, 3),
+            ('AC Service', 75, 6000, 2),
+            ('Engine Tune-Up', 90, 15000, 1),
+            ('Wheel Alignment', 100, 3000, 6),
+            ('Battery Replacement', 50, 7000, 1),
+        ]
+        rule_count = 0
+        for c in contracts:
+            num_rules = random.randint(2, 5)
+            for svc, cov_pct, max_amt, visit_lim in random.sample(coverage_services, min(num_rules, len(coverage_services))):
+                ContractCoverageRule.objects.update_or_create(
+                    contract=c, service_type=svc,
+                    defaults={
+                        'is_covered': True,
+                        'coverage_percent': Decimal(str(cov_pct)),
+                        'max_amount': Decimal(str(max_amt)),
+                        'visit_limit': visit_lim,
+                        'visits_used': random.randint(0, visit_lim // 2),
+                    }
+                )
+                rule_count += 1
+
+        audit_count = 0
+        for c in contracts:
+            ContractAuditLog.objects.get_or_create(
+                contract=c, action=ContractAuditAction.CREATED,
+                defaults={
+                    'actor': sa,
+                    'new_values': {'status': 'DRAFT', 'contract_type': c.contract_type},
+                    'notes': 'Contract created',
+                    'created_at': c.created_at or timezone.now() - timedelta(days=60),
+                }
+            )
+            audit_count += 1
+            if c.status in [ContractStatus.ACTIVE, ContractStatus.SUSPENDED, ContractStatus.EXPIRED]:
+                ContractAuditLog.objects.get_or_create(
+                    contract=c, action=ContractAuditAction.ACTIVATED,
+                    defaults={
+                        'actor': mgr,
+                        'old_values': {'status': 'PENDING_APPROVAL'},
+                        'new_values': {'status': 'ACTIVE'},
+                        'notes': f'Approved by {mgr.username}',
+                    }
+                )
+                audit_count += 1
+            if c.status == ContractStatus.SUSPENDED:
+                ContractAuditLog.objects.get_or_create(
+                    contract=c, action=ContractAuditAction.SUSPENDED,
+                    defaults={
+                        'actor': mgr,
+                        'old_values': {'status': 'ACTIVE'},
+                        'new_values': {'status': 'SUSPENDED'},
+                        'notes': c.suspension_reason or 'Contract suspended',
+                    }
+                )
+                audit_count += 1
+
+        fleet_vehicle_count = 0
+        for c in contracts:
+            if c.contract_type in [ContractType.FLEET, ContractType.CORPORATE]:
+                avail_vehs = list(Vehicle.objects.filter(customer=c.customer).exclude(id=c.vehicle_id)[:3])
+                for v in avail_vehs:
+                    ContractVehicle.objects.get_or_create(
+                        contract=c, vehicle=v,
+                        defaults={'is_active': True}
+                    )
+                    fleet_vehicle_count += 1
+
+        self.stdout.write(f'    {len(contracts)} contracts, {rule_count} coverage rules, {audit_count} audit logs, {fleet_vehicle_count} fleet vehicles')
 
     def _seed_purchase_orders(self, suppliers, branches, parts, users):
         self.stdout.write('  Seeding purchase orders...')
