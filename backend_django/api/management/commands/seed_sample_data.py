@@ -18,7 +18,7 @@ class Command(BaseCommand):
             Bay, DigitalInspection, Estimate, EstimateLine, Invoice, Payment,
             Skill, Employee, EmployeeSkill, TrainingProgram, TrainingEnrollment,
             IncentiveRule, EmployeeIncentive, LeaveType, LeaveBalance, LeaveRequest,
-            Holiday, HRShift, EmployeeShift, AttendanceRecord, Payroll, Department,
+            Holiday, HRShift, EmployeeShift, AttendanceRecord, HRAttendance, Payroll, Department,
             Account, TaxRate, EnhancedInvoice, EnhancedPayment,
             Expense, ExpenseCategory,
             AnalyticsSnapshot, TechnicianSchedule, InventoryAlert,
@@ -45,7 +45,7 @@ class Command(BaseCommand):
             'EmployeeIncentive': EmployeeIncentive, 'LeaveType': LeaveType,
             'LeaveBalance': LeaveBalance, 'LeaveRequest': LeaveRequest,
             'Holiday': Holiday, 'HRShift': HRShift, 'EmployeeShift': EmployeeShift,
-            'AttendanceRecord': AttendanceRecord, 'Payroll': Payroll, 'Department': Department,
+            'AttendanceRecord': AttendanceRecord, 'HRAttendance': HRAttendance, 'Payroll': Payroll, 'Department': Department,
             'Account': Account, 'TaxRate': TaxRate, 'EnhancedInvoice': EnhancedInvoice,
             'EnhancedPayment': EnhancedPayment, 'Expense': Expense,
             'ExpenseCategory': ExpenseCategory, 'AnalyticsSnapshot': AnalyticsSnapshot,
@@ -1149,26 +1149,56 @@ class Command(BaseCommand):
     def _seed_attendance(self, employees, users):
         self.stdout.write('  Seeding attendance records...')
         AR = self.models['AttendanceRecord']
+        HRA = self.models['HRAttendance']
         count = 0
+        hr_count = 0
+        manager = users[0]
         for emp in employees[:12]:
             for d in range(10):
                 att_date = date.today() - timedelta(days=d)
                 if att_date.weekday() >= 5:
                     continue
+                check_in_h = random.randint(8, 10)
+                check_in_m = random.randint(0, 30)
+                check_out_h = random.randint(17, 19)
+                check_out_m = random.randint(0, 59)
+                status = random.choice(['PRESENT', 'PRESENT', 'PRESENT', 'LATE', 'HALF_DAY'])
+                work_hrs = Decimal(str(round(random.uniform(7.5, 9.5), 2)))
                 try:
                     AR.objects.get_or_create(
                         profile=emp.profile, date=att_date,
                         defaults={
-                            'check_in': timezone.now().replace(hour=random.randint(8, 10), minute=random.randint(0, 30)),
-                            'check_out': timezone.now().replace(hour=random.randint(17, 19), minute=random.randint(0, 59)),
-                            'status': random.choice(['PRESENT', 'PRESENT', 'PRESENT', 'LATE', 'HALF_DAY']),
-                            'work_hours': Decimal(str(round(random.uniform(7.5, 9.5), 2))),
+                            'check_in': timezone.now().replace(hour=check_in_h, minute=check_in_m),
+                            'check_out': timezone.now().replace(hour=check_out_h, minute=check_out_m),
+                            'status': status,
+                            'work_hours': work_hrs,
                         }
                     )
                     count += 1
                 except Exception:
                     pass
-        self.stdout.write(f'    {count} attendance records')
+                try:
+                    from datetime import time as dt_time
+                    overtime = random.randint(0, 60) if status == 'PRESENT' else 0
+                    HRA.objects.get_or_create(
+                        employee=emp.profile, date=att_date,
+                        defaults={
+                            'status': status,
+                            'check_in_time': dt_time(check_in_h, check_in_m),
+                            'check_out_time': dt_time(check_out_h, check_out_m),
+                            'total_hours': work_hrs,
+                            'productive_hours': Decimal(str(round(float(work_hrs) * 0.85, 2))),
+                            'overtime_minutes': overtime,
+                            'break_duration_minutes': random.choice([30, 45, 60]),
+                            'is_remote': random.choice([True, False, False, False]),
+                            'remarks': '',
+                            'approved_by': manager,
+                        }
+                    )
+                    hr_count += 1
+                except Exception:
+                    pass
+        self.stdout.write(f'    {count} attendance records, {hr_count} HR attendance records')
 
     def _seed_incentives(self, employees, users):
         self.stdout.write('  Seeding incentive rules & employee incentives...')

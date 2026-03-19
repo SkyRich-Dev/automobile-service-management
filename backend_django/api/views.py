@@ -4474,23 +4474,23 @@ class TrainingProgramViewSet(viewsets.ModelViewSet):
 
 
 class TrainingEnrollmentViewSet(viewsets.ModelViewSet):
-    queryset = TrainingEnrollment.objects.select_related('program', 'employee__user', 'approved_by').all()
+    queryset = TrainingEnrollment.objects.select_related('training', 'employee__user', 'enrolled_by').all()
     serializer_class = TrainingEnrollmentSerializer
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        program_id = self.request.query_params.get('program_id')
+        training_id = self.request.query_params.get('training_id')
         employee_id = self.request.query_params.get('employee_id')
         status = self.request.query_params.get('status')
         
-        if program_id:
-            queryset = queryset.filter(program_id=program_id)
+        if training_id:
+            queryset = queryset.filter(training_id=training_id)
         if employee_id:
             queryset = queryset.filter(employee_id=employee_id)
         if status:
             queryset = queryset.filter(status=status)
-        return queryset.order_by('-enrollment_date')
+        return queryset.order_by('-enrolled_at')
 
 
 class IncentiveRuleViewSet(viewsets.ModelViewSet):
@@ -4600,7 +4600,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
 
 class HolidayViewSet(viewsets.ModelViewSet):
-    queryset = Holiday.objects.select_related('branch').all()
+    queryset = Holiday.objects.prefetch_related('branches').all()
     serializer_class = HolidaySerializer
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
@@ -4610,9 +4610,9 @@ class HolidayViewSet(viewsets.ModelViewSet):
         branch_id = self.request.query_params.get('branch_id')
         
         if year:
-            queryset = queryset.filter(date__year=int(year))
+            queryset = queryset.filter(year=int(year))
         if branch_id:
-            queryset = queryset.filter(branch_id=branch_id)
+            queryset = queryset.filter(branches__id=branch_id)
         return queryset.order_by('date')
 
 
@@ -4677,7 +4677,7 @@ class HRAttendanceViewSet(viewsets.ModelViewSet):
 
 
 class PayrollViewSet(viewsets.ModelViewSet):
-    queryset = Payroll.objects.select_related('employee__user', 'generated_by', 'approved_by').all()
+    queryset = Payroll.objects.select_related('employee', 'approved_by').all()
     serializer_class = PayrollSerializer
     permission_classes = [IsAuthenticated, RoleBasedPermission]
     
@@ -4685,15 +4685,18 @@ class PayrollViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         employee_id = self.request.query_params.get('employee_id')
         status = self.request.query_params.get('status')
-        period_start = self.request.query_params.get('period_start')
+        month = self.request.query_params.get('month')
+        year = self.request.query_params.get('year')
         
         if employee_id:
             queryset = queryset.filter(employee_id=employee_id)
         if status:
             queryset = queryset.filter(status=status)
-        if period_start:
-            queryset = queryset.filter(period_start=period_start)
-        return queryset.order_by('-period_start')
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if year:
+            queryset = queryset.filter(year=int(year))
+        return queryset.order_by('-year', '-month')
 
 
 class SkillAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -4723,7 +4726,7 @@ class SkillMatrixViewSet(viewsets.ViewSet):
             skills_by_category[skill.category].append({
                 'id': skill.id,
                 'name': skill.name,
-                'code': skill.code
+                'skill_id': skill.skill_id
             })
         
         # Get skill coverage (employees per skill/level)

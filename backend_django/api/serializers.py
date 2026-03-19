@@ -1578,8 +1578,8 @@ class FinanceDashboardSerializer(serializers.Serializer):
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
-        fields = ['id', 'name', 'code', 'category', 'description', 'is_certifiable', 
-                  'certification_required', 'max_level', 'is_active', 'created_at']
+        fields = ['id', 'skill_id', 'name', 'category', 'description',
+                  'certification_required', 'min_level_required', 'risk_level', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -1592,9 +1592,9 @@ class EmployeeSkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeSkill
         fields = ['id', 'employee', 'employee_name', 'skill', 'skill_name', 'skill_category',
-                  'level', 'years_of_experience', 'approval_status', 'approved_by', 'approved_by_name',
-                  'approved_date', 'certification_number', 'certification_expiry', 
-                  'certifying_authority', 'jobs_completed', 'average_rating', 'last_used_date',
+                  'skill_level', 'approval_status', 'approved_by', 'approved_by_name',
+                  'approved_at', 'certification_number', 'certification_date', 'certification_expiry', 
+                  'issuing_authority', 'jobs_completed', 'rework_count', 'average_quality_score',
                   'notes', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
@@ -1610,17 +1610,18 @@ class EmployeeSkillSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     profile_name = serializers.SerializerMethodField()
     reporting_manager_name = serializers.SerializerMethodField()
-    skills = EmployeeSkillSerializer(source='profile.employee_skills', many=True, read_only=True)
     
     class Meta:
         model = Employee
         fields = ['id', 'profile', 'profile_name', 'department', 'designation', 
                   'reporting_manager', 'reporting_manager_name', 'employment_type',
-                  'joining_date', 'confirmation_date', 'separation_date', 'separation_reason',
-                  'base_salary', 'currency', 'bank_name', 'bank_account_number', 'ifsc_code',
-                  'pan_number', 'uan_number', 'pf_number', 'esi_number', 'ctc',
-                  'performance_rating', 'last_appraisal_date', 'next_appraisal_date',
-                  'is_billable', 'is_active', 'skills', 'created_at', 'updated_at']
+                  'joining_date', 'confirmation_date', 'resignation_date', 'last_working_date',
+                  'primary_skill', 'basic_salary', 'bank_name', 'bank_account_number', 'bank_ifsc',
+                  'pan_number', 'uan_number', 'pf_number', 'esi_number', 'aadhar_number',
+                  'hra', 'conveyance', 'special_allowance', 'pf_contribution', 'esi_contribution',
+                  'professional_tax', 'tds',
+                  'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation',
+                  'is_active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_profile_name(self, obj):
@@ -1628,7 +1629,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
     
     def get_reporting_manager_name(self, obj):
         if obj.reporting_manager:
-            return f"{obj.reporting_manager.profile.user.first_name} {obj.reporting_manager.profile.user.last_name}".strip()
+            try:
+                return f"{obj.reporting_manager.profile.user.first_name} {obj.reporting_manager.profile.user.last_name}".strip()
+            except Exception:
+                return str(obj.reporting_manager_id)
         return None
 
 
@@ -1638,11 +1642,11 @@ class TrainingProgramSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = TrainingProgram
-        fields = ['id', 'name', 'code', 'description', 'training_type', 'skill', 
-                  'skill_level_on_completion', 'duration_hours', 'start_date', 'end_date',
-                  'location', 'trainer_name', 'trainer_organization', 'max_participants',
-                  'cost_per_participant', 'is_mandatory', 'status', 'created_by',
-                  'created_by_name', 'enrolled_count', 'created_at', 'updated_at']
+        fields = ['id', 'program_id', 'name', 'description', 'training_type', 'skill', 
+                  'target_skill_level', 'duration_hours', 'start_date', 'end_date',
+                  'trainer_name', 'trainer_organization', 'branch', 'max_participants',
+                  'cost_per_participant', 'status', 'passing_criteria', 'materials_link',
+                  'created_by', 'created_by_name', 'enrolled_count', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_created_by_name(self, obj):
@@ -1656,34 +1660,34 @@ class TrainingProgramSerializer(serializers.ModelSerializer):
 
 class TrainingEnrollmentSerializer(serializers.ModelSerializer):
     employee_name = serializers.SerializerMethodField()
-    program_name = serializers.CharField(source='program.name', read_only=True)
-    approved_by_name = serializers.SerializerMethodField()
+    program_name = serializers.CharField(source='training.name', read_only=True)
+    enrolled_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = TrainingEnrollment
-        fields = ['id', 'program', 'program_name', 'employee', 'employee_name',
-                  'enrollment_date', 'status', 'attendance_percentage', 'score',
-                  'completion_date', 'certificate_issued', 'feedback', 'approved_by',
-                  'approved_by_name', 'approval_date', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'training', 'program_name', 'employee', 'employee_name',
+                  'enrolled_at', 'status', 'attendance_percentage', 'assessment_score',
+                  'completion_date', 'certificate_number', 'certificate_issued', 'feedback',
+                  'skill_upgrade_applied', 'enrolled_by', 'enrolled_by_name', 'notes']
+        read_only_fields = ['id']
     
     def get_employee_name(self, obj):
         return f"{obj.employee.user.first_name} {obj.employee.user.last_name}".strip() or obj.employee.user.username
     
-    def get_approved_by_name(self, obj):
-        if obj.approved_by:
-            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
+    def get_enrolled_by_name(self, obj):
+        if obj.enrolled_by:
+            return f"{obj.enrolled_by.first_name} {obj.enrolled_by.last_name}".strip() or obj.enrolled_by.username
         return None
 
 
 class IncentiveRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = IncentiveRule
-        fields = ['id', 'name', 'code', 'description', 'rule_type', 'skill_category',
-                  'skill_level', 'metric_type', 'threshold_value', 'amount_type',
-                  'incentive_amount', 'max_amount_per_month', 'is_active',
-                  'effective_from', 'effective_to', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'rule_id', 'name', 'description', 'incentive_type', 'skill',
+                  'skill_level', 'base_amount', 'percentage', 'min_quality_score',
+                  'max_rework_allowed', 'is_active',
+                  'effective_from', 'effective_to', 'branch', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class EmployeeIncentiveSerializer(serializers.ModelSerializer):
@@ -1693,10 +1697,11 @@ class EmployeeIncentiveSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = EmployeeIncentive
-        fields = ['id', 'employee', 'employee_name', 'rule', 'rule_name', 'period_start',
-                  'period_end', 'metric_value', 'calculated_amount', 'final_amount',
-                  'status', 'approved_by', 'approved_by_name', 'approved_date',
-                  'paid_date', 'notes', 'created_at']
+        fields = ['id', 'employee', 'employee_name', 'rule', 'rule_name', 'job_card', 'task',
+                  'period_start', 'period_end', 'base_amount', 'bonus_amount', 'penalty_amount',
+                  'net_amount', 'quality_score', 'jobs_count', 'rework_count',
+                  'status', 'approved_by', 'approved_by_name', 'approved_at',
+                  'paid_at', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
     
     def get_employee_name(self, obj):
@@ -1711,26 +1716,29 @@ class EmployeeIncentiveSerializer(serializers.ModelSerializer):
 class LeaveTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveType
-        fields = ['id', 'name', 'code', 'description', 'days_allowed', 'is_paid',
-                  'is_encashable', 'carry_forward_allowed', 'max_carry_forward',
-                  'requires_approval', 'min_days_advance', 'max_consecutive_days',
-                  'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'name', 'code', 'description', 'annual_quota', 'is_paid',
+                  'can_carry_forward', 'max_carry_forward',
+                  'requires_approval', 'is_active']
+        read_only_fields = ['id']
 
 
 class LeaveBalanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.SerializerMethodField()
     leave_type_name = serializers.CharField(source='leave_type.name', read_only=True)
+    available = serializers.SerializerMethodField()
     
     class Meta:
         model = LeaveBalance
         fields = ['id', 'employee', 'employee_name', 'leave_type', 'leave_type_name',
-                  'year', 'opening_balance', 'accrued', 'used', 'encashed',
-                  'carry_forward', 'closing_balance', 'updated_at']
-        read_only_fields = ['id', 'updated_at']
+                  'year', 'opening_balance', 'accrued', 'used', 'lapsed',
+                  'carried_forward', 'available']
+        read_only_fields = ['id']
     
     def get_employee_name(self, obj):
         return f"{obj.employee.user.first_name} {obj.employee.user.last_name}".strip() or obj.employee.user.username
+    
+    def get_available(self, obj):
+        return (obj.opening_balance or 0) + (obj.accrued or 0) - (obj.used or 0) - (obj.lapsed or 0)
 
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
@@ -1756,12 +1764,9 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
 
 
 class HolidaySerializer(serializers.ModelSerializer):
-    branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
-    
     class Meta:
         model = Holiday
-        fields = ['id', 'name', 'date', 'description', 'is_optional', 'is_restricted',
-                  'applicable_departments', 'branch', 'branch_name', 'created_at']
+        fields = ['id', 'name', 'date', 'is_optional', 'year', 'branches', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -1791,19 +1796,21 @@ class EmployeeShiftSerializer(serializers.ModelSerializer):
 
 class HRAttendanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.SerializerMethodField()
-    shift_name = serializers.CharField(source='shift.name', read_only=True, allow_null=True)
     approved_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = HRAttendance
         fields = ['id', 'employee', 'employee_name', 'date', 'status', 'check_in_time',
-                  'check_out_time', 'break_duration_minutes', 'total_hours', 'overtime_hours',
-                  'shift', 'shift_name', 'is_regularized', 'regularization_reason',
+                  'check_out_time', 'break_duration_minutes', 'total_hours', 'overtime_minutes',
+                  'productive_hours', 'is_remote', 'remarks',
                   'approved_by', 'approved_by_name', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_employee_name(self, obj):
-        return f"{obj.employee.user.first_name} {obj.employee.user.last_name}".strip() or obj.employee.user.username
+        profile = getattr(obj.employee, 'profile', None) or getattr(obj.employee, 'user', obj.employee)
+        if hasattr(profile, 'user'):
+            return f"{profile.user.first_name} {profile.user.last_name}".strip() or profile.user.username
+        return str(obj.employee)
     
     def get_approved_by_name(self, obj):
         if obj.approved_by:
@@ -1813,26 +1820,30 @@ class HRAttendanceSerializer(serializers.ModelSerializer):
 
 class PayrollSerializer(serializers.ModelSerializer):
     employee_name = serializers.SerializerMethodField()
-    generated_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Payroll
-        fields = ['id', 'employee', 'employee_name', 'period_start', 'period_end',
-                  'base_salary', 'hra', 'conveyance', 'medical', 'special_allowance',
-                  'other_allowances', 'incentives', 'overtime_amount', 'gross_salary',
-                  'pf_employee', 'pf_employer', 'esi_employee', 'esi_employer',
-                  'professional_tax', 'tds', 'other_deductions', 'total_deductions',
-                  'net_amount', 'status', 'generated_by', 'generated_by_name',
-                  'approved_by', 'approved_date', 'paid_date', 'payment_mode',
-                  'transaction_reference', 'created_at']
+        fields = ['id', 'employee', 'employee_name', 'month', 'year',
+                  'basic_salary', 'hra', 'conveyance', 'special_allowance',
+                  'overtime_amount', 'incentive_amount', 'bonus_amount', 'gross_salary',
+                  'pf_deduction', 'esi_deduction',
+                  'professional_tax', 'tds_deduction', 'loan_deduction', 'other_deductions',
+                  'total_deductions', 'net_salary', 'days_worked', 'days_absent', 'lop_days',
+                  'status', 'calculated_at',
+                  'approved_by', 'approved_by_name', 'approved_at', 'paid_at',
+                  'payment_reference', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
     
     def get_employee_name(self, obj):
-        return f"{obj.employee.user.first_name} {obj.employee.user.last_name}".strip() or obj.employee.user.username
+        profile = getattr(obj.employee, 'profile', None) or getattr(obj.employee, 'user', obj.employee)
+        if hasattr(profile, 'user'):
+            return f"{profile.user.first_name} {profile.user.last_name}".strip() or profile.user.username
+        return str(obj.employee)
     
-    def get_generated_by_name(self, obj):
-        if obj.generated_by:
-            return f"{obj.generated_by.first_name} {obj.generated_by.last_name}".strip() or obj.generated_by.username
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
         return None
 
 
