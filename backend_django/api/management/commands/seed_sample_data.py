@@ -27,6 +27,9 @@ class Command(BaseCommand):
             SupplierPerformance,
             ContractCoverageRule, ContractVehicle, ContractAuditLog, ContractAuditAction,
             ConfigCategory, ConfigOption,
+            SystemConfig, WorkflowConfig, ApprovalRule, NotificationTemplate,
+            AutomationRule, DelegationRule, BranchHolidayCalendar, OperatingHours,
+            SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
             WorkflowStage, TaskStatus, UserRole, ItemType, TaxCategory,
             PurchaseOrderStatus, AccountCategory, AccountType, InvoiceStatus, InvoiceType,
             GRNStatus, StockTransferStatus, PRStatus, PRSource,
@@ -130,6 +133,7 @@ class Command(BaseCommand):
         self._seed_inventory_alerts(parts)
         self._seed_inventory_operations(parts, branches, users, suppliers)
         self._seed_config_options()
+        self._seed_admin_config(branches, users)
 
         self.stdout.write(self.style.SUCCESS('\nComprehensive sample data seeded successfully!'))
 
@@ -1869,3 +1873,377 @@ class Command(BaseCommand):
             except Exception:
                 pass
         self.stdout.write('    Config options seeded')
+
+    def _seed_admin_config(self, branches, users):
+        from api.models import (
+            SystemConfig, WorkflowConfig, ApprovalRule, NotificationTemplate,
+            AutomationRule, DelegationRule, BranchHolidayCalendar, OperatingHours,
+            SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
+        )
+        from django.utils import timezone
+        from datetime import timedelta
+        admin = users[0] if users else None
+        branch1 = branches[0] if branches else None
+        branch2 = branches[1] if len(branches) > 1 else branch1
+        self.stdout.write('  Seeding Admin Configuration Center data...')
+
+        sys_configs = [
+            ('SYSTEM', 'GENERAL', 'company_name', 'AutoServ Solutions Pvt Ltd', 'STRING', 'Company display name'),
+            ('SYSTEM', 'GENERAL', 'default_currency', 'INR', 'STRING', 'Default currency code'),
+            ('SYSTEM', 'GENERAL', 'timezone', 'Asia/Kolkata', 'STRING', 'System timezone'),
+            ('SYSTEM', 'GENERAL', 'date_format', 'DD/MM/YYYY', 'STRING', 'Date display format'),
+            ('SYSTEM', 'SECURITY', 'session_timeout', '30', 'NUMBER', 'Session timeout in minutes'),
+            ('SYSTEM', 'SECURITY', 'max_login_attempts', '5', 'NUMBER', 'Max login attempts before lockout'),
+            ('SYSTEM', 'SECURITY', 'password_min_length', '8', 'NUMBER', 'Minimum password length'),
+            ('SERVICE', 'WORKFLOW', 'default_sla_hours', '24', 'NUMBER', 'Default SLA in hours'),
+            ('SERVICE', 'WORKFLOW', 'max_parallel_jobs', '5', 'NUMBER', 'Max parallel jobs per bay'),
+            ('SERVICE', 'WORKFLOW', 'auto_assign_technician', 'true', 'BOOLEAN', 'Auto-assign technician to jobs'),
+            ('CRM', 'LEADS', 'lead_auto_assign', 'true', 'BOOLEAN', 'Auto-assign leads to sales reps'),
+            ('CRM', 'LEADS', 'max_contact_attempts', '5', 'NUMBER', 'Maximum contact attempts'),
+            ('CRM', 'LEADS', 'lead_score_threshold', '70', 'NUMBER', 'Score threshold for hot leads'),
+            ('INVENTORY', 'ALERTS', 'low_stock_threshold', '10', 'NUMBER', 'Low stock alert threshold'),
+            ('INVENTORY', 'ALERTS', 'reorder_auto_create', 'false', 'BOOLEAN', 'Auto-create purchase requisitions'),
+            ('FINANCE', 'BILLING', 'gst_enabled', 'true', 'BOOLEAN', 'Enable GST calculations'),
+            ('FINANCE', 'BILLING', 'default_payment_terms', '30', 'NUMBER', 'Default payment terms in days'),
+            ('FINANCE', 'BILLING', 'invoice_prefix', 'INV', 'STRING', 'Invoice number prefix'),
+            ('HR', 'ATTENDANCE', 'grace_period_minutes', '15', 'NUMBER', 'Late arrival grace period'),
+            ('HR', 'LEAVE', 'max_casual_leaves', '12', 'NUMBER', 'Max casual leaves per year'),
+        ]
+        sc_count = 0
+        for module, category, key, value, vtype, desc in sys_configs:
+            try:
+                SystemConfig.objects.get_or_create(
+                    key=key, branch=None,
+                    defaults={'module': module, 'category': category, 'value': value,
+                              'value_type': vtype, 'description': desc,
+                              'created_by': admin, 'updated_by': admin}
+                )
+                sc_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {sc_count} system configs')
+
+        wf_configs = [
+            ('SVC_MAIN', 'Service Main Workflow', 'SERVICE',
+             [{'name': 'Appointment', 'order': 1}, {'name': 'Vehicle Received', 'order': 2},
+              {'name': 'Inspection', 'order': 3}, {'name': 'Estimation', 'order': 4},
+              {'name': 'Approval', 'order': 5}, {'name': 'In Progress', 'order': 6},
+              {'name': 'Quality Check', 'order': 7}, {'name': 'Ready', 'order': 8},
+              {'name': 'Invoiced', 'order': 9}, {'name': 'Delivered', 'order': 10},
+              {'name': 'Closed', 'order': 11}]),
+            ('INV_PURCHASE', 'Purchase Order Workflow', 'INVENTORY',
+             [{'name': 'Draft', 'order': 1}, {'name': 'Submitted', 'order': 2},
+              {'name': 'Approved', 'order': 3}, {'name': 'Ordered', 'order': 4},
+              {'name': 'Received', 'order': 5}, {'name': 'Closed', 'order': 6}]),
+            ('FIN_INVOICE', 'Invoice Workflow', 'ACCOUNTS',
+             [{'name': 'Draft', 'order': 1}, {'name': 'Pending Approval', 'order': 2},
+              {'name': 'Approved', 'order': 3}, {'name': 'Issued', 'order': 4},
+              {'name': 'Paid', 'order': 5}]),
+            ('HR_LEAVE', 'Leave Request Workflow', 'HR',
+             [{'name': 'Draft', 'order': 1}, {'name': 'Submitted', 'order': 2},
+              {'name': 'Manager Review', 'order': 3}, {'name': 'Approved', 'order': 4},
+              {'name': 'Rejected', 'order': 5}]),
+            ('CRM_LEAD', 'Lead Pipeline', 'CRM',
+             [{'name': 'New', 'order': 1}, {'name': 'Contacted', 'order': 2},
+              {'name': 'Qualified', 'order': 3}, {'name': 'Proposal', 'order': 4},
+              {'name': 'Negotiation', 'order': 5}, {'name': 'Won', 'order': 6},
+              {'name': 'Lost', 'order': 7}]),
+            ('CONTRACT_LIFECYCLE', 'Contract Lifecycle', 'CONTRACT',
+             [{'name': 'Draft', 'order': 1}, {'name': 'Pending Approval', 'order': 2},
+              {'name': 'Active', 'order': 3}, {'name': 'Suspended', 'order': 4},
+              {'name': 'Expired', 'order': 5}, {'name': 'Terminated', 'order': 6}]),
+        ]
+        wf_count = 0
+        for code, name, wtype, stages in wf_configs:
+            try:
+                WorkflowConfig.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'workflow_type': wtype, 'stages': stages,
+                              'is_active': True, 'created_by': admin,
+                              'description': f'Workflow for {name}'}
+                )
+                wf_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {wf_count} workflow configs')
+
+        approval_rules = [
+            ('APR_EXPENSE', 'Expense Approval', 'FINANCE', 'Expense', 'SEQUENTIAL',
+             [{'level': 1, 'role': 'BRANCH_MANAGER', 'threshold': 10000},
+              {'level': 2, 'role': 'FINANCE_MANAGER', 'threshold': 50000},
+              {'level': 3, 'role': 'CEO_OWNER', 'threshold': None}], 5000),
+            ('APR_PURCHASE', 'Purchase Order Approval', 'INVENTORY', 'PurchaseOrder', 'SEQUENTIAL',
+             [{'level': 1, 'role': 'INVENTORY_MANAGER', 'threshold': 25000},
+              {'level': 2, 'role': 'BRANCH_MANAGER', 'threshold': 100000},
+              {'level': 3, 'role': 'CEO_OWNER', 'threshold': None}], 10000),
+            ('APR_INVOICE', 'Invoice Approval', 'FINANCE', 'Invoice', 'HIERARCHY',
+             [{'level': 1, 'role': 'ACCOUNTS_MANAGER', 'threshold': 50000},
+              {'level': 2, 'role': 'FINANCE_MANAGER', 'threshold': None}], 25000),
+            ('APR_LEAVE', 'Leave Approval', 'HR', 'LeaveRequest', 'SEQUENTIAL',
+             [{'level': 1, 'role': 'BRANCH_MANAGER'}], None),
+            ('APR_CONTRACT', 'Contract Approval', 'CONTRACT', 'Contract', 'PARALLEL',
+             [{'level': 1, 'role': 'BRANCH_MANAGER'},
+              {'level': 2, 'role': 'CEO_OWNER'}], 100000),
+        ]
+        ar_count = 0
+        for code, name, module, entity, atype, levels, threshold in approval_rules:
+            try:
+                ApprovalRule.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'module': module, 'entity_type': entity,
+                              'approval_type': atype, 'levels': levels,
+                              'auto_approve_threshold': threshold, 'escalation_hours': 24,
+                              'is_active': True}
+                )
+                ar_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {ar_count} approval rules')
+
+        notif_templates = [
+            ('NOTIF_JOB_CREATED', 'Job Card Created', 'EMAIL', 'New Job Card #{{job_number}}',
+             'Dear {{customer_name}}, your vehicle {{vehicle_reg}} has been checked in. Job #{{job_number}}.'),
+            ('NOTIF_JOB_READY', 'Vehicle Ready for Pickup', 'SMS',
+             'Vehicle Ready', 'Hi {{customer_name}}, your vehicle {{vehicle_reg}} is ready for pickup. Job #{{job_number}}.'),
+            ('NOTIF_INV_DUE', 'Invoice Payment Due', 'EMAIL', 'Invoice #{{invoice_number}} Payment Due',
+             'Dear {{customer_name}}, your invoice #{{invoice_number}} of {{amount}} is due on {{due_date}}.'),
+            ('NOTIF_APPT_REMIND', 'Appointment Reminder', 'WHATSAPP', 'Appointment Reminder',
+             'Hi {{customer_name}}, reminder: your appointment is on {{date}} at {{time}} for {{vehicle_reg}}.'),
+            ('NOTIF_LOW_STOCK', 'Low Stock Alert', 'IN_APP', 'Low Stock: {{part_name}}',
+             'Part {{part_name}} ({{part_number}}) has fallen below minimum stock level. Current: {{current_qty}}, Min: {{min_qty}}.'),
+            ('NOTIF_LEAVE_APPROVED', 'Leave Approved', 'EMAIL', 'Leave Request Approved',
+             'Hi {{employee_name}}, your leave request from {{start_date}} to {{end_date}} has been approved.'),
+            ('NOTIF_EXPENSE_APPROVED', 'Expense Approved', 'PUSH', 'Expense Approved',
+             'Your expense {{expense_number}} of {{amount}} has been approved.'),
+            ('NOTIF_CONTRACT_EXPIRY', 'Contract Expiring Soon', 'EMAIL', 'Contract {{contract_number}} Expiring',
+             'Dear {{customer_name}}, your contract {{contract_number}} will expire on {{expiry_date}}.'),
+        ]
+        nt_count = 0
+        for code, name, channel, subject, body in notif_templates:
+            try:
+                NotificationTemplate.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'channel': channel, 'subject': subject,
+                              'body': body, 'is_active': True, 'status': 'ACTIVE',
+                              'created_by': admin}
+                )
+                nt_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {nt_count} notification templates')
+
+        auto_rules = [
+            ('AUTO_LOW_STOCK', 'Auto Low Stock Alert', 'INVENTORY', 'EVENT', 'stock_below_minimum',
+             'NOTIFY', {'template': 'NOTIF_LOW_STOCK', 'channels': ['IN_APP', 'EMAIL']}),
+            ('AUTO_ASSIGN_TECH', 'Auto Assign Technician', 'SERVICE', 'EVENT', 'job_card_created',
+             'ASSIGN', {'strategy': 'least_loaded', 'skill_match': True}),
+            ('AUTO_FOLLOWUP', 'Auto Follow-up Reminder', 'CRM', 'SCHEDULE', '0 9 * * 1-5',
+             'NOTIFY', {'template': 'follow_up_due', 'days_overdue': 3}),
+            ('AUTO_INVOICE_OVERDUE', 'Invoice Overdue Escalation', 'FINANCE', 'CONDITION', 'invoice_overdue',
+             'ESCALATE', {'days_overdue': 7, 'escalate_to': 'FINANCE_MANAGER'}),
+            ('AUTO_SLA_BREACH', 'SLA Breach Alert', 'SERVICE', 'THRESHOLD', 'sla_response_time',
+             'NOTIFY', {'threshold_percent': 80, 'channels': ['EMAIL', 'PUSH']}),
+            ('AUTO_LEAVE_BALANCE', 'Leave Balance Warning', 'HR', 'CONDITION', 'leave_balance_low',
+             'NOTIFY', {'min_balance': 2, 'template': 'leave_balance_warning'}),
+        ]
+        auto_count = 0
+        for code, name, module, trigger, event, action_type, config in auto_rules:
+            try:
+                AutomationRule.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'module': module, 'trigger_type': trigger,
+                              'trigger_event': event, 'action_type': action_type,
+                              'action_config': config, 'is_active': True,
+                              'description': f'Automation: {name}'}
+                )
+                auto_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {auto_count} automation rules')
+
+        if admin and len(users) > 2:
+            try:
+                now = timezone.now()
+                DelegationRule.objects.get_or_create(
+                    delegator=users[0], delegate=users[1],
+                    defaults={'roles': ['BRANCH_MANAGER'], 'permissions': ['approve_expense', 'approve_leave'],
+                              'start_date': now, 'end_date': now + timedelta(days=14),
+                              'reason': 'Annual leave coverage', 'is_active': True}
+                )
+                DelegationRule.objects.get_or_create(
+                    delegator=users[2], delegate=users[3] if len(users) > 3 else users[1],
+                    defaults={'roles': ['SERVICE_ADVISOR'], 'permissions': ['manage_jobs'],
+                              'start_date': now + timedelta(days=5), 'end_date': now + timedelta(days=10),
+                              'reason': 'Training period coverage', 'is_active': True}
+                )
+                self.stdout.write('    2 delegation rules')
+            except Exception:
+                pass
+
+        holidays_2026 = [
+            ('Republic Day', '2026-01-26', 'PUBLIC'),
+            ('Holi', '2026-03-14', 'PUBLIC'),
+            ('Good Friday', '2026-04-03', 'PUBLIC'),
+            ('Eid ul-Fitr', '2026-03-31', 'PUBLIC'),
+            ('Independence Day', '2026-08-15', 'PUBLIC'),
+            ('Gandhi Jayanti', '2026-10-02', 'PUBLIC'),
+            ('Diwali', '2026-10-20', 'PUBLIC'),
+            ('Christmas', '2026-12-25', 'PUBLIC'),
+            ('Company Foundation Day', '2026-06-15', 'COMPANY'),
+            ('Annual Maintenance Day', '2026-09-01', 'COMPANY'),
+        ]
+        hol_count = 0
+        for name, date_str, htype in holidays_2026:
+            for br in [branch1, branch2]:
+                if br:
+                    try:
+                        BranchHolidayCalendar.objects.get_or_create(
+                            name=name, date=date_str, branch=br,
+                            defaults={'holiday_type': htype, 'year': 2026, 'is_active': True,
+                                      'description': f'{htype} holiday'}
+                        )
+                        hol_count += 1
+                    except Exception:
+                        pass
+        self.stdout.write(f'    {hol_count} holiday calendar entries')
+
+        days = [('MON', '09:00', '18:00', '13:00', '14:00'),
+                ('TUE', '09:00', '18:00', '13:00', '14:00'),
+                ('WED', '09:00', '18:00', '13:00', '14:00'),
+                ('THU', '09:00', '18:00', '13:00', '14:00'),
+                ('FRI', '09:00', '18:00', '13:00', '14:00'),
+                ('SAT', '09:00', '14:00', None, None)]
+        oh_count = 0
+        for br in [branch1, branch2]:
+            if not br:
+                continue
+            for day, o, c, bs, be in days:
+                try:
+                    from datetime import time as dtime
+                    OperatingHours.objects.get_or_create(
+                        branch=br, day=day,
+                        defaults={'is_open': True,
+                                  'open_time': dtime.fromisoformat(o),
+                                  'close_time': dtime.fromisoformat(c),
+                                  'break_start': dtime.fromisoformat(bs) if bs else None,
+                                  'break_end': dtime.fromisoformat(be) if be else None}
+                    )
+                    oh_count += 1
+                except Exception:
+                    pass
+            try:
+                from datetime import time as dtime
+                OperatingHours.objects.get_or_create(
+                    branch=br, day='SUN',
+                    defaults={'is_open': False, 'open_time': None, 'close_time': None}
+                )
+                oh_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {oh_count} operating hours entries')
+
+        sla_configs = [
+            ('SLA_SVC_LOW', 'Service - Low Priority', 'SERVICE', 'JobCard', 'LOW', 8, 48),
+            ('SLA_SVC_MED', 'Service - Medium Priority', 'SERVICE', 'JobCard', 'MEDIUM', 4, 24),
+            ('SLA_SVC_HIGH', 'Service - High Priority', 'SERVICE', 'JobCard', 'HIGH', 2, 8),
+            ('SLA_SVC_CRIT', 'Service - Critical', 'SERVICE', 'JobCard', 'CRITICAL', 1, 4),
+            ('SLA_CRM_TICKET', 'CRM Ticket Response', 'CRM', 'Ticket', 'MEDIUM', 4, 24),
+            ('SLA_INV_PO', 'PO Fulfillment', 'INVENTORY', 'PurchaseOrder', 'MEDIUM', 24, 72),
+        ]
+        sla_count = 0
+        for code, name, module, entity, priority, resp, resol in sla_configs:
+            try:
+                SLAConfig.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'module': module, 'entity_type': entity,
+                              'priority': priority, 'response_hours': resp,
+                              'resolution_hours': resol, 'is_active': True,
+                              'escalation_levels': [
+                                  {'level': 1, 'hours': resp, 'notify': ['BRANCH_MANAGER']},
+                                  {'level': 2, 'hours': resol, 'notify': ['CEO_OWNER']}
+                              ]}
+                )
+                sla_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {sla_count} SLA configs')
+
+        menu_items = [
+            ('MENU_DASHBOARD', 'Dashboard', 'SYSTEM', 'layout-dashboard', '/dashboard', None, 1, []),
+            ('MENU_SERVICE', 'Service', 'SERVICE', 'wrench', '/service', None, 2, []),
+            ('MENU_APPOINTMENTS', 'Appointments', 'SERVICE', 'calendar', '/appointments', None, 3, []),
+            ('MENU_INVENTORY', 'Inventory', 'INVENTORY', 'package', '/inventory', None, 4, ['INVENTORY_MANAGER', 'BRANCH_MANAGER']),
+            ('MENU_SUPPLIERS', 'Suppliers', 'INVENTORY', 'truck', '/suppliers', None, 5, ['INVENTORY_MANAGER', 'BRANCH_MANAGER']),
+            ('MENU_CRM', 'CRM', 'CRM', 'users', '/crm', None, 6, ['CRM_MANAGER', 'BRANCH_MANAGER']),
+            ('MENU_CONTRACTS', 'Contracts', 'CONTRACT', 'file-text', '/contracts', None, 7, []),
+            ('MENU_FINANCE', 'Accounts & Finance', 'FINANCE', 'indian-rupee', '/accounts-finance', None, 8, ['FINANCE_MANAGER', 'ACCOUNTS_MANAGER']),
+            ('MENU_HRMS', 'HRMS', 'HR', 'user-check', '/hrms', None, 9, ['HR_MANAGER']),
+            ('MENU_ADMIN', 'Admin Panel', 'SYSTEM', 'settings', '/admin-panel', None, 10, ['SUPER_ADMIN', 'CEO_OWNER']),
+            ('MENU_CONFIG', 'Configuration Center', 'SYSTEM', 'sliders', '/admin-config', None, 11, ['SUPER_ADMIN']),
+        ]
+        menu_count = 0
+        for code, name, module, icon, path, parent, order, roles in menu_items:
+            try:
+                MenuConfig.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'module': module, 'icon': icon, 'path': path,
+                              'display_order': order, 'required_roles': roles,
+                              'is_visible': True, 'is_active': True}
+                )
+                menu_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {menu_count} menu configs')
+
+        feature_flags = [
+            ('FF_NEW_DASHBOARD', 'New Dashboard UI', 'Enable redesigned dashboard with analytics', True, 100),
+            ('FF_AI_DIAGNOSTICS', 'AI Vehicle Diagnostics', 'AI-powered diagnostic suggestions', False, 0),
+            ('FF_WHATSAPP_NOTIF', 'WhatsApp Notifications', 'Send notifications via WhatsApp', True, 100),
+            ('FF_MULTI_CURRENCY', 'Multi-Currency Support', 'Enable multi-currency transactions', False, 25),
+            ('FF_ADVANCED_REPORTS', 'Advanced Analytics', 'Advanced reporting and analytics module', True, 80),
+            ('FF_CUSTOMER_PORTAL', 'Customer Self-Service Portal', 'Allow customers to book and track online', False, 10),
+            ('FF_PREDICTIVE_MAINT', 'Predictive Maintenance', 'ML-based maintenance prediction', False, 0),
+            ('FF_MOBILE_APP', 'Mobile App Integration', 'Enable mobile app APIs', True, 100),
+            ('FF_DARK_MODE', 'Dark Mode', 'Enable dark mode theme toggle', True, 100),
+            ('FF_BULK_IMPORT', 'Bulk Data Import', 'CSV/Excel bulk import for parts and customers', True, 50),
+        ]
+        ff_count = 0
+        for code, name, desc, enabled, rollout in feature_flags:
+            try:
+                FeatureFlag.objects.get_or_create(
+                    code=code,
+                    defaults={'name': name, 'description': desc, 'is_enabled': enabled,
+                              'rollout_percentage': rollout}
+                )
+                ff_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {ff_count} feature flags')
+
+        if admin:
+            audit_entries = [
+                ('SystemConfig', 1, 'company_name', 'CREATE'),
+                ('WorkflowConfig', 1, 'Service Main Workflow', 'CREATE'),
+                ('FeatureFlag', 1, 'New Dashboard UI', 'CREATE'),
+                ('ApprovalRule', 1, 'Expense Approval', 'CREATE'),
+                ('NotificationTemplate', 1, 'Job Card Created', 'CREATE'),
+                ('SLAConfig', 1, 'Service - Low Priority', 'CREATE'),
+                ('SystemConfig', 1, 'company_name', 'UPDATE'),
+                ('FeatureFlag', 2, 'AI Vehicle Diagnostics', 'UPDATE'),
+            ]
+            al_count = 0
+            for etype, eid, ename, action in audit_entries:
+                try:
+                    ConfigAuditLog.objects.create(
+                        entity_type=etype, entity_id=eid, entity_name=ename,
+                        action=action, performed_by=admin,
+                        change_summary=f'{action} {etype}: {ename}',
+                        old_values={} if action == 'CREATE' else {'value': 'old'},
+                        new_values={'value': 'new'} if action == 'UPDATE' else {}
+                    )
+                    al_count += 1
+                except Exception:
+                    pass
+            self.stdout.write(f'    {al_count} audit log entries')
+
+        self.stdout.write('    Admin Configuration Center data seeded')
