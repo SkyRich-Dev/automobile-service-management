@@ -500,7 +500,7 @@ function GRNsTab() {
               <TableCell className="text-green-600">{grn.total_accepted_qty}</TableCell>
               <TableCell className="text-red-600">{grn.total_rejected_qty}</TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {new Date(grn.received_date).toLocaleDateString()}
+                {new Date(grn.receipt_date || grn.received_date || grn.created_at).toLocaleDateString()}
               </TableCell>
             </TableRow>
           ))}
@@ -680,11 +680,7 @@ function AlertsTab() {
   };
 
   const handleGenerateAlerts = () => {
-    if (!profile?.branch) {
-      toast({ title: t('inventory.messages.cannotGenerateAlerts', 'Cannot generate alerts'), description: t('inventory.messages.branchNotAvailable', 'Branch information not available'), variant: "destructive" });
-      return;
-    }
-    generateAlerts.mutate(profile.branch, {
+    generateAlerts.mutate(profile?.branch || undefined, {
       onSuccess: (data) => toast({ title: t('inventory.messages.alertScanComplete', 'Alert scan complete'), description: t('inventory.messages.alertsGenerated', 'Generated {{count}} new alerts', { count: data.created || 0 }) }),
       onError: (error) => toast({ title: t('inventory.messages.alertGenerateError', 'Failed to generate alerts'), description: error.message, variant: "destructive" }),
     });
@@ -724,7 +720,7 @@ function AlertsTab() {
         </div>
         <Button
           onClick={handleGenerateAlerts}
-          disabled={generateAlerts.isPending || !profile?.branch}
+          disabled={generateAlerts.isPending}
           data-testid="button-generate-alerts"
         >
           {generateAlerts.isPending ? (

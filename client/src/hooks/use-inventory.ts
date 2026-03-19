@@ -150,7 +150,9 @@ interface GRN {
   branch: number;
   branch_name: string;
   status: string;
-  received_date: string;
+  receipt_date: string;
+  received_date?: string;
+  created_at: string;
   total_received_qty: number;
   total_accepted_qty: number;
   total_rejected_qty: number;
@@ -448,11 +450,13 @@ export function useResolveAlert() {
 export function useGenerateAlerts() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (branch_id: number) => {
+    mutationFn: async (branch_id?: number) => {
+      const body: Record<string, unknown> = {};
+      if (branch_id) body.branch_id = branch_id;
       const res = await fetch(`${API_BASE}/inventory-alerts/generate_alerts/`, {
         method: "POST",
         headers: csrfHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ branch_id }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to generate alerts");

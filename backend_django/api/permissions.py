@@ -221,6 +221,17 @@ class RoleBasedPermission(permissions.BasePermission):
             'delete': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER],
             'expiring_soon': 'all_authenticated',
         },
+        'inventory-alerts': {
+            'list': 'all_authenticated',
+            'retrieve': 'all_authenticated',
+            'mark_read': 'all_authenticated',
+            'acknowledge': 'all_authenticated',
+            'resolve': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER,
+                        UserRole.INVENTORY_MANAGER, UserRole.SERVICE_MANAGER],
+            'generate_alerts': [UserRole.SUPER_ADMIN, UserRole.CEO_OWNER, UserRole.BRANCH_MANAGER,
+                                UserRole.REGIONAL_MANAGER, UserRole.INVENTORY_MANAGER, 
+                                UserRole.SERVICE_MANAGER],
+        },
         'suppliers': {
             'list': 'all_authenticated',
             'retrieve': 'all_authenticated',

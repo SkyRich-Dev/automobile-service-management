@@ -32,7 +32,11 @@ The system is divided into a backend and a frontend:
   - Payment Traceability: Invoice/payment events automatically logged as CRM interactions
   - API Endpoints: /api/customers/{id}/360/payments/, /api/customers/{id}/360/job-cards/, /api/customers/{id}/360/credit-status/
 - **Contract Module:** Full lifecycle management for various contract types, including coverage rules, consumption tracking, and approval workflows.
-- **Enhanced Inventory & Supplier Module:** Features detailed part management, reservation system, Goods Receipt Notes (GRN), stock transfers, purchase requisitions, supplier performance tracking, and inventory alerts.
+- **Enhanced Inventory & Supplier Module:** Features detailed part management, reservation system, Goods Receipt Notes (GRN), stock transfers, purchase requisitions, supplier performance tracking, inventory alerts, stock adjustments/returns, stock ledger, supplier invoices with GST breakdown, and comprehensive analytics (valuation reports, fast-moving items, dead stock).
+  - Inventory Page: 10 tabs (Parts, Reservations, GRNs, Transfers, Requisitions, Adjustments, Alerts, Stock Ledger, Supplier Invoices, Analytics)
+  - Suppliers Page: 3 tabs (Suppliers, Purchase Orders, Performance) with filtering, search, and PO detail with status transitions
+  - Alert generation scoped to authorized branches (admin roles get all branches, others get their assigned branch)
+  - RBAC permissions explicitly configured for inventory-alerts actions (generate, acknowledge, resolve)
 - **Enterprise Accounts & Finance Module:** Implements a Chart of Accounts, tax rates, enhanced invoicing with full lifecycle, credit notes, payments, expense management, and double-entry bookkeeping.
 - **Admin Panel:** A comprehensive control panel for user, department, role permission, attendance, and integration management.
 - **Enterprise Admin Configuration Center:** Centralized system configuration management with:

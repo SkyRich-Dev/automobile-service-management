@@ -1231,14 +1231,15 @@ class InventoryAlertSerializer(serializers.ModelSerializer):
     part_sku = serializers.CharField(source='part.sku', read_only=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True)
     resolved_by_name = serializers.SerializerMethodField()
+    alert_number = serializers.CharField(source='alert_id', read_only=True)
     
     class Meta:
         model = InventoryAlert
-        fields = ['id', 'alert_id', 'alert_type', 'part', 'part_name', 'part_sku',
+        fields = ['id', 'alert_id', 'alert_number', 'alert_type', 'part', 'part_name', 'part_sku',
                   'branch', 'branch_name', 'message', 'severity', 'is_read',
                   'is_resolved', 'resolved_by', 'resolved_by_name', 'resolved_at',
                   'resolution_notes', 'created_at']
-        read_only_fields = ['id', 'alert_id', 'created_at']
+        read_only_fields = ['id', 'alert_id', 'alert_number', 'created_at']
     
     def get_resolved_by_name(self, obj):
         if obj.resolved_by:

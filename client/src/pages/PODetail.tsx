@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/AppSidebar";
 import { cn } from "@/lib/utils";
+import { useLocalization } from "@/lib/currency-context";
 import {
   ArrowLeft,
   Package,
@@ -80,6 +81,7 @@ export default function PODetail() {
   const { isCollapsed } = useSidebar();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { formatCurrency } = useLocalization();
 
   const { data: order, isLoading, error } = useQuery<PurchaseOrderDetail>({
     queryKey: ["/api/purchase-orders", id],
@@ -294,13 +296,13 @@ export default function PODetail() {
                           {line.quantity_received}
                         </TableCell>
                         <TableCell className="text-right" data-testid={`text-unit-price-${index}`}>
-                          ${parseFloat(line.unit_price).toFixed(2)}
+                          {formatCurrency(parseFloat(line.unit_price))}
                         </TableCell>
                         <TableCell className="text-right" data-testid={`text-tax-rate-${index}`}>
                           {parseFloat(line.tax_rate).toFixed(1)}%
                         </TableCell>
                         <TableCell className="text-right font-medium" data-testid={`text-line-total-${index}`}>
-                          ${parseFloat(line.total).toFixed(2)}
+                          {formatCurrency(parseFloat(line.total))}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -316,25 +318,25 @@ export default function PODetail() {
                 <div className="flex justify-between w-64 gap-4">
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span className="font-medium" data-testid="text-subtotal">
-                    ${parseFloat(order.subtotal).toFixed(2)}
+                    {formatCurrency(parseFloat(order.subtotal))}
                   </span>
                 </div>
                 <div className="flex justify-between w-64 gap-4">
                   <span className="text-muted-foreground">Tax:</span>
                   <span className="font-medium" data-testid="text-tax">
-                    ${parseFloat(order.tax_amount).toFixed(2)}
+                    {formatCurrency(parseFloat(order.tax_amount))}
                   </span>
                 </div>
                 <div className="flex justify-between w-64 gap-4">
                   <span className="text-muted-foreground">Shipping:</span>
                   <span className="font-medium" data-testid="text-shipping">
-                    ${parseFloat(order.shipping_cost).toFixed(2)}
+                    {formatCurrency(parseFloat(order.shipping_cost))}
                   </span>
                 </div>
                 <div className="flex justify-between w-64 gap-4 pt-2 border-t">
                   <span className="font-semibold">Grand Total:</span>
                   <span className="font-bold text-lg" data-testid="text-grand-total">
-                    ${parseFloat(order.grand_total).toFixed(2)}
+                    {formatCurrency(parseFloat(order.grand_total))}
                   </span>
                 </div>
               </div>

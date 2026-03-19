@@ -22,9 +22,14 @@ class Command(BaseCommand):
             Account, TaxRate, EnhancedInvoice, EnhancedPayment,
             Expense, ExpenseCategory,
             AnalyticsSnapshot, TechnicianSchedule, InventoryAlert,
+            GoodsReceiptNote, GRNLine, StockTransfer, StockTransferLine,
+            PurchaseRequisition, PRLine, StockAdjustment, StockLedger,
+            SupplierPerformance,
             ConfigCategory, ConfigOption,
             WorkflowStage, TaskStatus, UserRole, ItemType, TaxCategory,
             PurchaseOrderStatus, AccountCategory, AccountType, InvoiceStatus, InvoiceType,
+            GRNStatus, StockTransferStatus, PRStatus, PRSource,
+            StockAdjustmentType, StockAdjustmentStatus, StockMovementType, AlertType,
             SkillCategory, SkillLevel, EmploymentType,
             InteractionType, InteractionOutcome, CommunicationChannel,
             IncentiveType, ExpenseStatus,
@@ -50,6 +55,11 @@ class Command(BaseCommand):
             'EnhancedPayment': EnhancedPayment, 'Expense': Expense,
             'ExpenseCategory': ExpenseCategory, 'AnalyticsSnapshot': AnalyticsSnapshot,
             'TechnicianSchedule': TechnicianSchedule, 'InventoryAlert': InventoryAlert,
+            'GoodsReceiptNote': GoodsReceiptNote, 'GRNLine': GRNLine,
+            'StockTransfer': StockTransfer, 'StockTransferLine': StockTransferLine,
+            'PurchaseRequisition': PurchaseRequisition, 'PRLine': PRLine,
+            'StockAdjustment': StockAdjustment, 'StockLedger': StockLedger,
+            'SupplierPerformance': SupplierPerformance,
             'ConfigCategory': ConfigCategory, 'ConfigOption': ConfigOption,
         }
         self.enums = {
@@ -61,6 +71,10 @@ class Command(BaseCommand):
             'EmploymentType': EmploymentType, 'InteractionType': InteractionType,
             'InteractionOutcome': InteractionOutcome, 'CommunicationChannel': CommunicationChannel,
             'IncentiveType': IncentiveType, 'ExpenseStatus': ExpenseStatus,
+            'GRNStatus': GRNStatus, 'StockTransferStatus': StockTransferStatus,
+            'PRStatus': PRStatus, 'PRSource': PRSource,
+            'StockAdjustmentType': StockAdjustmentType, 'StockAdjustmentStatus': StockAdjustmentStatus,
+            'StockMovementType': StockMovementType, 'AlertType': AlertType,
             'ContractType': ContractType, 'ContractStatus': ContractStatus,
             'BillingModel': BillingModel, 'LeadSource': LeadSource, 'LeadStatus': LeadStatus,
             'ServiceEventType': ServiceEventType,
@@ -110,6 +124,7 @@ class Command(BaseCommand):
         self._seed_analytics(branches)
         self._seed_technician_schedules(branches, users)
         self._seed_inventory_alerts(parts)
+        self._seed_inventory_operations(parts, branches, users, suppliers)
         self._seed_config_options()
 
         self.stdout.write(self.style.SUCCESS('\nComprehensive sample data seeded successfully!'))
@@ -1485,19 +1500,234 @@ class Command(BaseCommand):
     def _seed_inventory_alerts(self, parts):
         self.stdout.write('  Seeding inventory alerts...')
         IA = self.models['InventoryAlert']
+        AlertType = self.enums['AlertType']
         count = 0
+        alert_types = [AlertType.LOW_STOCK, AlertType.OVERSTOCK, AlertType.REORDER_POINT]
+        severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
         for part in parts[:10]:
             try:
+                at = random.choice(alert_types)
                 IA.objects.create(
                     part=part, branch=part.branch,
-                    alert_type=random.choice(['LOW_STOCK', 'REORDER', 'EXPIRY', 'OVERSTOCK']),
-                    message=f'{part.name}: Stock level requires attention',
+                    alert_type=at,
+                    severity=random.choice(severities),
+                    message=f'{part.name}: Stock level requires attention ({at})',
                     is_resolved=random.choice([True, False]),
                 )
                 count += 1
             except Exception:
                 pass
         self.stdout.write(f'    {count} inventory alerts')
+
+    def _seed_inventory_operations(self, parts, branches, users, suppliers):
+        self.stdout.write('  Seeding inventory operations (GRNs, Transfers, PRs, Adjustments, Ledger, Supplier Performance)...')
+        from datetime import timedelta
+        PO = self.models['PurchaseOrder']
+        POLine = self.models['PurchaseOrderLine']
+        GRN = self.models['GoodsReceiptNote']
+        GRNLine = self.models['GRNLine']
+        ST = self.models['StockTransfer']
+        STLine = self.models['StockTransferLine']
+        PR = self.models['PurchaseRequisition']
+        PRLine = self.models['PRLine']
+        SA = self.models['StockAdjustment']
+        SL = self.models['StockLedger']
+        SP = self.models['SupplierPerformance']
+
+        admin = users[0] if users else None
+        branch = branches[0] if branches else None
+        if not admin or not branch or not parts:
+            self.stdout.write('    Skipping (missing data)')
+            return
+
+        pos = list(PO.objects.all()[:6])
+        grn_count = 0
+        for po in pos[:4]:
+            try:
+                po_lines = list(po.lines.all())
+                if not po_lines:
+                    continue
+                grn = GRN.objects.create(
+                    purchase_order=po,
+                    branch=po.branch,
+                    status=random.choice(['DRAFT', 'PENDING_INSPECTION', 'INSPECTED', 'ACCEPTED']),
+                    received_by=admin,
+                    total_received_qty=0,
+                    total_accepted_qty=0,
+                    total_rejected_qty=0,
+                    notes=f'GRN for {po.po_number}'
+                )
+                total_recv = 0
+                total_acc = 0
+                total_rej = 0
+                for pl in po_lines[:3]:
+                    qty_recv = min(pl.quantity_ordered, random.randint(5, 20))
+                    qty_rej = random.randint(0, max(1, qty_recv // 5))
+                    qty_acc = qty_recv - qty_rej
+                    GRNLine.objects.create(
+                        grn=grn, po_line=pl, part=pl.part,
+                        quantity_received=qty_recv, quantity_accepted=qty_acc,
+                        quantity_rejected=qty_rej,
+                        rejection_reason='Minor damage' if qty_rej > 0 else '',
+                        batch_number=f'BATCH-{random.randint(1000,9999)}',
+                        quality_rating=random.randint(3, 5),
+                    )
+                    total_recv += qty_recv
+                    total_acc += qty_acc
+                    total_rej += qty_rej
+                grn.total_received_qty = total_recv
+                grn.total_accepted_qty = total_acc
+                grn.total_rejected_qty = total_rej
+                grn.save()
+                grn_count += 1
+            except Exception as e:
+                pass
+        self.stdout.write(f'    {grn_count} GRNs')
+
+        transfer_count = 0
+        if len(branches) >= 2:
+            statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'IN_TRANSIT', 'RECEIVED']
+            for i in range(3):
+                try:
+                    from_branch = branches[i % len(branches)]
+                    to_branch = branches[(i + 1) % len(branches)]
+                    st = ST.objects.create(
+                        from_branch=from_branch, to_branch=to_branch,
+                        status=random.choice(statuses),
+                        created_by=admin,
+                        vehicle_number=f'KA-{random.randint(10,99)}-AB-{random.randint(1000,9999)}',
+                        driver_name=f'Driver {i+1}',
+                        driver_phone=f'98765{random.randint(10000,99999)}',
+                        notes=f'Stock transfer #{i+1}'
+                    )
+                    for part in random.sample(list(parts), min(3, len(parts))):
+                        STLine.objects.create(
+                            transfer=st, part=part,
+                            quantity=random.randint(2, 10),
+                            quantity_received=0,
+                        )
+                    transfer_count += 1
+                except Exception:
+                    pass
+        self.stdout.write(f'    {transfer_count} stock transfers')
+
+        pr_count = 0
+        pr_statuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED']
+        pr_priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT']
+        for i in range(5):
+            try:
+                pr = PR.objects.create(
+                    branch=random.choice(branches),
+                    status=random.choice(pr_statuses),
+                    source=random.choice(['MANUAL', 'AUTO_REORDER']),
+                    priority=random.choice(pr_priorities),
+                    required_date=timezone.now().date() + timedelta(days=random.randint(3, 14)),
+                    created_by=admin,
+                    notes=f'Purchase requisition #{i+1}',
+                )
+                for part in random.sample(list(parts), min(3, len(parts))):
+                    PRLine.objects.create(
+                        purchase_requisition=pr, part=part,
+                        quantity=random.randint(5, 20),
+                        current_stock=part.stock,
+                        min_stock=part.min_stock,
+                        notes=f'Need more {part.name}',
+                    )
+                pr_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {pr_count} purchase requisitions')
+
+        adj_count = 0
+        adj_types = ['INCREASE', 'DECREASE', 'CORRECTION', 'DAMAGE', 'SCRAP']
+        adj_statuses = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED']
+        for i, part in enumerate(parts[:6]):
+            try:
+                qty = random.randint(1, 5)
+                sa = SA.objects.create(
+                    branch=part.branch, part=part,
+                    adjustment_type=random.choice(adj_types),
+                    quantity=qty,
+                    stock_before=part.stock,
+                    stock_after=part.stock + qty if random.random() > 0.5 else max(0, part.stock - qty),
+                    reason=random.choice([
+                        'Physical count correction', 'Damaged during storage',
+                        'Found extra stock', 'Scrapped obsolete parts', 'Cycle count adjustment'
+                    ]),
+                    status=random.choice(adj_statuses),
+                    created_by=admin,
+                )
+                adj_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {adj_count} stock adjustments')
+
+        ledger_count = 0
+        movement_ref_map = {
+            'OPENING': 'OPENING', 'PURCHASE': 'GRN', 'ISSUE': 'PART_ISSUE',
+            'RETURN_JOB': 'RETURN', 'ADJUSTMENT_IN': 'ADJUSTMENT', 'ADJUSTMENT_OUT': 'ADJUSTMENT',
+        }
+        for part in parts[:10]:
+            try:
+                stock_level = part.stock
+                for j in range(random.randint(2, 5)):
+                    mv_type = random.choice(list(movement_ref_map.keys()))
+                    ref_type = movement_ref_map[mv_type]
+                    qty = random.randint(1, 8)
+                    stock_before = stock_level
+                    if mv_type in ['PURCHASE', 'RETURN_JOB', 'ADJUSTMENT_IN', 'OPENING']:
+                        stock_after = stock_before + qty
+                    else:
+                        stock_after = max(0, stock_before - qty)
+                    SL.objects.create(
+                        part=part, branch=part.branch,
+                        movement_type=mv_type,
+                        quantity=qty,
+                        unit_cost=part.cost_price,
+                        stock_before=stock_before,
+                        stock_after=stock_after,
+                        reserved_before=part.reserved,
+                        reserved_after=part.reserved,
+                        available_before=stock_before - part.reserved,
+                        available_after=stock_after - part.reserved,
+                        reference_type=ref_type,
+                        reference_number=f'REF-{random.randint(1000,9999)}',
+                        reason=f'{mv_type} operation',
+                        performed_by=admin,
+                    )
+                    stock_level = stock_after
+                    ledger_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {ledger_count} stock ledger entries')
+
+        perf_count = 0
+        supplier_list = list(suppliers) if suppliers else []
+        for supplier in supplier_list[:5]:
+            try:
+                total_orders = random.randint(5, 20)
+                on_time = random.randint(3, total_orders)
+                total_items = random.randint(50, 200)
+                accepted = random.randint(40, total_items)
+                sp = SP.objects.create(
+                    supplier=supplier,
+                    period_start=timezone.now().date() - timedelta(days=90),
+                    period_end=timezone.now().date(),
+                    total_orders=total_orders,
+                    orders_on_time=on_time,
+                    orders_late=total_orders - on_time,
+                    total_items_ordered=total_items,
+                    items_accepted=accepted,
+                    items_rejected=total_items - accepted,
+                    total_value=random.randint(50000, 500000),
+                    price_variance=round(random.uniform(-5000, 5000), 2),
+                    avg_delivery_days=round(random.uniform(2, 7), 2),
+                )
+                sp.calculate_scores()
+                perf_count += 1
+            except Exception:
+                pass
+        self.stdout.write(f'    {perf_count} supplier performance records')
 
     def _seed_config_options(self):
         self.stdout.write('  Seeding configuration options...')

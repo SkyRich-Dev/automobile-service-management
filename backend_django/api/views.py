@@ -2155,6 +2155,13 @@ class InventoryAlertViewSet(viewsets.ModelViewSet):
         return Response(InventoryAlertSerializer(alert).data)
     
     @action(detail=True, methods=['post'])
+    def acknowledge(self, request, pk=None):
+        alert = self.get_object()
+        alert.is_read = True
+        alert.save()
+        return Response(InventoryAlertSerializer(alert).data)
+    
+    @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
         alert = self.get_object()
         alert.resolve(request.user, request.data.get('notes', ''))
@@ -2163,87 +2170,106 @@ class InventoryAlertViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def generate_alerts(self, request):
         branch_id = request.data.get('branch_id')
-        if not branch_id:
-            return Response({'error': 'branch_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        profile = getattr(request.user, 'profile', None)
         
-        branch = Branch.objects.get(id=branch_id)
+        admin_roles = ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER']
+        is_admin = request.user.is_superuser or (profile and profile.role in admin_roles)
+        
+        if branch_id:
+            try:
+                branch = Branch.objects.get(id=branch_id)
+            except Branch.DoesNotExist:
+                return Response({'error': 'Branch not found'}, status=400)
+            if not is_admin and profile and profile.branch and profile.branch_id != branch.id:
+                return Response({'error': 'Not authorized for this branch'}, status=403)
+            branches = [branch]
+        else:
+            if is_admin:
+                branches = list(Branch.objects.filter(is_active=True))
+            elif profile and profile.branch:
+                branches = [profile.branch]
+            else:
+                return Response({'error': 'No branch assigned to your profile'}, status=400)
+        
         alerts_created = []
-        
-        existing_unresolved = InventoryAlert.objects.filter(branch=branch, is_resolved=False)
-        existing_low_stock_parts = set(existing_unresolved.filter(alert_type=AlertType.LOW_STOCK).values_list('part_id', flat=True))
-        existing_overstock_parts = set(existing_unresolved.filter(alert_type=AlertType.OVERSTOCK).values_list('part_id', flat=True))
-        existing_expiry_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRY_WARNING).values_list('part_id', flat=True))
-        existing_expired_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRED).values_list('part_id', flat=True))
-        
-        low_stock = Part.objects.filter(
-            branch=branch,
-            is_active=True,
-            stock__lte=F('min_stock')
-        ).exclude(id__in=existing_low_stock_parts)
-        
-        for part in low_stock:
-            alert = InventoryAlert.objects.create(
-                part=part,
-                branch=branch,
-                alert_type=AlertType.LOW_STOCK,
-                message=f"Low stock alert: {part.name} has {part.stock} units (minimum: {part.min_stock})",
-                severity='CRITICAL' if part.stock == 0 else 'HIGH'
-            )
-            alerts_created.append(alert)
-        
-        overstock = Part.objects.filter(
-            branch=branch,
-            is_active=True,
-            stock__gt=F('max_stock')
-        ).exclude(id__in=existing_overstock_parts)
-        
-        for part in overstock:
-            alert = InventoryAlert.objects.create(
-                part=part,
-                branch=branch,
-                alert_type=AlertType.OVERSTOCK,
-                message=f"Overstock alert: {part.name} has {part.stock} units (maximum: {part.max_stock})",
-                severity='LOW'
-            )
-            alerts_created.append(alert)
-        
         from datetime import timedelta
-        expiry_threshold = timezone.now().date() + timedelta(days=30)
-        expiring = Part.objects.filter(
-            branch=branch,
-            is_active=True,
-            expiry_date__lte=expiry_threshold,
-            expiry_date__gt=timezone.now().date()
-        ).exclude(id__in=existing_expiry_parts)
         
-        for part in expiring:
-            days_left = (part.expiry_date - timezone.now().date()).days
-            alert = InventoryAlert.objects.create(
-                part=part,
+        for branch in branches:
+            existing_unresolved = InventoryAlert.objects.filter(branch=branch, is_resolved=False)
+            existing_low_stock_parts = set(existing_unresolved.filter(alert_type=AlertType.LOW_STOCK).values_list('part_id', flat=True))
+            existing_overstock_parts = set(existing_unresolved.filter(alert_type=AlertType.OVERSTOCK).values_list('part_id', flat=True))
+            existing_expiry_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRY_WARNING).values_list('part_id', flat=True))
+            existing_expired_parts = set(existing_unresolved.filter(alert_type=AlertType.EXPIRED).values_list('part_id', flat=True))
+            
+            low_stock = Part.objects.filter(
                 branch=branch,
-                alert_type=AlertType.EXPIRY_WARNING,
-                message=f"Expiry warning: {part.name} expires in {days_left} days",
-                severity='HIGH' if days_left <= 7 else 'MEDIUM'
-            )
-            alerts_created.append(alert)
-        
-        expired = Part.objects.filter(
-            branch=branch,
-            is_active=True,
-            expiry_date__lte=timezone.now().date()
-        ).exclude(id__in=existing_expired_parts)
-        
-        for part in expired:
-            alert = InventoryAlert.objects.create(
-                part=part,
+                is_active=True,
+                stock__lte=F('min_stock')
+            ).exclude(id__in=existing_low_stock_parts)
+            
+            for part in low_stock:
+                alert = InventoryAlert.objects.create(
+                    part=part,
+                    branch=branch,
+                    alert_type=AlertType.LOW_STOCK,
+                    message=f"Low stock alert: {part.name} has {part.stock} units (minimum: {part.min_stock})",
+                    severity='CRITICAL' if part.stock == 0 else 'HIGH'
+                )
+                alerts_created.append(alert)
+            
+            overstock = Part.objects.filter(
                 branch=branch,
-                alert_type=AlertType.EXPIRED,
-                message=f"Expired stock: {part.name} expired on {part.expiry_date}",
-                severity='CRITICAL'
-            )
-            alerts_created.append(alert)
+                is_active=True,
+                stock__gt=F('max_stock')
+            ).exclude(id__in=existing_overstock_parts)
+            
+            for part in overstock:
+                alert = InventoryAlert.objects.create(
+                    part=part,
+                    branch=branch,
+                    alert_type=AlertType.OVERSTOCK,
+                    message=f"Overstock alert: {part.name} has {part.stock} units (maximum: {part.max_stock})",
+                    severity='LOW'
+                )
+                alerts_created.append(alert)
+            
+            expiry_threshold = timezone.now().date() + timedelta(days=30)
+            expiring = Part.objects.filter(
+                branch=branch,
+                is_active=True,
+                expiry_date__lte=expiry_threshold,
+                expiry_date__gt=timezone.now().date()
+            ).exclude(id__in=existing_expiry_parts)
+            
+            for part in expiring:
+                days_left = (part.expiry_date - timezone.now().date()).days
+                alert = InventoryAlert.objects.create(
+                    part=part,
+                    branch=branch,
+                    alert_type=AlertType.EXPIRY_WARNING,
+                    message=f"Expiry warning: {part.name} expires in {days_left} days",
+                    severity='HIGH' if days_left <= 7 else 'MEDIUM'
+                )
+                alerts_created.append(alert)
+            
+            expired = Part.objects.filter(
+                branch=branch,
+                is_active=True,
+                expiry_date__lte=timezone.now().date()
+            ).exclude(id__in=existing_expired_parts)
+            
+            for part in expired:
+                alert = InventoryAlert.objects.create(
+                    part=part,
+                    branch=branch,
+                    alert_type=AlertType.EXPIRED,
+                    message=f"Expired stock: {part.name} expired on {part.expiry_date}",
+                    severity='CRITICAL'
+                )
+                alerts_created.append(alert)
         
         return Response({
+            'created': len(alerts_created),
             'alerts_created': len(alerts_created),
             'alerts': InventoryAlertSerializer(alerts_created, many=True).data
         })
