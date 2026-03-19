@@ -38,6 +38,14 @@ The system is divided into a backend and a frontend:
   - Alert generation scoped to authorized branches (admin roles get all branches, others get their assigned branch)
   - RBAC permissions explicitly configured for inventory-alerts actions (generate, acknowledge, resolve)
 - **Enterprise Accounts & Finance Module:** Implements a Chart of Accounts, tax rates, enhanced invoicing with full lifecycle, credit notes, payments, expense management, and double-entry bookkeeping.
+  - Accounts & Finance Page: 7 tabs (Dashboard, Invoices, Payments, Expenses, Receivables, Credit Notes, Chart of Accounts)
+  - Dashboard: KPI cards (total revenue, expenses, receivables, payables, profit margin) with period filter
+  - Invoices: Full CRUD with workflow actions (Issue, Approve, Cancel, Record Payment), status filters with live counts, pagination
+  - Payments: Data table with status filters, confirm workflow action, pagination
+  - Expenses: Full CRUD with workflow actions (Submit → Approve → Mark Paid, Reject), status filters, pagination
+  - Chart of Accounts: Create accounts with correct category (ASSETS/LIABILITIES/INCOME/EXPENSES/EQUITY) and type enums, seed defaults
+  - All POST/PUT/DELETE requests include CSRF token via getCsrfToken() for Django SessionAuthentication compatibility
+  - All Django DecimalField string values parsed with parseFloat() helper for display
 - **Admin Panel:** A comprehensive control panel for user, department, role permission, attendance, and integration management.
 - **Enterprise Admin Configuration Center:** Centralized system configuration management with:
   - SystemConfig: Key-value configuration with versioning and rollback capability
