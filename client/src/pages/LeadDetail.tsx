@@ -40,6 +40,7 @@ import {
   FileText,
   History,
   AlertTriangle,
+  UserCheck,
 } from "lucide-react";
 
 interface Lead {
@@ -379,6 +380,19 @@ export default function LeadDetail() {
                       {t('crm.viewCustomer', 'View Customer')}
                     </Button>
                   )}
+                  {lead.status === 'NEGOTIATION' && !lead.converted_customer && (
+                    <Button 
+                      variant="default"
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => handleStatusChange('CUSTOMER')}
+                      disabled={transitionLead.isPending}
+                      data-testid="button-convert-to-customer"
+                    >
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      {t('crm.actions.convertToCustomer', 'Convert to Customer')}
+                    </Button>
+                  )}
                   <Select 
                     value={lead.status} 
                     onValueChange={handleStatusChange}
@@ -390,15 +404,12 @@ export default function LeadDetail() {
                     <SelectContent>
                       {LEAD_STATUSES
                         .filter(status => {
-                          // Hide LOST option for CUSTOMER status
                           if (status.value === 'LOST' && lead.status === 'CUSTOMER') {
                             return false;
                           }
-                          // Only show CUSTOMER option when in NEGOTIATION
                           if (status.value === 'CUSTOMER' && lead.status !== 'NEGOTIATION') {
                             return false;
                           }
-                          // Hide earlier stages when in CUSTOMER
                           const earlierStages = ['NEW', 'CONTACTED', 'QUALIFIED', 'QUOTED', 'NEGOTIATION'];
                           if (lead.status === 'CUSTOMER' && earlierStages.includes(status.value)) {
                             return false;
@@ -450,6 +461,45 @@ export default function LeadDetail() {
                     {isLost && (
                       <div className="mt-2 text-center">
                         <Badge variant="destructive">{t('crm.leadLost', 'Lead Lost')}</Badge>
+                      </div>
+                    )}
+                    {!isLost && lead.status !== 'CUSTOMER' && (
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {lead.status === 'NEW' && t('crm.nextStep.new', 'Next: Mark as Contacted')}
+                          {lead.status === 'CONTACTED' && t('crm.nextStep.contacted', 'Next: Qualify this lead')}
+                          {lead.status === 'QUALIFIED' && t('crm.nextStep.qualified', 'Next: Send a Quote')}
+                          {lead.status === 'QUOTED' && t('crm.nextStep.quoted', 'Next: Start Negotiation')}
+                          {lead.status === 'NEGOTIATION' && t('crm.nextStep.negotiation', 'Next: Convert to Customer')}
+                        </span>
+                        <div className="flex gap-2">
+                          {lead.status === 'NEW' && (
+                            <Button size="sm" variant="outline" onClick={() => handleStatusChange('CONTACTED')} disabled={transitionLead.isPending} data-testid="button-next-step">
+                              {t('crm.actions.markContacted', 'Mark Contacted')}
+                            </Button>
+                          )}
+                          {lead.status === 'CONTACTED' && (
+                            <Button size="sm" variant="outline" onClick={() => handleStatusChange('QUALIFIED')} disabled={transitionLead.isPending} data-testid="button-next-step">
+                              {t('crm.actions.qualify', 'Qualify')}
+                            </Button>
+                          )}
+                          {lead.status === 'QUALIFIED' && (
+                            <Button size="sm" variant="outline" onClick={() => handleStatusChange('QUOTED')} disabled={transitionLead.isPending} data-testid="button-next-step">
+                              {t('crm.actions.sendQuote', 'Send Quote')}
+                            </Button>
+                          )}
+                          {lead.status === 'QUOTED' && (
+                            <Button size="sm" variant="outline" onClick={() => handleStatusChange('NEGOTIATION')} disabled={transitionLead.isPending} data-testid="button-next-step">
+                              {t('crm.actions.startNegotiation', 'Start Negotiation')}
+                            </Button>
+                          )}
+                          {lead.status === 'NEGOTIATION' && (
+                            <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusChange('CUSTOMER')} disabled={transitionLead.isPending} data-testid="button-next-step">
+                              <UserCheck className="h-4 w-4 mr-1" />
+                              {t('crm.actions.convertToCustomer', 'Convert to Customer')}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>

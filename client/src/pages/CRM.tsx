@@ -633,6 +633,15 @@ export default function CRM() {
                             {t('crm.actions.sendQuote', 'Send Quote')}
                           </Button>
                         )}
+                        {lead.status === "QUOTED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => transitionLead.mutate({ id: lead.id, status: "NEGOTIATION" })}
+                          >
+                            {t('crm.actions.startNegotiation', 'Start Negotiation')}
+                          </Button>
+                        )}
                         {lead.status === "NEGOTIATION" && (
                           <Button
                             size="sm"

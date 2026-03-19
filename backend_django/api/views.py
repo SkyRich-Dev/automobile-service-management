@@ -2860,12 +2860,14 @@ class LeadViewSet(viewsets.ModelViewSet):
                     
                     # Create vehicle if lead has vehicle info
                     if lead.vehicle_make or lead.vehicle_model:
+                        import uuid as uuid_mod
                         Vehicle.objects.create(
                             customer=customer,
                             make=lead.vehicle_make or '',
                             model=lead.vehicle_model or '',
                             year=lead.vehicle_year,
-                            plate_number=lead.registration_number or ''
+                            plate_number=lead.registration_number or '',
+                            vin=f"VIN-{uuid_mod.uuid4().hex[:12].upper()}"
                         )
                     
                     CRMEvent.objects.create(
