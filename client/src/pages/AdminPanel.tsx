@@ -2719,6 +2719,7 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
     onSuccess: () => {
       toast({ title: t('admin.settings.saveSuccess', 'Settings saved successfully') });
       queryClient.invalidateQueries({ queryKey: ["/api/system-settings/"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-settings/public/"] });
     },
     onError: () => {
       toast({ title: t('admin.settings.saveError', 'Failed to save settings'), variant: "destructive" });
@@ -2726,66 +2727,130 @@ function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   });
 
   const handleSave = () => {
-    const settingsArray = Object.entries(formData).map(([key, value]) => ({
-      key,
-      value,
-      category: "general",
-    }));
+    const categoryMap: Record<string, string> = {};
+    const knownKeys = new Set<string>();
+    settingSections.forEach(section => {
+      section.fields.forEach(field => {
+        categoryMap[field.key] = section.category;
+        knownKeys.add(field.key);
+      });
+    });
+    const settingsArray = Object.entries(formData)
+      .filter(([key]) => knownKeys.has(key))
+      .map(([key, value]) => ({
+        key,
+        value,
+        category: categoryMap[key],
+      }));
     updateMutation.mutate({ settings: settingsArray });
   };
 
-  const settingFields = [
-    { key: "company_name", label: "Company Name", type: "text" },
-    { key: "gst_number", label: "GST Number", type: "text" },
-    { key: "default_tax_rate", label: "Default Tax Rate (%)", type: "number" },
-    { key: "currency_code", label: "Currency Code", type: "text" },
-    { key: "timezone", label: "Timezone", type: "text" },
+  const settingSections = [
+    {
+      title: "Company Information",
+      category: "general",
+      icon: "building",
+      fields: [
+        { key: "company_name", label: "Company Name", type: "text", placeholder: "AutoServ Solutions Pvt Ltd" },
+        { key: "company_short_name", label: "Short Name (Sidebar/Header)", type: "text", placeholder: "AutoServ" },
+        { key: "company_tagline", label: "Tagline", type: "text", placeholder: "Enterprise Automotive Management" },
+        { key: "footer_text", label: "Footer Text", type: "text", placeholder: "2026 AutoServ Enterprise. All rights reserved." },
+        { key: "support_email", label: "Support Email", type: "email", placeholder: "support@company.com" },
+        { key: "support_phone", label: "Support Phone", type: "tel", placeholder: "+91 98765 43210" },
+      ],
+    },
+    {
+      title: "Tax & Finance",
+      category: "finance",
+      icon: "currency",
+      fields: [
+        { key: "gst_number", label: "GST Number", type: "text", placeholder: "27AABCU9603R1ZM" },
+        { key: "default_tax_rate", label: "Default Tax Rate (%)", type: "number", placeholder: "18" },
+        { key: "currency_code", label: "Currency Code", type: "text", placeholder: "INR" },
+        { key: "currency_symbol", label: "Currency Symbol", type: "text", placeholder: "₹" },
+        { key: "default_payment_terms", label: "Default Payment Terms", type: "text", placeholder: "Net 30" },
+        { key: "max_discount_percent", label: "Max Discount (%)", type: "number", placeholder: "15" },
+        { key: "min_margin_percent", label: "Min Margin (%)", type: "number", placeholder: "10" },
+      ],
+    },
+    {
+      title: "Document Prefixes",
+      category: "documents",
+      icon: "file",
+      fields: [
+        { key: "invoice_prefix", label: "Invoice Prefix", type: "text", placeholder: "INV" },
+        { key: "job_card_prefix", label: "Job Card Prefix", type: "text", placeholder: "JC" },
+        { key: "po_prefix", label: "PO Prefix", type: "text", placeholder: "PO" },
+        { key: "grn_prefix", label: "GRN Prefix", type: "text", placeholder: "GRN" },
+        { key: "credit_note_prefix", label: "Credit Note Prefix", type: "text", placeholder: "CN" },
+        { key: "customer_id_prefix", label: "Customer ID Prefix", type: "text", placeholder: "CUST" },
+      ],
+    },
+    {
+      title: "Regional Settings",
+      category: "regional",
+      icon: "globe",
+      fields: [
+        { key: "timezone", label: "Timezone", type: "text", placeholder: "Asia/Kolkata" },
+        { key: "country", label: "Country", type: "text", placeholder: "India" },
+        { key: "date_format", label: "Date Format", type: "text", placeholder: "DD/MM/YYYY" },
+      ],
+    },
   ];
 
   return (
-    <Card className="border-border/50 overflow-visible">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Settings className="h-5 w-5 text-primary" />
-          {t('admin.settings.title', 'System Settings')}
-        </CardTitle>
-        <CardDescription>{t('admin.settings.description', 'Configure global application settings')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {settingFields.map((field) => (
-            <div key={field.key} className="space-y-2">
-              <Label htmlFor={field.key}>{field.label}</Label>
-              <Input
-                id={field.key}
-                type={field.type}
-                value={formData[field.key] || ""}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, [field.key]: e.target.value }))
-                }
-                data-testid={`input-${field.key}`}
-              />
+    <div className="space-y-6">
+      {settingSections.map((section) => (
+        <Card key={section.title} className="border-border/50 overflow-visible">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {section.title}
+            </CardTitle>
+            <CardDescription>
+              {section.category === 'general' ? 'Company identity and branding settings' :
+               section.category === 'finance' ? 'Tax, currency, and financial configuration' :
+               section.category === 'documents' ? 'Document numbering prefixes' :
+               'Regional and localization preferences'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {section.fields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Input
+                    id={field.key}
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    value={formData[field.key] || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    data-testid={`input-${field.key}`}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="flex justify-end pt-4">
-          <Button
-            onClick={handleSave}
-            disabled={updateMutation.isPending}
-            data-testid="button-save-settings"
-          >
-            {updateMutation.isPending ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                {t('admin.settings.saving', 'Saving...')}
-              </>
-            ) : (
-              t('admin.settings.saveSettings', 'Save Settings')
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      ))}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={updateMutation.isPending}
+          data-testid="button-save-settings"
+        >
+          {updateMutation.isPending ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              {t('admin.settings.saving', 'Saving...')}
+            </>
+          ) : (
+            t('admin.settings.saveSettings', 'Save Settings')
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
 

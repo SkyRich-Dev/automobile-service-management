@@ -1872,6 +1872,41 @@ class Command(BaseCommand):
                     )
             except Exception:
                 pass
+
+        from api.models import SystemSetting
+        system_settings = [
+            ('company_name', 'AutoServ Solutions Pvt Ltd', 'general', 'Company display name'),
+            ('company_short_name', 'AutoServ', 'general', 'Short company name for sidebar/header'),
+            ('company_tagline', 'Enterprise Automotive Management', 'general', 'Company tagline'),
+            ('footer_text', '2026 AutoServ Enterprise. By SkyRich. All rights reserved.', 'general', 'Footer copyright text'),
+            ('support_email', 'support@autoserv.app', 'general', 'Support email address'),
+            ('support_phone', '+91 98765 43210', 'general', 'Support phone number'),
+            ('gst_number', '27AABCU9603R1ZM', 'finance', 'GST registration number'),
+            ('default_tax_rate', '18', 'finance', 'Default tax rate percentage'),
+            ('currency_code', 'INR', 'finance', 'Default currency code'),
+            ('currency_symbol', '₹', 'finance', 'Default currency symbol'),
+            ('timezone', 'Asia/Kolkata', 'regional', 'Default timezone'),
+            ('country', 'India', 'regional', 'Default country'),
+            ('date_format', 'DD/MM/YYYY', 'regional', 'Date display format'),
+            ('invoice_prefix', 'INV', 'documents', 'Invoice number prefix'),
+            ('job_card_prefix', 'JC', 'documents', 'Job card number prefix'),
+            ('po_prefix', 'PO', 'documents', 'Purchase order number prefix'),
+            ('grn_prefix', 'GRN', 'documents', 'GRN number prefix'),
+            ('credit_note_prefix', 'CN', 'documents', 'Credit note number prefix'),
+            ('customer_id_prefix', 'CUST', 'documents', 'Customer ID prefix'),
+            ('default_payment_terms', 'Net 30', 'finance', 'Default payment terms'),
+            ('max_discount_percent', '15', 'finance', 'Maximum discount percentage allowed'),
+            ('min_margin_percent', '10', 'finance', 'Minimum margin percentage required'),
+        ]
+        count = 0
+        for key, value, category, desc in system_settings:
+            _, created = SystemSetting.objects.get_or_create(
+                key=key,
+                defaults={'value': value, 'category': category, 'description': desc}
+            )
+            if created:
+                count += 1
+        self.stdout.write(f'    {count} system settings seeded')
         self.stdout.write('    Config options seeded')
 
     def _seed_admin_config(self, branches, users):

@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/lib/settings-context";
 import { cn } from "@/lib/utils";
 import {
   CreditCard,
@@ -41,6 +42,7 @@ export function PaymentDialog({
   onPaymentSuccess,
 }: PaymentDialogProps) {
   const { toast } = useToast();
+  const { getSetting } = useSettings();
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway>('stripe');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
 
@@ -79,7 +81,7 @@ export function PaymentDialog({
       const response = await apiRequest('POST', '/api/razorpay/create-order', {
         amount,
         invoiceId,
-        currency: 'INR',
+        currency: getSetting('currency_code', 'INR'),
       });
       return response.json();
     },
@@ -98,7 +100,7 @@ export function PaymentDialog({
         key: (razorpayConfig as any)?.keyId,
         amount: data.amount,
         currency: data.currency,
-        name: 'AutoServ Enterprise',
+        name: getSetting('company_name', 'AutoServ Enterprise'),
         description: `Invoice ${invoiceNumber}`,
         order_id: data.orderId,
         handler: async function (response: any) {
@@ -211,7 +213,7 @@ export function PaymentDialog({
                   <span className="text-2xl font-bold">
                     {new Intl.NumberFormat('en-IN', {
                       style: 'currency',
-                      currency: 'INR',
+                      currency: getSetting('currency_code', 'INR'),
                     }).format(amount)}
                   </span>
                 </div>

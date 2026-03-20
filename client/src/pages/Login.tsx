@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
+import { useSettings } from "@/lib/settings-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { t } = useTranslation();
   const { loginAsync, isLoggingIn, loginError } = useAuth();
+  const { getSetting } = useSettings();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -43,10 +45,10 @@ export default function Login() {
             <Car className="h-8 w-8 text-white" />
           </div>
           <h1 className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-3xl font-bold tracking-tight text-transparent">
-            AutoServ
+            {getSetting('company_short_name', 'AutoServ')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('auth.tagline', 'Enterprise Automotive Management')}
+            {t('auth.tagline', getSetting('company_tagline', 'Enterprise Automotive Management'))}
           </p>
         </div>
 
@@ -115,7 +117,7 @@ export default function Login() {
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          2026 AutoServ Enterprise. By SkyRich. All rights reserved.
+          {getSetting('footer_text', '2026 AutoServ Enterprise. All rights reserved.')}
         </p>
       </div>
     </div>

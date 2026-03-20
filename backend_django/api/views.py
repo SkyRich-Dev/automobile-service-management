@@ -2535,7 +2535,17 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
         if category:
             queryset = queryset.filter(category=category)
         return queryset
-    
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny], url_path='public')
+    def public_settings(self, request):
+        PUBLIC_KEYS = [
+            'company_name', 'company_short_name', 'company_tagline',
+            'footer_text', 'support_email', 'support_phone',
+            'currency_code', 'currency_symbol',
+        ]
+        settings = SystemSetting.objects.filter(key__in=PUBLIC_KEYS)
+        return Response(SystemSettingSerializer(settings, many=True).data)
+
     @action(detail=False, methods=['get'])
     def by_category(self, request):
         settings = SystemSetting.objects.all()

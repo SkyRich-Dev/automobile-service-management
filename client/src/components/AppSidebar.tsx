@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
 import { useSidebar } from "@/lib/sidebar-context";
+import { useSettings } from "@/lib/settings-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
@@ -242,6 +243,7 @@ export function AppSidebar() {
   const { user, profile, logout } = useAuth();
   const { t } = useTranslation();
   const { isCollapsed, toggleSidebar, selectedBranch, setSelectedBranch } = useSidebar();
+  const { getSetting } = useSettings();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(["accountsFinance"]);
 
   const { data: branches } = useQuery<Branch[]>({
@@ -431,7 +433,7 @@ export function AppSidebar() {
         </div>
         {!isCollapsed && (
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-base font-bold tracking-tight">AutoServ</span>
+            <span className="truncate text-base font-bold tracking-tight">{getSetting('company_short_name', 'AutoServ')}</span>
             <span className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/50">
               Enterprise
             </span>

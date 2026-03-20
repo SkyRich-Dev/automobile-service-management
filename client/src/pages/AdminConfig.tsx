@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient, getCsrfToken } from '@/lib/queryClient';
+import { useSettings } from '@/lib/settings-context';
 
 const n = (v: any) => (v == null ? 0 : typeof v === 'string' ? parseFloat(v) || 0 : Number(v));
 
@@ -566,6 +567,8 @@ function CreateWorkflowForm({ onSubmit }: { onSubmit: (d: any) => void }) {
 }
 
 function ApprovalRulesTab({ data }: { data: any[] | undefined }) {
+  const { getSetting } = useSettings();
+  const cs = getSetting('currency_symbol', '₹');
   const [createOpen, setCreateOpen] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const createMut = usePost("/api/admin-config/approval-rules/", ["/api/admin-config/approval-rules/", "/api/admin-config/dashboard/overview/"], "Approval rule created");
@@ -593,7 +596,7 @@ function ApprovalRulesTab({ data }: { data: any[] | undefined }) {
                   <TableCell><ModuleBadge module={r.module} /></TableCell>
                   <TableCell>{r.entity_type}</TableCell>
                   <TableCell><Badge variant="outline">{r.approval_type}</Badge></TableCell>
-                  <TableCell>{r.auto_approve_threshold ? `₹${n(r.auto_approve_threshold).toLocaleString()}` : '-'}</TableCell>
+                  <TableCell>{r.auto_approve_threshold ? `${cs}${n(r.auto_approve_threshold).toLocaleString()}` : '-'}</TableCell>
                   <TableCell>{r.escalation_hours}h</TableCell>
                   <TableCell><StatusBadge active={r.is_active} /></TableCell>
                   <TableCell>
@@ -627,13 +630,13 @@ function ApprovalRulesTab({ data }: { data: any[] | undefined }) {
                     <div key={i} className="flex items-center gap-2 p-2 bg-muted/50 rounded">
                       <Badge variant="secondary">L{l.level}</Badge>
                       <span className="text-sm font-medium">{l.role}</span>
-                      {l.threshold && <span className="text-xs text-muted-foreground ml-auto">up to ₹{n(l.threshold).toLocaleString()}</span>}
+                      {l.threshold && <span className="text-xs text-muted-foreground ml-auto">up to {cs}{n(l.threshold).toLocaleString()}</span>}
                     </div>
                   ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs text-muted-foreground">Auto-Approve Below</Label><p>₹{n(detail.auto_approve_threshold).toLocaleString()}</p></div>
+                <div><Label className="text-xs text-muted-foreground">Auto-Approve Below</Label><p>{cs}{n(detail.auto_approve_threshold).toLocaleString()}</p></div>
                 <div><Label className="text-xs text-muted-foreground">Escalation</Label><p>{detail.escalation_hours} hours</p></div>
               </div>
             </div>
