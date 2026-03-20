@@ -67,10 +67,11 @@ const STAGE_COLORS = [
 ];
 
 export default function Analytics() {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const [period, setPeriod] = useState("30");
+  const branchQ = selectedBranch && selectedBranch !== 'all' ? `&branch_id=${selectedBranch}` : '';
 
   const STAGE_LABELS: Record<string, string> = {
     APPOINTMENT: t('analytics.stages.appointment', 'Appointment'),
@@ -87,9 +88,9 @@ export default function Analytics() {
   };
 
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
-    queryKey: ["analytics", "summary", period],
+    queryKey: ["analytics", "summary", period, selectedBranch],
     queryFn: async () => {
-      const res = await fetch(`/api/analytics/summary/?days=${period}`, { credentials: "include" });
+      const res = await fetch(`/api/analytics/summary/?days=${period}${branchQ}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch analytics");
       return res.json();
     },

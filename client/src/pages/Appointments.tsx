@@ -107,7 +107,7 @@ const SERVICE_TYPES = [
 ];
 
 export default function Appointments() {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const { t } = useTranslation();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -129,11 +129,14 @@ export default function Appointments() {
   });
 
   const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
-    queryKey: ["appointments", selectedDate, statusFilter],
+    queryKey: ["appointments", selectedDate, statusFilter, selectedBranch],
     queryFn: async () => {
       let url = `/api/appointments/?date=${selectedDate}`;
       if (statusFilter !== "all") {
         url += `&status=${statusFilter}`;
+      }
+      if (selectedBranch && selectedBranch !== 'all') {
+        url += `&branch_id=${selectedBranch}`;
       }
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch appointments");

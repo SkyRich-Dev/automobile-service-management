@@ -223,6 +223,7 @@ export default function HRMS() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { toast } = useToast();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const search = useSearch();
   const [, setLocation] = useLocation();
   
@@ -265,7 +266,13 @@ export default function HRMS() {
   });
 
   const { data: employees = [], isLoading: employeesLoading } = useQuery<Employee[]>({
-    queryKey: ["/api/hrms/employees/"],
+    queryKey: ["/api/hrms/employees/", selectedBranch],
+    queryFn: async () => {
+      const url = selectedBranch && selectedBranch !== 'all' ? `/api/hrms/employees/?branch_id=${selectedBranch}` : '/api/hrms/employees/';
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("err");
+      return res.json();
+    },
   });
 
   const { data: trainingPrograms = [], isLoading: trainingLoading } = useQuery<TrainingProgram[]>({
@@ -357,7 +364,6 @@ export default function HRMS() {
     return levelConfig?.color || "bg-gray-100 text-gray-800";
   };
 
-  const { isCollapsed } = useSidebar();
 
   return (
     <div className="flex min-h-screen bg-background">

@@ -487,7 +487,7 @@ function TimelineCard({ item, formatCurrency, t }: { item: TimelineItem; formatC
 export default function ServiceHistoryTimeline() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");

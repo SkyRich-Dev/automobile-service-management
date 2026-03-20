@@ -1418,8 +1418,8 @@ function ServiceHistoryView() {
 export default function ServiceOperations() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
-  const { isCollapsed } = useSidebar();
-  const { data: jobCards, isLoading, refetch } = useJobCards();
+  const { isCollapsed, selectedBranch } = useSidebar();
+  const { data: jobCards, isLoading, refetch } = useJobCards(undefined, selectedBranch);
   const transitionMutation = useTransitionJobCard();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);

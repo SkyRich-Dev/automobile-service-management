@@ -8,6 +8,16 @@ function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
   return headers;
 }
 
+function branchUrl(base: string, branchId?: string, extraParams?: string): string {
+  const params = new URLSearchParams();
+  if (branchId && branchId !== 'all') params.set('branch', branchId);
+  if (extraParams) {
+    new URLSearchParams(extraParams).forEach((v, k) => params.set(k, v));
+  }
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
 interface Part {
   id: number;
   name: string;
@@ -256,11 +266,11 @@ interface SupplierPerformance {
 
 const API_BASE = "/api";
 
-export function useParts() {
+export function useParts(branchId?: string) {
   return useQuery<Part[]>({
-    queryKey: ["parts"],
+    queryKey: ["parts", branchId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/parts/`, { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/parts/`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch parts");
       return res.json();
     },
@@ -305,7 +315,7 @@ export function useUpdatePart() {
   });
 }
 
-export function usePartReservations() {
+export function usePartReservations(branchId?: string) {
   return useQuery<PartReservation[]>({
     queryKey: ["part-reservations"],
     queryFn: async () => {
@@ -355,44 +365,44 @@ export function useReleaseReservation() {
   });
 }
 
-export function useGRNs() {
+export function useGRNs(branchId?: string) {
   return useQuery<GRN[]>({
-    queryKey: ["grns"],
+    queryKey: ["grns", branchId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/grns/`, { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/grns/`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch GRNs");
       return res.json();
     },
   });
 }
 
-export function useStockTransfers() {
+export function useStockTransfers(branchId?: string) {
   return useQuery<StockTransfer[]>({
-    queryKey: ["stock-transfers"],
+    queryKey: ["stock-transfers", branchId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/stock-transfers/`, { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/stock-transfers/`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stock transfers");
       return res.json();
     },
   });
 }
 
-export function usePurchaseRequisitions() {
+export function usePurchaseRequisitions(branchId?: string) {
   return useQuery<PurchaseRequisition[]>({
-    queryKey: ["purchase-requisitions"],
+    queryKey: ["purchase-requisitions", branchId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/purchase-requisitions/`, { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/purchase-requisitions/`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch purchase requisitions");
       return res.json();
     },
   });
 }
 
-export function useInventoryAlerts() {
+export function useInventoryAlerts(branchId?: string) {
   return useQuery<InventoryAlert[]>({
-    queryKey: ["inventory-alerts"],
+    queryKey: ["inventory-alerts", branchId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/inventory-alerts/`, { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/inventory-alerts/`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch inventory alerts");
       return res.json();
     },

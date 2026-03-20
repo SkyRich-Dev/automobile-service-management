@@ -272,9 +272,10 @@ export default function AccountsFinance() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { formatCurrency } = useLocalization();
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
+  const branchQ = selectedBranch && selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
 
   const [searchTerm, setSearchTerm] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
@@ -314,10 +315,22 @@ export default function AccountsFinance() {
     if (searchString) setActiveTabState(getTabFromSearch(searchString));
   }, [searchString, getTabFromSearch]);
 
-  const { data: dashboard, isLoading: dashboardLoading } = useQuery<FinanceDashboard>({ queryKey: ["/api/finance/dashboard/"] });
-  const { data: invoices, isLoading: invoicesLoading } = useQuery<EnhancedInvoice[]>({ queryKey: ["/api/finance/enhanced-invoices/"] });
-  const { data: payments, isLoading: paymentsLoading } = useQuery<EnhancedPayment[]>({ queryKey: ["/api/finance/enhanced-payments/"] });
-  const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({ queryKey: ["/api/finance/expenses/"] });
+  const { data: dashboard, isLoading: dashboardLoading } = useQuery<FinanceDashboard>({
+    queryKey: ["/api/finance/dashboard/", selectedBranch],
+    queryFn: async () => { const res = await fetch(`/api/finance/dashboard/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+  });
+  const { data: invoices, isLoading: invoicesLoading } = useQuery<EnhancedInvoice[]>({
+    queryKey: ["/api/finance/enhanced-invoices/", selectedBranch],
+    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-invoices/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+  });
+  const { data: payments, isLoading: paymentsLoading } = useQuery<EnhancedPayment[]>({
+    queryKey: ["/api/finance/enhanced-payments/", selectedBranch],
+    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-payments/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+  });
+  const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
+    queryKey: ["/api/finance/expenses/", selectedBranch],
+    queryFn: async () => { const res = await fetch(`/api/finance/expenses/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+  });
   const { data: receivables } = useQuery<CustomerReceivable[]>({ queryKey: ["/api/finance/receivables/"] });
   const { data: accounts } = useQuery<Account[]>({ queryKey: ["/api/finance/accounts/"] });
   const { data: creditNotes } = useQuery<CreditNote[]>({ queryKey: ["/api/finance/credit-notes/"] });

@@ -204,7 +204,7 @@ const AUDIT_ACTION_COLORS: Record<string, string> = {
 };
 
 export default function Contracts() {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { toast } = useToast();
@@ -267,11 +267,12 @@ export default function Contracts() {
   });
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
-    queryKey: ["/api/contracts/", typeFilter, statusFilter],
+    queryKey: ["/api/contracts/", typeFilter, statusFilter, selectedBranch],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("contract_type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (selectedBranch && selectedBranch !== 'all') params.append("branch", selectedBranch);
       const url = `/api/contracts/${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch contracts");
@@ -280,9 +281,10 @@ export default function Contracts() {
   });
 
   const { data: dashboardStats } = useQuery<DashboardStats>({
-    queryKey: ["/api/contracts/", "dashboard_stats"],
+    queryKey: ["/api/contracts/", "dashboard_stats", selectedBranch],
     queryFn: async () => {
-      const res = await fetch("/api/contracts/dashboard_stats/", { credentials: "include" });
+      const branchQ = selectedBranch && selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
+      const res = await fetch(`/api/contracts/dashboard_stats/${branchQ}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },

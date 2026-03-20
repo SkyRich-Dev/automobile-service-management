@@ -165,9 +165,15 @@ export interface Customer360 {
   }>;
 }
 
-export function useUnifiedDashboard() {
+export function useUnifiedDashboard(branchId?: string) {
+  const branchParam = branchId && branchId !== 'all' ? `?branch=${branchId}` : '';
   return useQuery<UnifiedDashboard>({
-    queryKey: ["/api/integration/unified_dashboard/"],
+    queryKey: ["/api/integration/unified_dashboard/", branchId],
+    queryFn: async () => {
+      const res = await fetch(`/api/integration/unified_dashboard/${branchParam}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch unified dashboard");
+      return res.json();
+    },
     staleTime: 1000 * 60 * 2,
     refetchInterval: 1000 * 60 * 5,
   });

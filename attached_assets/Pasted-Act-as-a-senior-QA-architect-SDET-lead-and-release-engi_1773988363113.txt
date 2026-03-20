@@ -1,0 +1,175 @@
+Act as a senior QA architect, SDET lead, and release engineer. Your job is to audit, test, validate, and harden the entire system end-to-end. I want you to create a complete testing and quality assurance framework for this project, execute a full test strategy across all layers, identify defects, fix them properly, and re-run tests until the system is stable.
+
+Project goal:
+Build a production-grade testing workflow that covers frontend, backend, database, APIs, authentication, integrations, security, performance, usability, error handling, logging, and deployment readiness. Do not do superficial testing. Perform deep testing and systematic defect fixing.
+
+Your responsibilities:
+1. Understand the full codebase, architecture, modules, dependencies, and data flow.
+2. Map the system into testable units and subsystems.
+3. Create a complete QA strategy and testing pipeline.
+4. Write, organize, and run all required tests.
+5. Detect failures, root causes, edge cases, and weak points.
+6. Fix issues correctly, not with temporary patches.
+7. Re-test after every fix.
+8. Produce a final quality report with coverage, defects fixed, remaining risks, and go-live readiness.
+
+Testing scope to implement:
+A. Unit Testing
+- Test every core function, service, helper, utility, validator, data transformer, and business rule.
+- Cover normal cases, edge cases, invalid input, null/undefined states, exceptions, and boundary conditions.
+- Target high branch and statement coverage.
+
+B. Integration Testing
+- Test module-to-module communication.
+- Test frontend-backend interactions.
+- Test API-service-database flow.
+- Test authentication and authorization flows.
+- Test third-party integrations, webhooks, queues, file uploads, email, payment, calendar, CRM, or any external connectors in the system.
+- Mock external services where needed, but also create safe integration validation for real flows when possible.
+
+C. System Testing
+- Test the full application as one connected system.
+- Verify all key business workflows from start to finish.
+- Validate state changes, transactions, persistence, retries, and rollback behavior.
+
+D. End-to-End Testing
+- Simulate real user journeys in the browser and across the app.
+- Cover login, signup, profile management, dashboards, forms, CRUD actions, search, filters, notifications, reports, file handling, admin actions, and role-based access.
+- Confirm UI behavior, backend updates, and database consistency.
+
+E. Regression Testing
+- Build a regression suite so that every bug fixed gets a permanent test case.
+- Re-run the full regression pack after each major fix.
+- Ensure new changes do not break existing features.
+
+F. Smoke and Sanity Testing
+- Add a fast smoke suite for every build.
+- Add sanity tests for changed modules after bug fixes.
+
+G. API Testing
+- Test all endpoints for success, validation errors, auth failures, rate limits, malformed payloads, idempotency where applicable, pagination, sorting, filtering, and error responses.
+- Validate response schema, status codes, and business correctness.
+
+H. UI and UX Testing
+- Test rendering, responsiveness, navigation, accessibility basics, forms, validation messages, loading states, disabled states, empty states, and error states.
+- Check mobile, tablet, and desktop responsiveness.
+- Catch broken layouts, console errors, and inconsistent state.
+
+I. Database Testing
+- Validate schema assumptions, constraints, indexes, migrations, seed data, relations, transactions, data integrity, and rollback safety.
+- Test create, read, update, delete flows and concurrency-sensitive operations.
+
+J. Security Testing
+- Audit and test for auth flaws, broken access control, insecure direct object reference, weak input validation, injection risks, XSS, CSRF risks, unsafe file upload behavior, secret leakage, misconfigured permissions, insecure logging, and dependency vulnerabilities.
+- Verify session management, token handling, password flows, and protected routes.
+- Add secure defaults where missing.
+
+K. Performance and Load Testing
+- Measure response times, slow queries, bundle size issues, render bottlenecks, memory-heavy operations, and repeated unnecessary network calls.
+- Stress important APIs and workflows.
+- Identify performance bottlenecks and optimize safely.
+
+L. Reliability and Failure Testing
+- Test how the system behaves on invalid input, timeouts, missing environment variables, partial service failure, DB disconnection, expired tokens, duplicate requests, race conditions, and retry scenarios.
+- Make sure failures are handled gracefully with useful logs and user-friendly messages.
+
+M. Deployment Readiness Testing
+- Validate environment configuration, production build, startup scripts, health checks, logging, monitoring hooks, and CI/CD readiness.
+- Ensure no debug-only logic or hardcoded credentials remain.
+
+Implementation requirements:
+1. First inspect the whole project and generate a QA plan before changing anything.
+2. Create a clear folder structure for tests such as:
+   - /tests/unit
+   - /tests/integration
+   - /tests/e2e
+   - /tests/api
+   - /tests/performance
+   - /tests/security
+   - /tests/regression
+3. Use the best testing stack for the project language/framework already present.
+   Examples:
+   - JavaScript/TypeScript: Vitest or Jest, Testing Library, Playwright or Cypress, Supertest
+   - Python: Pytest
+   - API: Postman/Newman or code-based API suites
+4. Add test utilities, factories, fixtures, mocks, seed data, and environment setup for reliable repeatable testing.
+5. Add linting, type checks, and static analysis if missing.
+6. Add scripts in package.json or equivalent for:
+   - test
+   - test:unit
+   - test:integration
+   - test:e2e
+   - test:api
+   - test:smoke
+   - test:regression
+   - test:coverage
+   - test:performance
+   - lint
+   - typecheck
+7. Set up code coverage reporting.
+8. Add CI workflow so tests run automatically on every commit/pull request.
+9. Ensure tests are deterministic and not flaky.
+10. Document how to run all tests locally and in CI.
+
+Defect fixing rules:
+- Do not hide failures by weakening assertions unless truly justified.
+- Do not skip failing tests without documenting an explicit technical reason.
+- Do not use mock-heavy shortcuts to pretend the system works.
+- Fix root causes in code, architecture, validation, state handling, or configuration.
+- For each bug found, add or update a test to prevent recurrence.
+- Re-run impacted suites after every fix and then re-run full regression before concluding.
+
+Execution workflow:
+Step 1: Analyze the codebase and generate:
+- system architecture summary
+- module list
+- risk areas
+- critical business flows
+- testing matrix by module and test type
+
+Step 2: Set up all testing infrastructure and scripts.
+
+Step 3: Write the initial full suite of tests across all relevant levels.
+
+Step 4: Run tests and produce a categorized defect report:
+- critical
+- high
+- medium
+- low
+
+Step 5: Fix defects systematically in priority order.
+
+Step 6: Re-run all related tests after each fix.
+
+Step 7: Optimize where performance, security, or reliability issues are found.
+
+Step 8: Produce final deliverables.
+
+Final deliverables required:
+1. Complete automated test suite.
+2. Coverage report.
+3. Bug report with root cause and fix summary.
+4. Final QA report containing:
+   - what was tested
+   - what failed initially
+   - what was fixed
+   - remaining risks
+   - test coverage summary
+   - performance observations
+   - security observations
+   - deployment readiness status
+5. README section explaining how to run the full QA pipeline.
+6. CI/CD workflow configuration for automated testing.
+7. A final release recommendation: ready, ready with minor risk, or not ready.
+
+Quality bar:
+- Be extremely thorough.
+- Assume production standards.
+- Catch hidden issues, not just obvious ones.
+- Do not stop at test creation; continue through defect fixing and validation.
+- Keep iterating until the system is stable or clearly document blockers that prevent full completion.
+
+Important:
+Before making any fix, inspect existing architecture and preserve intended business logic.
+Where requirements are ambiguous, infer the safest and most production-ready behavior from surrounding code and UX.
+At the end, give a concise executive summary and a technical summary.

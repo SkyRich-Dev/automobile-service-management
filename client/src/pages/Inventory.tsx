@@ -1783,11 +1783,11 @@ function AnalyticsTab() {
 
 export default function Inventory() {
   const { t } = useTranslation();
-  const { isCollapsed } = useSidebar();
-  const { data: alerts } = useInventoryAlerts();
-  const { data: reservations } = usePartReservations();
-  const { data: parts } = useParts();
-  const { data: grns } = useGRNs();
+  const { isCollapsed, selectedBranch } = useSidebar();
+  const { data: alerts } = useInventoryAlerts(selectedBranch);
+  const { data: reservations } = usePartReservations(selectedBranch);
+  const { data: parts } = useParts(selectedBranch);
+  const { data: grns } = useGRNs(selectedBranch);
   const { data: adjustments } = useStockAdjustments();
   const { data: returns } = useStockReturns();
   const { data: dashboard } = useInventoryDashboard();

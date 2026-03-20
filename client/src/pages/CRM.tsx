@@ -183,24 +183,40 @@ function LoadingSkeleton() {
 export default function CRM() {
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
+  const branchParam = selectedBranch && selectedBranch !== 'all' ? `?branch_id=${selectedBranch}` : '';
   const { data: customers, isLoading: customersLoading } = useCustomers();
   const { toast } = useToast();
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: dashboard, isLoading: dashboardLoading } = useQuery<CRMDashboard>({
-    queryKey: ["/api/crm/dashboard/"],
+    queryKey: ["/api/crm/dashboard/", selectedBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/crm/dashboard/${branchParam}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch CRM dashboard");
+      return res.json();
+    },
   });
 
   const { data: leads = [], isLoading: leadsLoading } = useQuery<Lead[]>({
-    queryKey: ["/api/leads/"],
+    queryKey: ["/api/leads/", selectedBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads/${branchParam}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch leads");
+      return res.json();
+    },
   });
 
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery<TicketData[]>({
-    queryKey: ["/api/tickets/"],
+    queryKey: ["/api/tickets/", selectedBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/tickets/${branchParam.replace('branch_id', 'branch')}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch tickets");
+      return res.json();
+    },
   });
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<FollowUpTask[]>({

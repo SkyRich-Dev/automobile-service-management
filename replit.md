@@ -64,7 +64,7 @@ The system is divided into a backend and a frontend:
 - **State Machine:** Core service workflow is managed by a robust state machine for consistent transitions.
 - **Immutability:** Critical events like service events and financial transactions are recorded with immutable audit logs.
 - **Modular Design:** The system is structured into distinct modules (CRM, Contracts, Inventory, Finance) for scalability and maintainability.
-- **Multi-branch Support:** Designed to operate across multiple business branches.
+- **Multi-branch Support:** Designed to operate across multiple business branches. Branch independence is enforced: sidebar branch selector filters all modules (Dashboard, Appointments, Service Operations, Inventory, CRM, Accounts & Finance, HRMS, Suppliers, Analytics, Contracts). Backend ViewSets accept `?branch=ID` or `?branch_id=ID` query parameter (both supported). Frontend uses `selectedBranch` from `useSidebar()` context, persisted in localStorage. Suppliers are shared across branches (no branch field on Supplier model); Purchase Orders are branch-filtered.
 
 ## External Dependencies
 

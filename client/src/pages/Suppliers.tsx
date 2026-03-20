@@ -140,7 +140,7 @@ const PAYMENT_TERMS_OPTIONS = [
 ];
 
 export default function Suppliers() {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, selectedBranch } = useSidebar();
   const { t } = useTranslation();
   const { formatCurrency } = useLocalization();
   const { toast } = useToast();
@@ -377,6 +377,7 @@ export default function Suppliers() {
     }, 0);
   };
 
+  const branchQ = selectedBranch && selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<Supplier[]>({
     queryKey: ["suppliers"],
     queryFn: async () => {
@@ -387,9 +388,9 @@ export default function Suppliers() {
   });
 
   const { data: purchaseOrders = [], isLoading: ordersLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ["purchase-orders"],
+    queryKey: ["purchase-orders", selectedBranch],
     queryFn: async () => {
-      const res = await fetch("/api/purchase-orders/", { credentials: "include" });
+      const res = await fetch(`/api/purchase-orders/${branchQ}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
       return res.json();
     },

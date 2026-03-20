@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useJobCards } from "@/hooks/use-job-cards";
 import { useUnifiedDashboard } from "@/hooks/use-integration";
+import { useQuery } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
 import { useSidebar } from "@/lib/sidebar-context";
@@ -113,10 +114,18 @@ function LoadingSkeleton() {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data: jobCards, isLoading } = useJobCards();
-  const { data: unifiedMetrics } = useUnifiedDashboard();
+  const { selectedBranch } = useSidebar();
+  const { data: jobCards, isLoading } = useJobCards(undefined, selectedBranch);
+  const { data: unifiedMetrics } = useUnifiedDashboard(selectedBranch);
+  const { data: branches } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/branches/"],
+  });
   const { formatCurrency } = useLocalization();
   const { t } = useTranslation();
+
+  const branchName = selectedBranch && selectedBranch !== 'all'
+    ? branches?.find(b => String(b.id) === selectedBranch)?.name
+    : null;
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -173,11 +182,18 @@ export default function Dashboard() {
       <AppSidebar />
       <main className={cn("flex-1 p-6 transition-all duration-300", isCollapsed ? "ml-16" : "ml-64")}>
         <header className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
-            Dashboard
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
+              Dashboard
+            </h1>
+            {branchName && (
+              <Badge variant="outline" className="text-sm font-medium" data-testid="badge-branch-name">
+                {branchName}
+              </Badge>
+            )}
+          </div>
           <p className="mt-1 text-muted-foreground">
-            Welcome back, {user?.first_name || user?.username}. Here's your operations overview.
+            Welcome back, {user?.first_name || user?.username}. {branchName ? `Showing data for ${branchName}.` : "Here's your operations overview."}
           </p>
         </header>
 

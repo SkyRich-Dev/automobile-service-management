@@ -254,6 +254,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Customer.objects.filter(is_active=True)
         search = self.request.query_params.get('search', None)
+        branch = self.request.query_params.get('branch', None)
         if search:
             queryset = queryset.filter(
                 Q(name__icontains=search) |
@@ -261,6 +262,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 Q(phone__icontains=search) |
                 Q(customer_id__icontains=search)
             )
+        if branch and branch != 'all':
+            queryset = queryset.filter(branch_id=branch)
         return queryset.order_by('-created_at')
 
 
@@ -1136,7 +1139,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract_type = self.request.query_params.get('contract_type', None)
         contract_status = self.request.query_params.get('status', None)
         active_only = self.request.query_params.get('active', None)
+        branch_id = self.request.query_params.get('branch', None)
         
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
         if vehicle_id:
@@ -1180,18 +1186,23 @@ class ContractViewSet(viewsets.ModelViewSet):
         
         today = timezone.now().date()
         expiry_30 = today + timedelta(days=30)
+        branch_id = request.query_params.get('branch')
         
-        total_active = Contract.objects.filter(status=ContractStatus.ACTIVE).count()
-        total_expiring = Contract.objects.filter(
+        base_qs = Contract.objects.all()
+        if branch_id:
+            base_qs = base_qs.filter(branch_id=branch_id)
+        
+        total_active = base_qs.filter(status=ContractStatus.ACTIVE).count()
+        total_expiring = base_qs.filter(
             status=ContractStatus.ACTIVE,
             end_date__lte=expiry_30,
             end_date__gte=today
         ).count()
-        total_value = Contract.objects.filter(status=ContractStatus.ACTIVE).aggregate(
+        total_value = base_qs.filter(status=ContractStatus.ACTIVE).aggregate(
             total=Sum('contract_value')
         )['total'] or 0
-        pending_approvals = Contract.objects.filter(status=ContractStatus.PENDING_APPROVAL).count()
-        avg_utilization = Contract.objects.filter(
+        pending_approvals = base_qs.filter(status=ContractStatus.PENDING_APPROVAL).count()
+        avg_utilization = base_qs.filter(
             status=ContractStatus.ACTIVE,
             max_services__isnull=False,
             max_services__gt=0
@@ -1199,7 +1210,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             util=F('services_used') * 100.0 / F('max_services')
         ).aggregate(avg=Avg('util'))['avg'] or 0
         
-        by_type = list(Contract.objects.filter(status=ContractStatus.ACTIVE).values('contract_type').annotate(
+        by_type = list(base_qs.filter(status=ContractStatus.ACTIVE).values('contract_type').annotate(
             count=Count('id'),
             value=Sum('contract_value')
         ))
@@ -1506,7 +1517,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         queryset = PurchaseOrder.objects.all()
         supplier_id = self.request.query_params.get('supplier_id', None)
         status_filter = self.request.query_params.get('status', None)
-        branch_id = self.request.query_params.get('branch_id', None)
+        branch_id = self.request.query_params.get('branch_id') or self.request.query_params.get('branch')
         
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
@@ -1711,7 +1722,7 @@ class GoodsReceiptNoteViewSet(viewsets.ModelViewSet):
         queryset = GoodsReceiptNote.objects.all()
         po_id = self.request.query_params.get('purchase_order_id', None)
         status_filter = self.request.query_params.get('status', None)
-        branch_id = self.request.query_params.get('branch_id', None)
+        branch_id = self.request.query_params.get('branch_id') or self.request.query_params.get('branch')
         
         if po_id:
             queryset = queryset.filter(purchase_order_id=po_id)
@@ -1817,8 +1828,11 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         queryset = StockTransfer.objects.all()
         from_branch = self.request.query_params.get('from_branch_id', None)
         to_branch = self.request.query_params.get('to_branch_id', None)
+        branch_id = self.request.query_params.get('branch')
         status_filter = self.request.query_params.get('status', None)
         
+        if branch_id:
+            queryset = queryset.filter(Q(from_branch_id=branch_id) | Q(to_branch_id=branch_id))
         if from_branch:
             queryset = queryset.filter(from_branch_id=from_branch)
         if to_branch:
@@ -1923,7 +1937,7 @@ class PurchaseRequisitionViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = PurchaseRequisition.objects.all()
-        branch_id = self.request.query_params.get('branch_id', None)
+        branch_id = self.request.query_params.get('branch_id') or self.request.query_params.get('branch')
         status_filter = self.request.query_params.get('status', None)
         source = self.request.query_params.get('source', None)
         priority = self.request.query_params.get('priority', None)
@@ -2131,7 +2145,7 @@ class InventoryAlertViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = InventoryAlert.objects.all()
-        branch_id = self.request.query_params.get('branch_id', None)
+        branch_id = self.request.query_params.get('branch_id') or self.request.query_params.get('branch')
         alert_type = self.request.query_params.get('alert_type', None)
         is_resolved = self.request.query_params.get('is_resolved', None)
         severity = self.request.query_params.get('severity', None)
@@ -3048,7 +3062,10 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket_type = self.request.query_params.get('type')
         assigned_to = self.request.query_params.get('assigned_to')
         customer_id = self.request.query_params.get('customer_id')
+        branch_id = self.request.query_params.get('branch')
         
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         if priority:
@@ -3336,24 +3353,37 @@ def crm_dashboard(request):
     if not request.user.is_authenticated:
         return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
     
-    total_customers = Customer.objects.filter(is_active=True).count()
-    new_leads = Lead.objects.filter(status='NEW').count()
-    open_tickets = Ticket.objects.exclude(status__in=['RESOLVED', 'CLOSED']).count()
-    pending_tasks = FollowUpTask.objects.filter(status__in=['PENDING', 'IN_PROGRESS']).count()
-    overdue_tasks = FollowUpTask.objects.filter(
+    branch_id = request.query_params.get('branch_id') or request.query_params.get('branch')
+    
+    customers = Customer.objects.filter(is_active=True)
+    leads = Lead.objects.all()
+    tickets = Ticket.objects.all()
+    tasks = FollowUpTask.objects.all()
+    campaigns = Campaign.objects.all()
+    
+    if branch_id:
+        customers = customers.filter(branch_id=branch_id)
+        leads = leads.filter(branch_id=branch_id)
+        tickets = tickets.filter(branch_id=branch_id)
+    
+    total_customers = customers.count()
+    new_leads = leads.filter(status='NEW').count()
+    open_tickets = tickets.exclude(status__in=['RESOLVED', 'CLOSED']).count()
+    pending_tasks = tasks.filter(status__in=['PENDING', 'IN_PROGRESS']).count()
+    overdue_tasks = tasks.filter(
         status__in=['PENDING', 'IN_PROGRESS'],
         due_date__lt=timezone.now()
     ).count()
-    active_campaigns = Campaign.objects.filter(status='ACTIVE').count()
+    active_campaigns = campaigns.filter(status='ACTIVE').count()
     
     at_risk_customers = CustomerScore.objects.filter(churn_risk='High').count()
     
     lead_pipeline = {}
     for status_choice in LeadStatus.choices:
-        lead_pipeline[status_choice[0]] = Lead.objects.filter(status=status_choice[0]).count()
+        lead_pipeline[status_choice[0]] = leads.filter(status=status_choice[0]).count()
     
     ticket_by_type = {}
-    for ticket in Ticket.objects.exclude(status__in=['RESOLVED', 'CLOSED']).values('ticket_type').annotate(count=Count('id')):
+    for ticket in tickets.exclude(status__in=['RESOLVED', 'CLOSED']).values('ticket_type').annotate(count=Count('id')):
         ticket_by_type[ticket['ticket_type']] = ticket['count']
     
     return Response({
@@ -4481,7 +4511,10 @@ class EmployeeHRViewSet(viewsets.ModelViewSet):
         department = self.request.query_params.get('department')
         employment_type = self.request.query_params.get('employment_type')
         is_active = self.request.query_params.get('is_active')
+        branch_id = self.request.query_params.get('branch_id') or self.request.query_params.get('branch')
         
+        if branch_id:
+            queryset = queryset.filter(profile__branch_id=branch_id)
         if department:
             queryset = queryset.filter(department=department)
         if employment_type:
@@ -5562,36 +5595,63 @@ class IntegrationViewSet(viewsets.ViewSet):
     def unified_dashboard(self, request):
         """Get unified dashboard metrics across all modules"""
         today = timezone.now().date()
-        
+        branch_id = request.query_params.get('branch')
+
+        jc_qs = JobCard.objects.all()
+        lead_qs = Lead.objects.all()
+        ticket_qs = Ticket.objects.all()
+        followup_qs = FollowUpTask.objects.all()
+        alert_qs = InventoryAlert.objects.all()
+        po_qs = PurchaseOrder.objects.all()
+        grn_qs = GoodsReceiptNote.objects.all()
+        inv_qs = EnhancedInvoice.objects.all()
+        exp_qs = Expense.objects.all()
+        att_qs = HRAttendance.objects.all()
+        leave_qs = LeaveRequest.objects.all()
+        training_qs = TrainingProgram.objects.all()
+
+        if branch_id and branch_id != 'all':
+            jc_qs = jc_qs.filter(branch_id=branch_id)
+            lead_qs = lead_qs.filter(branch_id=branch_id)
+            ticket_qs = ticket_qs.filter(branch_id=branch_id)
+            followup_qs = followup_qs.filter(lead__branch_id=branch_id)
+            alert_qs = alert_qs.filter(branch_id=branch_id)
+            po_qs = po_qs.filter(branch_id=branch_id)
+            grn_qs = grn_qs.filter(branch_id=branch_id)
+            inv_qs = inv_qs.filter(branch_id=branch_id)
+            exp_qs = exp_qs.filter(branch_id=branch_id)
+            att_qs = att_qs.filter(employee__branch_id=branch_id)
+            leave_qs = leave_qs.filter(employee__branch_id=branch_id)
+
         service_metrics = {
-            'active_jobs': JobCard.objects.exclude(workflow_stage='COMPLETED').count(),
-            'jobs_today': JobCard.objects.filter(created_at__date=today).count(),
-            'pending_approval': JobCard.objects.filter(workflow_stage='APPROVAL').count(),
-            'overdue_sla': JobCard.objects.filter(sla_deadline__lt=timezone.now(), workflow_stage__in=['EXECUTION', 'INSPECTION', 'QC']).count()
+            'active_jobs': jc_qs.exclude(workflow_stage='COMPLETED').count(),
+            'jobs_today': jc_qs.filter(created_at__date=today).count(),
+            'pending_approval': jc_qs.filter(workflow_stage='APPROVAL').count(),
+            'overdue_sla': jc_qs.filter(sla_deadline__lt=timezone.now(), workflow_stage__in=['EXECUTION', 'INSPECTION', 'QC']).count()
         }
         
         crm_metrics = {
-            'new_leads_today': Lead.objects.filter(created_at__date=today).count(),
-            'open_tickets': Ticket.objects.exclude(status=TicketStatus.CLOSED).count(),
-            'pending_followups': FollowUpTask.objects.filter(status=FollowUpStatus.PENDING, due_date__lte=today).count()
+            'new_leads_today': lead_qs.filter(created_at__date=today).count(),
+            'open_tickets': ticket_qs.exclude(status=TicketStatus.CLOSED).count(),
+            'pending_followups': followup_qs.filter(status=FollowUpStatus.PENDING, due_date__lte=today).count()
         }
         
         inventory_metrics = {
-            'low_stock_alerts': InventoryAlert.objects.filter(is_resolved=False, alert_type=AlertType.LOW_STOCK).count(),
-            'pending_pos': PurchaseOrder.objects.filter(status=PurchaseOrderStatus.PENDING_APPROVAL).count(),
-            'pending_grns': GoodsReceiptNote.objects.filter(status=GRNStatus.DRAFT).count()
+            'low_stock_alerts': alert_qs.filter(is_resolved=False, alert_type=AlertType.LOW_STOCK).count(),
+            'pending_pos': po_qs.filter(status=PurchaseOrderStatus.PENDING_APPROVAL).count(),
+            'pending_grns': grn_qs.filter(status=GRNStatus.DRAFT).count()
         }
         
         finance_metrics = {
-            'unpaid_invoices': EnhancedInvoice.objects.filter(status__in=[InvoiceStatus.DRAFT, InvoiceStatus.ISSUED]).count(),
-            'pending_payments': EnhancedInvoice.objects.filter(status=InvoiceStatus.ISSUED).aggregate(total=Sum('balance_due'))['total'] or 0,
-            'pending_expenses': Expense.objects.filter(status=ExpenseStatus.PENDING_APPROVAL).count()
+            'unpaid_invoices': inv_qs.filter(status__in=[InvoiceStatus.DRAFT, InvoiceStatus.ISSUED]).count(),
+            'pending_payments': inv_qs.filter(status=InvoiceStatus.ISSUED).aggregate(total=Sum('balance_due'))['total'] or 0,
+            'pending_expenses': exp_qs.filter(status=ExpenseStatus.PENDING_APPROVAL).count()
         }
         
         hrms_metrics = {
-            'employees_present': HRAttendance.objects.filter(date=today, status='PRESENT').count(),
-            'pending_leave': LeaveRequest.objects.filter(status='PENDING').count(),
-            'training_in_progress': TrainingProgram.objects.filter(status='ONGOING').count()
+            'employees_present': att_qs.filter(date=today, status='PRESENT').count(),
+            'pending_leave': leave_qs.filter(status='PENDING').count(),
+            'training_in_progress': training_qs.filter(status='ONGOING').count()
         }
         
         return Response({

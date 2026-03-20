@@ -142,13 +142,15 @@ interface JobCardDetail extends JobCard {
 
 const API_BASE = API_CONFIG.BASE_URL;
 
-export function useJobCards(stage?: string) {
+export function useJobCards(stage?: string, branchId?: string) {
   return useQuery<JobCard[]>({
-    queryKey: ["job-cards", stage],
+    queryKey: ["job-cards", stage, branchId],
     queryFn: async () => {
-      const url = stage 
-        ? `${API_BASE}/job-cards/?stage=${stage}`
-        : `${API_BASE}/job-cards/`;
+      const params = new URLSearchParams();
+      if (stage) params.set('stage', stage);
+      if (branchId && branchId !== 'all') params.set('branch', branchId);
+      const qs = params.toString();
+      const url = `${API_BASE}/job-cards/${qs ? `?${qs}` : ''}`;
       
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch job cards");
