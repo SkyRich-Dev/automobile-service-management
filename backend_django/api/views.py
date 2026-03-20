@@ -150,7 +150,7 @@ def current_user_view(request):
 class BranchViewSet(viewsets.ModelViewSet):
     queryset = Branch.objects.all().order_by('code')
     serializer_class = BranchSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
     
     def get_queryset(self):
         queryset = Branch.objects.all().order_by('code')
@@ -1043,6 +1043,7 @@ class TimelineEventViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     from django.utils import timezone
     from datetime import timedelta
@@ -1090,6 +1091,7 @@ def dashboard_stats(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def workflow_stages(request):
     from .config import WORKFLOW_STAGE_DEFINITIONS
     return Response([
@@ -2447,6 +2449,7 @@ class AnalyticsSnapshotViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def analytics_summary(request):
     from datetime import timedelta
     
@@ -4390,6 +4393,7 @@ class BudgetEntryViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def finance_dashboard(request):
     branch = request.query_params.get('branch')
     
@@ -6729,6 +6733,7 @@ class ContractDetectionService:
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def detect_contract_view(request):
     """
     API endpoint to detect contract eligibility for appointment/job card creation.

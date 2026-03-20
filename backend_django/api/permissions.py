@@ -663,7 +663,7 @@ class RoleBasedPermission(permissions.BasePermission):
         
         profile = getattr(request.user, 'profile', None)
         if not profile:
-            return True
+            return request.user.is_superuser
         
         resource = getattr(view, 'basename', None)
         if not resource:
@@ -680,8 +680,11 @@ class RoleBasedPermission(permissions.BasePermission):
             elif request.method == 'DELETE':
                 action = 'delete'
         
+        action_map = {'destroy': 'delete', 'partial_update': 'update'}
+        mapped_action = action_map.get(action, action)
+        
         resource_perms = self.RESOURCE_PERMISSIONS.get(resource, {})
-        action_perms = resource_perms.get(action, 'all_authenticated')
+        action_perms = resource_perms.get(mapped_action, resource_perms.get(action, 'all_authenticated'))
         
         if action_perms == 'all_authenticated':
             return True
@@ -701,7 +704,7 @@ class RoleBasedPermission(permissions.BasePermission):
         
         profile = getattr(request.user, 'profile', None)
         if not profile:
-            return True
+            return request.user.is_superuser
         
         if hasattr(obj, 'branch') and obj.branch:
             if profile.branch and profile.branch != obj.branch:

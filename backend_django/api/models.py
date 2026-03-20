@@ -583,22 +583,24 @@ class Part(models.Model):
 
     def calculate_landing_cost(self):
         if self.cost_price:
-            tax_amount = self.cost_price * (self.tax_rate / 100)
+            from decimal import Decimal
+            tax_amount = self.cost_price * (self.tax_rate / Decimal('100'))
             self.landing_cost = self.cost_price + tax_amount
 
     def update_gst_rates(self):
+        from decimal import Decimal
         if self.gst_type == GSTType.INTRA_STATE:
-            self.cgst_rate = self.tax_rate / 2
-            self.sgst_rate = self.tax_rate / 2
-            self.igst_rate = 0
+            self.cgst_rate = self.tax_rate / Decimal('2')
+            self.sgst_rate = self.tax_rate / Decimal('2')
+            self.igst_rate = Decimal('0')
         elif self.gst_type == GSTType.INTER_STATE:
-            self.cgst_rate = 0
-            self.sgst_rate = 0
+            self.cgst_rate = Decimal('0')
+            self.sgst_rate = Decimal('0')
             self.igst_rate = self.tax_rate
         else:
-            self.cgst_rate = 0
-            self.sgst_rate = 0
-            self.igst_rate = 0
+            self.cgst_rate = Decimal('0')
+            self.sgst_rate = Decimal('0')
+            self.igst_rate = Decimal('0')
 
     def save(self, *args, **kwargs):
         self.update_gst_rates()

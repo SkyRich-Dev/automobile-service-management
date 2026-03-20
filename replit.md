@@ -73,3 +73,12 @@ The system is divided into a backend and a frontend:
 -   **WhatsApp:** Integrations with Twilio, Meta, and Gupshup for WhatsApp communication.
 -   **Payment Gateways:** Integrations with Stripe, Razorpay, and PayU.
 -   **ERP System:** Tally ERP for invoice and customer synchronization.
+
+## QA & Testing
+- **Test Framework:** pytest + pytest-django + factory-boy
+- **Test Count:** 128 automated tests (all passing)
+- **Test Structure:** `tests/` directory with unit, api, security, e2e, integration, regression subdirectories
+- **Running Tests:** `python -m pytest tests/` or by marker: `-m unit`, `-m api`, `-m security`
+- **Factories:** conftest.py contains factories for Branch, User, Profile, Customer, Vehicle, Part, Supplier, JobCard, Lead
+- **Security Fixes Applied:** Authentication on all dashboard endpoints, RBAC action mapping fix (destroy→delete), BranchViewSet RBAC added
+- **Bug Fixes Applied:** Part model Decimal arithmetic TypeError fixed in `calculate_landing_cost()` and `update_gst_rates()`
