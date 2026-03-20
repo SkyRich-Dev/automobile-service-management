@@ -6,3 +6,9 @@ id = "Hy83tt0Mshhi7qZP-27MY"
 uri = "file://AutoServe_Pro_Marketing_Brochure.docx"
 type = "word_document"
 title = "AutoServe Pro - Marketing Brochure & Vouchers (.docx)"
+
+[[outputs]]
+id = "gSXyeqr8zPgEcmRXYdJYM"
+uri = "file://AutoServ_Enterprise_Marketing_Document.md"
+type = "text"
+title = "AutoServ Enterprise - Marketing Document"
