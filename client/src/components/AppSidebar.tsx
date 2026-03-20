@@ -91,11 +91,14 @@ interface MenuItem {
   subItems?: SubMenuItem[];
 }
 
+type MenuGroup = 'operations' | 'management' | 'admin';
+
 interface MenuItemConfig {
   key: string;
   icon: any;
   path: string;
   allowedRoles: UserRole[];
+  group: MenuGroup;
   subItems?: { key: string; icon: any; path: string }[];
 }
 
@@ -104,6 +107,7 @@ const menuItemsConfig: MenuItemConfig[] = [
     key: "dashboard",
     icon: LayoutDashboard, 
     path: "/",
+    group: 'operations',
     allowedRoles: [...MANAGER_ROLES, 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'SALES_EXECUTIVE', 
                    'ACCOUNTANT', 'INVENTORY_MANAGER', 'TECHNICIAN', 'CRM_EXECUTIVE', 'HR_MANAGER']
   },
@@ -111,54 +115,63 @@ const menuItemsConfig: MenuItemConfig[] = [
     key: "serviceOperations",
     icon: Wrench, 
     path: "/service",
+    group: 'operations',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 
     key: "serviceHistory",
     icon: History, 
     path: "/service-history",
+    group: 'operations',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN']
   },
   { 
     key: "appointments",
     icon: Calendar, 
     path: "/appointments",
+    group: 'operations',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SERVICE_ADVISOR', 'CRM_EXECUTIVE']
   },
   { 
     key: "inventory",
     icon: Package, 
     path: "/inventory",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'INVENTORY_MANAGER', 'SUPERVISOR']
   },
   { 
     key: "suppliers",
     icon: Truck, 
     path: "/suppliers",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'INVENTORY_MANAGER']
   },
   { 
     key: "crm",
     icon: Users, 
     path: "/crm",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'SERVICE_ADVISOR', 'SALES_EXECUTIVE', 'CRM_EXECUTIVE']
   },
   { 
     key: "contracts",
     icon: Shield, 
     path: "/contracts",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SERVICE_ADVISOR', 'ACCOUNTANT']
   },
   { 
     key: "analytics",
     icon: BarChart3, 
     path: "/analytics",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER']
   },
   { 
     key: "accountsFinance",
     icon: DollarSign, 
     path: "/accounts-finance",
+    group: 'management',
     allowedRoles: ACCOUNTS_ROLES,
     subItems: [
       { key: "finance.dashboard", icon: PieChart, path: "/accounts-finance?tab=dashboard" },
@@ -173,6 +186,7 @@ const menuItemsConfig: MenuItemConfig[] = [
     key: "hrms",
     icon: UserCheck, 
     path: "/hrms",
+    group: 'management',
     allowedRoles: [...ADMIN_ROLES, 'HR_MANAGER'],
     subItems: [
       { key: "hrmsMenu.overview", icon: PieChart, path: "/hrms?tab=overview" },
@@ -187,18 +201,31 @@ const menuItemsConfig: MenuItemConfig[] = [
     key: "notificationCenter",
     icon: Bell, 
     path: "/notification-center",
+    group: 'admin',
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
   { 
     key: "configCenter",
     icon: Sliders, 
     path: "/config-center",
-    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER']
+    group: 'admin',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER'],
+    subItems: [
+      { key: "configMenu.dashboard", icon: LayoutDashboard, path: "/config-center?tab=dashboard" },
+      { key: "configMenu.systemSettings", icon: Sliders, path: "/config-center?tab=system-configs" },
+      { key: "configMenu.workflows", icon: BarChart3, path: "/config-center?tab=workflows" },
+      { key: "configMenu.approvalRules", icon: ShieldCheck, path: "/config-center?tab=approval-rules" },
+      { key: "configMenu.notifications", icon: Bell, path: "/config-center?tab=notifications" },
+      { key: "configMenu.featureFlags", icon: Target, path: "/config-center?tab=feature-flags" },
+      { key: "configMenu.sla", icon: Calendar, path: "/config-center?tab=sla" },
+      { key: "configMenu.auditLog", icon: History, path: "/config-center?tab=audit-log" },
+    ]
   },
   { 
     key: "adminPanel",
     icon: ShieldCheck, 
     path: "/admin",
+    group: 'admin',
     allowedRoles: ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER']
   },
 ];
@@ -245,12 +272,14 @@ export function AppSidebar() {
     menuItemsConfig[idx].allowedRoles.includes(userRole)
   );
   
-  const operationsItems = filteredMenuItems.filter((_, idx) => 
-    menuItems.indexOf(filteredMenuItems[idx]) < 4
-  );
-  const managementItems = filteredMenuItems.filter((_, idx) => 
-    menuItems.indexOf(filteredMenuItems[idx]) >= 4
-  );
+  const getGroup = (item: MenuItem): MenuGroup => {
+    const idx = menuItems.indexOf(item);
+    return menuItemsConfig[idx]?.group || 'management';
+  };
+  
+  const operationsItems = filteredMenuItems.filter(item => getGroup(item) === 'operations');
+  const managementItems = filteredMenuItems.filter(item => getGroup(item) === 'management');
+  const adminItems = filteredMenuItems.filter(item => getGroup(item) === 'admin');
 
   const getMenuKey = (item: MenuItem): string => {
     const idx = menuItems.indexOf(item);
@@ -505,6 +534,18 @@ export function AppSidebar() {
             )}
             {isCollapsed && <div className="my-3 border-t border-sidebar-border" />}
             {managementItems.map((item) => renderMenuItem(item, true))}
+          </>
+        )}
+
+        {adminItems.length > 0 && (
+          <>
+            {!isCollapsed && (
+              <div className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                {t('sidebar.administration', 'Administration')}
+              </div>
+            )}
+            {isCollapsed && <div className="my-3 border-t border-sidebar-border" />}
+            {adminItems.map((item) => renderMenuItem(item, true))}
           </>
         )}
       </nav>

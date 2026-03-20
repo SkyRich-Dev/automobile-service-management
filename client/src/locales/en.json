@@ -39,7 +39,18 @@
       "training": "Training",
       "leaveManagement": "Leave Management",
       "skillMatrix": "Skill Matrix"
-    }
+    },
+    "configMenu": {
+      "dashboard": "Dashboard",
+      "systemSettings": "System Settings",
+      "workflows": "Workflows",
+      "approvalRules": "Approval Rules",
+      "notifications": "Notifications",
+      "featureFlags": "Feature Flags",
+      "sla": "SLA Config",
+      "auditLog": "Audit Log"
+    },
+    "administration": "Administration"
   },
   "serviceHistory": {
     "title": "Service History Timeline",

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -119,7 +120,15 @@ function usePatch(invalidateKeys: string[], successMsg: string) {
 
 export default function AdminConfig() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [location] = useLocation();
+  const urlTab = new URLSearchParams(window.location.search).get("tab");
+  const [activeTab, setActiveTab] = useState(urlTab || "dashboard");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [location]);
 
   const { data: overview } = useQuery<any>({ queryKey: ["/api/admin-config/dashboard/overview/"] });
   const { data: systemConfigs } = useQuery<any[]>({ queryKey: ["/api/admin-config/system-configs/"] });
