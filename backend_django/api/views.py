@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.db.models import Q, Count, Sum, F
@@ -102,6 +103,7 @@ from .serializers import (
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def register_view(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
@@ -115,6 +117,7 @@ def register_view(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login_view(request):
     from .throttles import LoginRateThrottle
     serializer = LoginSerializer(data=request.data)
@@ -177,12 +180,14 @@ def login_view(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def logout_view(request):
     logout(request)
     return Response({'message': 'Logout successful'})
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def current_user_view(request):
     if request.user.is_authenticated:
         profile = getattr(request.user, 'profile', None)
@@ -299,6 +304,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Customer.objects.filter(is_active=True)
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                return queryset.filter(user=self.request.user).order_by('-created_at')
+        except Profile.DoesNotExist:
+            pass
+
         search = self.request.query_params.get('search', None)
         branch = self.request.query_params.get('branch', None)
         if search:
@@ -320,6 +333,17 @@ class VehicleViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Vehicle.objects.all()
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj)
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         customer_id = self.request.query_params.get('customer_id', None)
         search = self.request.query_params.get('search', None)
         if customer_id:
@@ -520,10 +544,24 @@ class JobCardViewSet(viewsets.ModelViewSet):
             return JobCardDetailSerializer
         return JobCardSerializer
     
+    def _is_customer_role(self, user):
+        try:
+            profile = Profile.objects.get(user=user)
+            return profile.role == 'CUSTOMER'
+        except Profile.DoesNotExist:
+            return False
+
     def get_queryset(self):
         queryset = JobCard.objects.filter(is_deleted=False).select_related(
             'vehicle', 'customer', 'service_advisor', 'lead_technician', 'branch'
         )
+
+        if self._is_customer_role(self.request.user):
+            customer_obj = Customer.objects.filter(user=self.request.user).first()
+            if customer_obj:
+                return queryset.filter(customer=customer_obj).order_by('-created_at')
+            return queryset.none()
+
         stage = self.request.query_params.get('stage', None)
         branch = self.request.query_params.get('branch', None)
         priority = self.request.query_params.get('priority', None)
@@ -943,6 +981,17 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Invoice.objects.all()
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj).order_by('-invoice_date')
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         customer_id = self.request.query_params.get('customer_id', None)
         status_filter = self.request.query_params.get('status', None)
         
@@ -2410,6 +2459,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Appointment.objects.all()
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj).order_by('appointment_date', 'appointment_time')
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         customer_id = self.request.query_params.get('customer_id', None)
         branch_id = self.request.query_params.get('branch_id', None)
         date = self.request.query_params.get('date', None)
@@ -3383,17 +3443,24 @@ class CRMEventViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def customer_360_view(request, customer_id):
-    if not request.user.is_authenticated:
-        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-    
     try:
         customer = Customer.objects.prefetch_related(
             'vehicles', 'interactions', 'tickets', 'follow_up_tasks', 'job_cards'
         ).get(pk=customer_id)
     except Customer.DoesNotExist:
         return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+
+    try:
+        profile = Profile.objects.get(user=request.user)
+        if profile.role == 'CUSTOMER':
+            linked_customer = Customer.objects.filter(user=request.user).first()
+            if not linked_customer or linked_customer.id != customer.id:
+                return Response({'error': 'You can only view your own profile.'}, status=status.HTTP_403_FORBIDDEN)
+    except Profile.DoesNotExist:
+        pass
+
     return Response(Customer360Serializer(customer).data)
 
 
@@ -3777,6 +3844,17 @@ class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = EnhancedInvoice.objects.all().select_related('customer', 'branch', 'job_card', 'contract')
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj)
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         status_filter = self.request.query_params.get('status')
         invoice_type = self.request.query_params.get('invoice_type')
         customer = self.request.query_params.get('customer')
@@ -6469,7 +6547,17 @@ class CustomerProfile360ViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_customer(self, pk):
-        return Customer.objects.get(pk=pk)
+        customer = Customer.objects.get(pk=pk)
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                linked_customer = Customer.objects.filter(user=self.request.user).first()
+                if not linked_customer or linked_customer.id != customer.id:
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied("You can only view your own profile.")
+        except Profile.DoesNotExist:
+            pass
+        return customer
     
     @action(detail=True, methods=['get'])
     def overview(self, request, pk=None):
@@ -7791,13 +7879,13 @@ class NotificationCenterViewSet(viewsets.GenericViewSet):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def seed_data_view(request):
-    """Temporary endpoint to seed sample data in production."""
-    import os
-    seed_key = request.data.get('seed_key', '')
-    if seed_key != 'autoserv_seed_2026':
-        return Response({'error': 'Invalid seed key'}, status=403)
+    """Seed sample data — restricted to superusers only."""
+    if not request.user.is_superuser:
+        return Response({'error': 'Forbidden. Superuser access required.'}, status=status.HTTP_403_FORBIDDEN)
+    if not settings.DEBUG:
+        return Response({'error': 'Seed endpoint is disabled in production.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         from django.core.management import call_command
         import io
@@ -7840,8 +7928,7 @@ def forgot_password_view(request):
                 expires_at=timezone.now() + timedelta(hours=1)
             )
             return Response({
-                'message': 'Password reset instructions sent to your email.',
-                'token': str(token.token)
+                'message': 'If an account exists with this email, reset instructions will be sent.'
             })
         except User.DoesNotExist:
             pass
@@ -7887,7 +7974,7 @@ def change_password_view(request):
 class PartCategoryViewSet(viewsets.ModelViewSet):
     queryset = PartCategory.objects.all()
     serializer_class = PartCategorySerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -7899,7 +7986,7 @@ class PartCategoryViewSet(viewsets.ModelViewSet):
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -7911,7 +7998,7 @@ class BrandViewSet(viewsets.ModelViewSet):
 class DesignationViewSet(viewsets.ModelViewSet):
     queryset = Designation.objects.all()
     serializer_class = DesignationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -7956,7 +8043,7 @@ class WhatsAppTemplateViewSet(viewsets.ModelViewSet):
 class HsnSacCodeViewSet(viewsets.ModelViewSet):
     queryset = HsnSacCode.objects.all()
     serializer_class = HsnSacCodeSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RoleBasedPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()

@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Security - never commit credentials or session files
+*credentials*
+*Credentials*
+cookies*.txt
+*.env
+.env.*

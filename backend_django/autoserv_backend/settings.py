@@ -1,16 +1,19 @@
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SESSION_SECRET', 'django-insecure-autoserv-dev-key')
+SECRET_KEY = os.environ.get('SESSION_SECRET')
+if not SECRET_KEY:
+    raise ImproperlyConfigured("SESSION_SECRET environment variable is required. Set it in Replit Secrets.")
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '.replit.dev,.replit.app,localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -84,9 +87,17 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS - restrict to known origins
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in
+    os.environ.get('CORS_ALLOWED_ORIGINS', 'https://*.replit.dev,https://*.replit.app').split(',')
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.replit\.dev$",
+    r"^https://.*\.replit\.app$",
+]
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -94,7 +105,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'api.pagination.StandardPagination',
@@ -118,6 +129,8 @@ SESSION_COOKIE_AGE = 1800  # 30 minutes
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 # Media settings
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

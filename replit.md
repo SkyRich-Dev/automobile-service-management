@@ -94,3 +94,14 @@ The system is divided into a backend and a frontend:
 - **Factories:** conftest.py contains factories for Branch, User, Profile, Customer, Vehicle, Part, Supplier, JobCard, Lead
 - **Security Fixes Applied:** Authentication on all dashboard endpoints, RBAC action mapping fix (destroy→delete), BranchViewSet RBAC added
 - **Bug Fixes Applied:** Part model Decimal arithmetic TypeError fixed in `calculate_landing_cost()` and `update_gst_rates()`
+
+## Security Hardening (QA Report SEC-001 through SEC-008)
+- **SEC-001**: Password reset token removed from API response — no longer leaked to client
+- **SEC-002**: Seed data endpoint restricted to superuser + DEBUG mode only (was public AllowAny)
+- **SEC-003**: Credentials files (AutoServe_Pro_Credentials.txt, cookies.txt, cookies5000.txt) deleted; .gitignore updated
+- **SEC-004**: SECRET_KEY now requires SESSION_SECRET env var (no insecure fallback); DEBUG defaults to False; ALLOWED_HOSTS restricted to Replit domains
+- **SEC-005**: CORS changed from ALLOW_ALL_ORIGINS to regex-based Replit domain matching
+- **SEC-006**: Default REST Framework permission changed from AllowAny to IsAuthenticated; explicit AllowAny added to login/register/forgot-password/health endpoints
+- **SEC-007**: PartCategoryViewSet, BrandViewSet, DesignationViewSet, HsnSacCodeViewSet changed from AllowAny to IsAuthenticated+RoleBasedPermission; RESOURCE_PERMISSIONS entries added
+- **SEC-008**: CUSTOMER role data isolation added to JobCardViewSet, CustomerViewSet, VehicleViewSet, InvoiceViewSet, AppointmentViewSet, EnhancedInvoiceViewSet, and Customer360ViewSet — customers can only see their own data
+- **HIGH-004**: SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE set to True when not in DEBUG mode
