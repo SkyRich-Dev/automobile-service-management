@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useLocalization } from "@/lib/currency-context";
@@ -321,15 +322,15 @@ export default function AccountsFinance() {
   });
   const { data: invoices, isLoading: invoicesLoading } = useQuery<EnhancedInvoice[]>({
     queryKey: ["/api/finance/enhanced-invoices/", selectedBranch],
-    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-invoices/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-invoices/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); const d = await res.json(); return unwrapPaginatedResponse(d); },
   });
   const { data: payments, isLoading: paymentsLoading } = useQuery<EnhancedPayment[]>({
     queryKey: ["/api/finance/enhanced-payments/", selectedBranch],
-    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-payments/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+    queryFn: async () => { const res = await fetch(`/api/finance/enhanced-payments/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); const d = await res.json(); return unwrapPaginatedResponse(d); },
   });
   const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
     queryKey: ["/api/finance/expenses/", selectedBranch],
-    queryFn: async () => { const res = await fetch(`/api/finance/expenses/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); return res.json(); },
+    queryFn: async () => { const res = await fetch(`/api/finance/expenses/${branchQ}`, { credentials: "include" }); if (!res.ok) throw new Error("err"); const d = await res.json(); return unwrapPaginatedResponse(d); },
   });
   const { data: receivables } = useQuery<CustomerReceivable[]>({ queryKey: ["/api/finance/receivables/"] });
   const { data: accounts } = useQuery<Account[]>({ queryKey: ["/api/finance/accounts/"] });

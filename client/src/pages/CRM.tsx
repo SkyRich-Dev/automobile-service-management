@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useCustomers } from "@/hooks/use-crm";
@@ -206,7 +207,8 @@ export default function CRM() {
     queryFn: async () => {
       const res = await fetch(`/api/leads/${branchParam}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch leads");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 
@@ -215,7 +217,8 @@ export default function CRM() {
     queryFn: async () => {
       const res = await fetch(`/api/tickets/${branchParam.replace('branch_id', 'branch')}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch tickets");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 

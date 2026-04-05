@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 import { useTranslation } from "react-i18next";
 import { useLocalization } from "@/lib/currency-context";
 import { useSidebar } from "@/lib/sidebar-context";
@@ -271,7 +272,8 @@ export default function HRMS() {
       const url = selectedBranch && selectedBranch !== 'all' ? `/api/hrms/employees/?branch_id=${selectedBranch}` : '/api/hrms/employees/';
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("err");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 

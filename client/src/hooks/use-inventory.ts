@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCsrfToken } from "@/lib/queryClient";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 
 function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
@@ -9,13 +10,14 @@ function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
 }
 
 function branchUrl(base: string, branchId?: string, extraParams?: string): string {
-  const params = new URLSearchParams();
+  const [path, existingQs] = base.split('?');
+  const params = new URLSearchParams(existingQs || '');
   if (branchId && branchId !== 'all') params.set('branch', branchId);
   if (extraParams) {
     new URLSearchParams(extraParams).forEach((v, k) => params.set(k, v));
   }
   const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  return qs ? `${path}?${qs}` : path;
 }
 
 interface Part {
@@ -270,9 +272,10 @@ export function useParts(branchId?: string) {
   return useQuery<Part[]>({
     queryKey: ["parts", branchId],
     queryFn: async () => {
-      const res = await fetch(branchUrl(`${API_BASE}/parts/`, branchId), { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/parts/?page_size=200`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch parts");
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.results || []);
     },
   });
 }
@@ -319,9 +322,10 @@ export function usePartReservations(branchId?: string) {
   return useQuery<PartReservation[]>({
     queryKey: ["part-reservations"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/part-reservations/`, { credentials: "include" });
+      const res = await fetch(`${API_BASE}/part-reservations/?page_size=200`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch part reservations");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -369,9 +373,10 @@ export function useGRNs(branchId?: string) {
   return useQuery<GRN[]>({
     queryKey: ["grns", branchId],
     queryFn: async () => {
-      const res = await fetch(branchUrl(`${API_BASE}/grns/`, branchId), { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/grns/?page_size=200`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch GRNs");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -380,9 +385,10 @@ export function useStockTransfers(branchId?: string) {
   return useQuery<StockTransfer[]>({
     queryKey: ["stock-transfers", branchId],
     queryFn: async () => {
-      const res = await fetch(branchUrl(`${API_BASE}/stock-transfers/`, branchId), { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/stock-transfers/?page_size=200`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stock transfers");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -391,9 +397,10 @@ export function usePurchaseRequisitions(branchId?: string) {
   return useQuery<PurchaseRequisition[]>({
     queryKey: ["purchase-requisitions", branchId],
     queryFn: async () => {
-      const res = await fetch(branchUrl(`${API_BASE}/purchase-requisitions/`, branchId), { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/purchase-requisitions/?page_size=200`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch purchase requisitions");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -402,9 +409,10 @@ export function useInventoryAlerts(branchId?: string) {
   return useQuery<InventoryAlert[]>({
     queryKey: ["inventory-alerts", branchId],
     queryFn: async () => {
-      const res = await fetch(branchUrl(`${API_BASE}/inventory-alerts/`, branchId), { credentials: "include" });
+      const res = await fetch(branchUrl(`${API_BASE}/inventory-alerts/?page_size=200`, branchId), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch inventory alerts");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -413,9 +421,10 @@ export function useSupplierPerformance() {
   return useQuery<SupplierPerformance[]>({
     queryKey: ["supplier-performance"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/supplier-performance/`, { credentials: "include" });
+      const res = await fetch(`${API_BASE}/supplier-performance/?page_size=200`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch supplier performance");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }
@@ -617,7 +626,8 @@ export function useStockAdjustments(status?: string) {
         : `${API_BASE}/inventory/adjustments/`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stock adjustments");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse(data);
     },
   });
 }

@@ -39,7 +39,9 @@ from .models import (
     SystemConfig, SystemConfigHistory, WorkflowConfig, ApprovalRule,
     NotificationTemplate, NotificationRule, AutomationRule, DelegationRule,
     BranchHolidayCalendar, OperatingHours, SLAConfig, ConfigAuditLog, MenuConfig, FeatureFlag,
-    Currency, Language, SystemPreference
+    Currency, Language, SystemPreference,
+    PartCategory, Brand, Designation, BankAccount, DocumentNumberSequence,
+    WhatsAppTemplate, HsnSacCode, PasswordResetToken
 )
 from .permissions import (
     RoleBasedPermission, IsAdminOrManager, IsTechnicianOrAbove, CanTransitionWorkflow, IsAdminConfig
@@ -92,7 +94,10 @@ from .serializers import (
     Customer360OverviewSerializer, VehicleWithServiceHistorySerializer,
     ServiceHistorySerializer, CustomerInvoiceSummarySerializer,
     CustomerContractSummarySerializer, CommunicationLogSerializer, ContractEligibilitySerializer,
-    Customer360PaymentSerializer, Customer360JobCardSerializer
+    Customer360PaymentSerializer, Customer360JobCardSerializer,
+    PartCategorySerializer, BrandSerializer, DesignationSerializer, BankAccountSerializer,
+    DocumentNumberSequenceSerializer, WhatsAppTemplateSerializer, HsnSacCodeSerializer,
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ChangePasswordSerializer
 )
 
 
@@ -111,21 +116,62 @@ def register_view(request):
 
 @api_view(['POST'])
 def login_view(request):
+    from .throttles import LoginRateThrottle
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
+        username = serializer.validated_data['username']
+        try:
+            target_user = User.objects.get(username=username)
+            profile = getattr(target_user, 'profile', None)
+            if profile and profile.locked_until and profile.locked_until > timezone.now():
+                remaining = int((profile.locked_until - timezone.now()).total_seconds())
+                return Response({
+                    'error': 'Account is temporarily locked due to too many failed login attempts.',
+                    'locked': True,
+                    'seconds_remaining': remaining
+                }, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            pass
+
         user = authenticate(
             request,
-            username=serializer.validated_data['username'],
+            username=username,
             password=serializer.validated_data['password']
         )
         if user:
-            login(request, user)
             profile = getattr(user, 'profile', None)
+            if profile:
+                profile.failed_login_count = 0
+                profile.locked_until = None
+                profile.save(update_fields=['failed_login_count', 'locked_until'])
+
+            login(request, user)
+            if profile:
+                if profile.role in ['SUPER_ADMIN', 'CEO_OWNER']:
+                    request.session.set_expiry(900)
+                elif profile.role == 'CUSTOMER':
+                    request.session.set_expiry(86400)
+                else:
+                    request.session.set_expiry(1800)
+
             return Response({
                 'user': UserSerializer(user).data,
                 'profile': ProfileSerializer(profile).data if profile else None,
                 'message': 'Login successful'
             })
+
+        try:
+            target_user = User.objects.get(username=username)
+            profile = getattr(target_user, 'profile', None)
+            if profile:
+                profile.failed_login_count += 1
+                if profile.failed_login_count >= 5:
+                    from datetime import timedelta
+                    profile.locked_until = timezone.now() + timedelta(minutes=15)
+                profile.save(update_fields=['failed_login_count', 'locked_until'])
+        except User.DoesNotExist:
+            pass
+
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -7760,3 +7806,164 @@ def seed_data_view(request):
         return Response({'status': 'success', 'output': out.getvalue()})
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    from django.db import connection
+    db_ok = True
+    try:
+        connection.ensure_connection()
+    except Exception:
+        db_ok = False
+    return Response({
+        'status': 'ok' if db_ok else 'degraded',
+        'database': 'connected' if db_ok else 'error',
+        'version': '2.0',
+    }, status=200 if db_ok else 503)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_view(request):
+    serializer = PasswordResetRequestSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        try:
+            user = User.objects.get(email=email)
+            from datetime import timedelta
+            import uuid
+            PasswordResetToken.objects.filter(user=user, is_used=False).update(is_used=True)
+            token = PasswordResetToken.objects.create(
+                user=user,
+                expires_at=timezone.now() + timedelta(hours=1)
+            )
+            return Response({
+                'message': 'Password reset instructions sent to your email.',
+                'token': str(token.token)
+            })
+        except User.DoesNotExist:
+            pass
+    return Response({'message': 'If an account exists with this email, reset instructions will be sent.'})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_view(request):
+    serializer = PasswordResetConfirmSerializer(data=request.data)
+    if serializer.is_valid():
+        try:
+            token_obj = PasswordResetToken.objects.get(
+                token=serializer.validated_data['token']
+            )
+            if not token_obj.is_valid():
+                return Response({'error': 'Token has expired or already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = token_obj.user
+            user.set_password(serializer.validated_data['new_password'])
+            user.save()
+            token_obj.is_used = True
+            token_obj.save()
+            return Response({'message': 'Password reset successfully.'})
+        except PasswordResetToken.DoesNotExist:
+            return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def change_password_view(request):
+    serializer = ChangePasswordSerializer(data=request.data)
+    if serializer.is_valid():
+        if not request.user.check_password(serializer.validated_data['old_password']):
+            return Response({'error': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(serializer.validated_data['new_password'])
+        request.user.save()
+        return Response({'message': 'Password changed successfully.'})
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PartCategoryViewSet(viewsets.ModelViewSet):
+    queryset = PartCategory.objects.all()
+    serializer_class = PartCategorySerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('active_only'):
+            qs = qs.filter(is_active=True)
+        return qs
+
+
+class BrandViewSet(viewsets.ModelViewSet):
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('active_only'):
+            qs = qs.filter(is_active=True)
+        return qs
+
+
+class DesignationViewSet(viewsets.ModelViewSet):
+    queryset = Designation.objects.all()
+    serializer_class = DesignationSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        dept = self.request.query_params.get('department')
+        if dept:
+            qs = qs.filter(department_id=dept)
+        return qs
+
+
+class BankAccountViewSet(viewsets.ModelViewSet):
+    queryset = BankAccount.objects.all()
+    serializer_class = BankAccountSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        branch = self.request.query_params.get('branch') or self.request.query_params.get('branch_id')
+        if branch:
+            qs = qs.filter(branch_id=branch)
+        return qs
+
+
+class DocumentNumberSequenceViewSet(viewsets.ModelViewSet):
+    queryset = DocumentNumberSequence.objects.all()
+    serializer_class = DocumentNumberSequenceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        branch = self.request.query_params.get('branch') or self.request.query_params.get('branch_id')
+        if branch:
+            qs = qs.filter(branch_id=branch)
+        return qs
+
+
+class WhatsAppTemplateViewSet(viewsets.ModelViewSet):
+    queryset = WhatsAppTemplate.objects.all()
+    serializer_class = WhatsAppTemplateSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class HsnSacCodeViewSet(viewsets.ModelViewSet):
+    queryset = HsnSacCode.objects.all()
+    serializer_class = HsnSacCodeSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        code_type = self.request.query_params.get('code_type')
+        if code_type:
+            qs = qs.filter(code_type=code_type)
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(Q(code__icontains=search) | Q(description__icontains=search))
+        return qs

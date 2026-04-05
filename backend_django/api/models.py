@@ -81,6 +81,8 @@ class Branch(models.Model):
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
     country = models.CharField(max_length=100, default='India')
+    gstin = models.CharField(max_length=15, blank=True)
+    upi_id = models.CharField(max_length=100, blank=True)
     parent_branch = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='sub_branches')
     is_active = models.BooleanField(default=True)
     is_headquarters = models.BooleanField(default=False)
@@ -104,6 +106,8 @@ class Profile(models.Model):
     certifications = models.JSONField(default=list, blank=True)
     is_available = models.BooleanField(default=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    failed_login_count = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
@@ -540,6 +544,8 @@ class Part(models.Model):
     lead_time_days = models.IntegerField(default=3)
     min_margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=10, help_text='Minimum allowed margin %')
     max_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15, help_text='Maximum allowed discount %')
+    reorder_point = models.IntegerField(default=10)
+    auto_reorder_enabled = models.BooleanField(default=True)
     is_discontinued = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
@@ -4749,5 +4755,146 @@ class NotificationAuditLog(models.Model):
         if self.performed_by and not self.performed_by_name:
             self.performed_by_name = self.performed_by.get_full_name() or self.performed_by.username
         super().save(*args, **kwargs)
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_valid(self):
+        return not self.is_used and self.expires_at > timezone.now()
+
+    def __str__(self):
+        return f"Reset token for {self.user.username}"
+
+
+class PartCategory(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    parent_category = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='subcategories')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name_plural = "Part Categories"
+
+    def __str__(self):
+        return self.name
+
+
+class Brand(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    logo_url = models.URLField(blank=True)
+    country_of_origin = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Designation(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    grade = models.CharField(max_length=10, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='designations')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
+class BankAccount(models.Model):
+    class AccountType(models.TextChoices):
+        SAVINGS = 'SAVINGS', 'Savings'
+        CURRENT = 'CURRENT', 'Current'
+        OVERDRAFT = 'OVERDRAFT', 'Overdraft'
+
+    bank_name = models.CharField(max_length=100)
+    account_number = models.CharField(max_length=30)
+    account_holder_name = models.CharField(max_length=100)
+    ifsc_code = models.CharField(max_length=20)
+    swift_code = models.CharField(max_length=20, blank=True)
+    account_type = models.CharField(max_length=10, choices=AccountType.choices, default=AccountType.CURRENT)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='bank_accounts')
+    opening_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    current_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.bank_name} - ****{self.account_number[-4:]}"
+
+
+class DocumentNumberSequence(models.Model):
+    class ResetFrequency(models.TextChoices):
+        NEVER = 'NEVER', 'Never'
+        YEARLY = 'YEARLY', 'Yearly'
+        MONTHLY = 'MONTHLY', 'Monthly'
+
+    document_type = models.CharField(max_length=30)
+    prefix = models.CharField(max_length=10)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='document_sequences')
+    include_year = models.BooleanField(default=True)
+    include_month = models.BooleanField(default=False)
+    padding_length = models.PositiveIntegerField(default=5)
+    current_sequence = models.PositiveIntegerField(default=0)
+    reset_frequency = models.CharField(max_length=10, choices=ResetFrequency.choices, default=ResetFrequency.YEARLY)
+    last_reset_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['document_type', 'branch']
+
+    def __str__(self):
+        return f"{self.document_type} - {self.prefix} ({self.branch.name})"
+
+
+class WhatsAppTemplate(models.Model):
+    class Category(models.TextChoices):
+        UTILITY = 'UTILITY', 'Utility'
+        MARKETING = 'MARKETING', 'Marketing'
+        AUTHENTICATION = 'AUTHENTICATION', 'Authentication'
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    template_name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=20, choices=Category.choices)
+    language = models.CharField(max_length=10, default='en')
+    body = models.TextField()
+    variables = models.JSONField(default=list)
+    meta_template_id = models.CharField(max_length=100, blank=True)
+    approval_status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+    rejection_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.template_name} ({self.approval_status})"
+
+
+class HsnSacCode(models.Model):
+    class CodeType(models.TextChoices):
+        HSN = 'HSN', 'HSN'
+        SAC = 'SAC', 'SAC'
+
+    code = models.CharField(max_length=15, unique=True)
+    description = models.TextField()
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2)
+    code_type = models.CharField(max_length=3, choices=CodeType.choices)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "HSN/SAC Code"
+        verbose_name_plural = "HSN/SAC Codes"
+
+    def __str__(self):
+        return f"{self.code} - {self.description[:50]}"
 
 

@@ -130,11 +130,25 @@ router.register(r'system-preferences', views.SystemPreferenceViewSet, basename='
 # Cross-Module Integration Routes
 router.register(r'integration', views.IntegrationViewSet, basename='integration')
 
+# New Models Routes
+router.register(r'part-categories', views.PartCategoryViewSet, basename='part-categories')
+router.register(r'brands', views.BrandViewSet, basename='brands')
+router.register(r'hrms/designations', views.DesignationViewSet, basename='designations')
+router.register(r'finance/bank-accounts', views.BankAccountViewSet, basename='bank-accounts')
+router.register(r'admin-config/document-sequences', views.DocumentNumberSequenceViewSet, basename='document-sequences')
+router.register(r'whatsapp-templates', views.WhatsAppTemplateViewSet, basename='whatsapp-templates')
+router.register(r'finance/hsn-sac-codes', views.HsnSacCodeViewSet, basename='hsn-sac-codes')
+
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
     path('auth/login/', views.login_view, name='login'),
     path('auth/logout/', views.logout_view, name='logout'),
     path('auth/user/', views.current_user_view, name='current_user'),
+    path('auth/forgot-password/', views.forgot_password_view, name='forgot_password'),
+    path('auth/reset-password/', views.reset_password_view, name='reset_password'),
+    path('auth/change-password/', views.change_password_view, name='change_password'),
+    
+    path('health/', views.health_check, name='health_check'),
     
     path('dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
     path('workflow/stages/', views.workflow_stages, name='workflow_stages'),

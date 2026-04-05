@@ -167,9 +167,10 @@ export default function LeadDetail() {
   const { data: events = [], isLoading: eventsLoading } = useQuery<CRMEvent[]>({
     queryKey: ["/api/crm-events/", id],
     queryFn: async () => {
-      const res = await fetch(`/api/crm-events/?lead=${id}`);
+      const res = await fetch(`/api/crm-events/?lead=${id}`, { credentials: "include" });
       if (!res.ok) return [];
-      return res.json();
+      const d = await res.json();
+      return Array.isArray(d) ? d : (d.results || []);
     },
     enabled: !!id,
   });

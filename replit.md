@@ -74,6 +74,18 @@ The system is divided into a backend and a frontend:
 -   **Payment Gateways:** Integrations with Stripe, Razorpay, and PayU.
 -   **ERP System:** Tally ERP for invoice and customer synchronization.
 
+## API Infrastructure
+- **Pagination:** All list endpoints use `StandardPagination` (default page_size=20, max=100). Frontend handles paginated `{count, next, previous, results}` responses via:
+  - Default `queryFn` in `queryClient.ts` auto-unwraps paginated responses
+  - `unwrapPaginatedResponse()` utility in `client/src/lib/api-utils.ts`
+  - `usePaginatedQuery` hook in `client/src/hooks/use-paginated-query.ts` for paginated UI
+- **Error Handling:** Custom exception handler in `backend_django/api/exceptions.py` returns `{error, code, status_code}` format
+- **Rate Limiting:** `LoginRateThrottle` (5/min) and `PaymentRateThrottle` (10/min) in `backend_django/api/throttles.py`
+- **Auth Improvements:** Account lockout (5 failed attempts → 15min lock), role-based session expiry, forgot/reset/change password endpoints
+- **New Models:** BankAccount, PartCategory, Brand, Designation, PasswordResetToken, DocumentNumberSequence, WhatsAppTemplate, HsnSacCode
+- **Seed Data:** `python manage.py seed_sample_data` loads comprehensive test data across all modules
+- **New Endpoints:** /api/health/, /api/part-categories/, /api/brands/, /api/hrms/designations/, /api/finance/bank-accounts/, /api/admin-config/document-sequences/, /api/whatsapp-templates/, /api/finance/hsn-sac-codes/, /api/auth/forgot-password/, /api/auth/reset-password/, /api/auth/change-password/
+
 ## QA & Testing
 - **Test Framework:** pytest + pytest-django + factory-boy
 - **Test Count:** 128 automated tests (all passing)

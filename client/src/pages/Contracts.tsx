@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 import { queryClient, apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useLocalization } from "@/lib/currency-context";
 import { format, addYears } from "date-fns";
@@ -248,7 +249,8 @@ export default function Contracts() {
     queryFn: async () => {
       const res = await fetch("/api/customers/", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
     enabled: isDialogOpen,
   });
@@ -261,7 +263,8 @@ export default function Contracts() {
         : "/api/vehicles/";
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch vehicles");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
     enabled: isDialogOpen && !!selectedCustomerId,
   });
@@ -276,7 +279,8 @@ export default function Contracts() {
       const url = `/api/contracts/${params.toString() ? "?" + params.toString() : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch contracts");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 
@@ -295,7 +299,8 @@ export default function Contracts() {
     queryFn: async () => {
       const res = await fetch("/api/contracts/expiring_soon/?days=30", { credentials: "include" });
       if (!res.ok) return [];
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 
@@ -304,7 +309,8 @@ export default function Contracts() {
     queryFn: async () => {
       const res = await fetch(`/api/contracts/${detailContract!.id}/audit_log/`, { credentials: "include" });
       if (!res.ok) return [];
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
     enabled: !!detailContract,
   });

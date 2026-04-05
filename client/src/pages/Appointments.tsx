@@ -140,7 +140,8 @@ export default function Appointments() {
       }
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch appointments");
-      return res.json();
+      const d = await res.json();
+      return Array.isArray(d) ? d : (d.results || []);
     },
   });
 
@@ -149,7 +150,8 @@ export default function Appointments() {
     queryFn: async () => {
       const res = await fetch("/api/customers/", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
-      return res.json();
+      const d = await res.json();
+      return Array.isArray(d) ? d : (d.results || []);
     },
   });
 
@@ -161,7 +163,8 @@ export default function Appointments() {
         : "/api/vehicles/";
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch vehicles");
-      return res.json();
+      const d = await res.json();
+      return Array.isArray(d) ? d : (d.results || []);
     },
     enabled: !!selectedCustomerId || isDialogOpen,
   });
@@ -171,7 +174,8 @@ export default function Appointments() {
     queryFn: async () => {
       const res = await fetch("/api/branches/", { credentials: "include" });
       if (!res.ok) return [{ id: 1, name: "Main Branch" }];
-      return res.json();
+      const d = await res.json();
+      return Array.isArray(d) ? d : (d.results || []);
     },
   });
 

@@ -155,7 +155,8 @@ export function useJobCards(stage?: string, branchId?: string) {
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch job cards");
       const data = await res.json();
-      return data.map((jc: JobCard) => ({
+      const items = Array.isArray(data) ? data : (data.results || []);
+      return items.map((jc: JobCard) => ({
         ...jc,
         status: jc.workflow_stage
       }));
@@ -186,7 +187,8 @@ export function useWorkflowStages() {
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/workflow/stages/`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch workflow stages");
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.results || []);
     },
   });
 }
@@ -469,7 +471,8 @@ export function useServiceEvents() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch service events");
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.results || []);
     },
   });
 }

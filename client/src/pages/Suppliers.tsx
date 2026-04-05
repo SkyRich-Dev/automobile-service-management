@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useSidebar } from "@/lib/sidebar-context";
@@ -383,7 +384,8 @@ export default function Suppliers() {
     queryFn: async () => {
       const res = await fetch("/api/suppliers/", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch suppliers");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 
@@ -392,7 +394,8 @@ export default function Suppliers() {
     queryFn: async () => {
       const res = await fetch(`/api/purchase-orders/${branchQ}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
-      return res.json();
+      const d = await res.json();
+      return unwrapPaginatedResponse(d);
     },
   });
 

@@ -37,7 +37,9 @@ from .models import (
     Currency, Language, SystemPreference,
     NotificationEvent, NotificationChannelConfig, NotificationRecipientRule,
     NotificationEscalationRule, NotificationQueue, NotificationLog, NotificationAuditLog,
-    NotificationModule, NotificationTriggerType, NotificationChannel, NotificationRecipientType, NotificationDeliveryStatus
+    NotificationModule, NotificationTriggerType, NotificationChannel, NotificationRecipientType, NotificationDeliveryStatus,
+    PartCategory, Brand, Designation, BankAccount, DocumentNumberSequence,
+    WhatsAppTemplate, HsnSacCode, PasswordResetToken
 )
 
 
@@ -2975,3 +2977,73 @@ class NotificationCenterDashboardSerializer(serializers.Serializer):
     recent_logs = NotificationLogSerializer(many=True)
     events_by_module = serializers.DictField()
     delivery_stats = serializers.DictField()
+
+
+class PartCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PartCategory
+        fields = '__all__'
+
+
+class BrandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = '__all__'
+
+
+class DesignationSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True)
+
+    class Meta:
+        model = Designation
+        fields = '__all__'
+
+
+class BankAccountSerializer(serializers.ModelSerializer):
+    masked_account_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BankAccount
+        fields = '__all__'
+        extra_kwargs = {
+            'account_number': {'write_only': True},
+        }
+
+    def get_masked_account_number(self, obj):
+        if obj.account_number:
+            return f"****{obj.account_number[-4:]}"
+        return ""
+
+
+class DocumentNumberSequenceSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+
+    class Meta:
+        model = DocumentNumberSequence
+        fields = '__all__'
+
+
+class WhatsAppTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WhatsAppTemplate
+        fields = '__all__'
+
+
+class HsnSacCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HsnSacCode
+        fields = '__all__'
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+    new_password = serializers.CharField(min_length=8)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField()
+    new_password = serializers.CharField(min_length=8)

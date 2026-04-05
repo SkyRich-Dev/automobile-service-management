@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCsrfToken } from "@/lib/queryClient";
+import { unwrapPaginatedResponse } from "@/lib/api-utils";
 
 function csrfHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
@@ -44,7 +45,8 @@ export function useCustomers(search?: string) {
         : `${API_BASE}/customers/`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse<Customer>(data);
     },
   });
 }
@@ -90,7 +92,8 @@ export function useVehicles(customerId?: number) {
         : `${API_BASE}/vehicles/`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch vehicles");
-      return res.json();
+      const data = await res.json();
+      return unwrapPaginatedResponse<Vehicle>(data);
     },
   });
 }
