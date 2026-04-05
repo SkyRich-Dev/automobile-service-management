@@ -12,3 +12,9 @@ id = "gSXyeqr8zPgEcmRXYdJYM"
 uri = "file://AutoServ_Enterprise_Marketing_Document.md"
 type = "text"
 title = "AutoServ Enterprise - Marketing Document"
+
+[[outputs]]
+id = "JS1gq5ceojPF5dknrhUHT"
+uri = "file://AutoServ_Enterprise_SRS.docx"
+type = "word_document"
+title = "AutoServ Enterprise - Complete SRS Document"
