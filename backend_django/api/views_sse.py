@@ -1,11 +1,11 @@
 import json
-from django.http import StreamingHttpResponse
-from django.contrib.auth.decorators import login_required
+from django.http import StreamingHttpResponse, JsonResponse
 from .sse_manager import get_manager
 
 
-@login_required
 def event_stream(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
     user = request.user
     try:
         profile = user.profile

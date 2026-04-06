@@ -9,10 +9,13 @@ dependencies = [
     "djangorestframework>=3.16.1",
     "drf-spectacular>=0.29.0",
     "factory-boy>=3.3.3",
+    "pillow>=12.2.0",
     "psycopg2-binary>=2.9.11",
     "pytest>=9.0.2",
     "pytest-django>=4.12.0",
     "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.2.1",
+    "qrcode>=8.2",
+    "weasyprint>=68.1",
     "whitenoise>=6.11.0",
 ]

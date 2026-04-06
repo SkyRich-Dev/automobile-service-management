@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/use-auth";
+import { useSSE } from '@/hooks/use-sse';
 import { useJobCards } from "@/hooks/use-job-cards";
 import { useUnifiedDashboard } from "@/hooks/use-integration";
 import { useQuery } from "@tanstack/react-query";
@@ -113,6 +114,7 @@ function LoadingSkeleton() {
 }
 
 export default function Dashboard() {
+  useSSE();
   const { user } = useAuth();
   const { selectedBranch } = useSidebar();
   const { data: jobCards, isLoading } = useJobCards(undefined, selectedBranch);

@@ -79,5 +79,15 @@ All security issues resolved. CUSTOMER data isolation enforced across JobCard, C
 - Customer Portal: /customer, /customer/appointments, /customer/history, /customer/invoices, /customer/vehicles, /customer/profile
 - Public: /login, /forgot-password, /reset-password
 
+## v4 QA Fixes (BUG-V4-001 through BUG-V4-007)
+- **BUG-V4-001**: Installed weasyprint, qrcode[pil], Pillow for PDF generation and QR codes
+- **BUG-V4-002**: useSSE() hook activated in Dashboard.tsx for real-time event subscription
+- **BUG-V4-003**: Media files served in all environments (not just DEBUG) via django.views.static.serve
+- **BUG-V4-004**: QR code generated on invoice creation in EnhancedInvoiceViewSet.perform_create()
+- **BUG-V4-005**: WhatsApp template approval check enforced in test_send action
+- **BUG-V4-006**: Part FK data migration executed — part_category and part_brand populated for all existing parts
+- **BUG-V4-007**: SSE event_stream returns 401 JSON instead of redirect for unauthenticated requests
+- **PartSerializer**: Added part_category, part_category_name, part_brand, part_brand_name fields
+
 ## Migration History
 - Latest: 0020_contract_renewal_contract_part_part_brand_and_more.py

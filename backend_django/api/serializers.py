@@ -116,6 +116,8 @@ class PartSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(source='selling_price', max_digits=12, decimal_places=2)
     primary_supplier_name = serializers.CharField(source='primary_supplier.name', read_only=True, allow_null=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True, allow_null=True)
+    part_category_name = serializers.CharField(source='part_category.name', read_only=True, allow_null=True)
+    part_brand_name = serializers.CharField(source='part_brand.name', read_only=True, allow_null=True)
     
     class Meta:
         model = Part
@@ -128,7 +130,8 @@ class PartSerializer(serializers.ModelSerializer):
                   'average_cost', 'compatible_vehicles', 'warranty_eligible', 'warranty_period_months',
                   'is_returnable', 'return_period_days', 'primary_supplier', 'primary_supplier_name',
                   'lead_time_days', 'min_margin_percent', 'max_discount_percent', 'is_discontinued',
-                  'available_stock', 'is_low_stock', 'stock_status', 'is_active', 'created_at']
+                  'available_stock', 'is_low_stock', 'stock_status', 'is_active', 'created_at',
+                  'part_category', 'part_category_name', 'part_brand', 'part_brand_name']
         read_only_fields = ['id', 'part_number', 'landing_cost', 'margin_percent', 'cgst_rate',
                            'sgst_rate', 'igst_rate', 'stock_status', 'created_at']
 

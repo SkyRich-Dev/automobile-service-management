@@ -4091,6 +4091,20 @@ class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
                 )
         invoice = serializer.save(created_by=self.request.user)
         self._recalculate_invoice_gst(invoice)
+        if getattr(invoice.branch, 'upi_id', None) and invoice.grand_total and invoice.grand_total > 0:
+            try:
+                from .pdf_generator import _qr_b64
+                upi_str = (
+                    f'upi://pay?pa={invoice.branch.upi_id}'
+                    f'&pn={invoice.branch.name}'
+                    f'&am={invoice.grand_total}'
+                    f'&tr={invoice.invoice_number}'
+                    f'&tn=Invoice+Payment'
+                )
+                invoice.qr_code_url = _qr_b64(upi_str)
+                invoice.save(update_fields=['qr_code_url'])
+            except Exception:
+                pass
 
     def _recalculate_invoice_gst(self, invoice):
         from .utils_tax import get_gst_components
@@ -8100,6 +8114,19 @@ class NotificationCenterViewSet(viewsets.GenericViewSet):
         
         if not template_id:
             return Response({'error': 'Template ID is required'}, status=400)
+        
+        try:
+            tmpl_check = NotificationTemplate.objects.get(pk=template_id)
+            if tmpl_check.channel == 'WHATSAPP' and tmpl_check.code:
+                approved_wa = self._get_approved_wa_template(tmpl_check.code)
+                if not approved_wa:
+                    return Response({
+                        'success': False,
+                        'error': f'WhatsApp template "{tmpl_check.code}" has not been approved by Meta. '
+                                 f'Current status must be APPROVED. Use EMAIL or SMS channel instead.'
+                    }, status=400)
+        except NotificationTemplate.DoesNotExist:
+            pass
         
         try:
             template = NotificationTemplate.objects.get(pk=template_id)
