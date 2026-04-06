@@ -173,8 +173,6 @@ urlpatterns = [
     # Contract Detection
     path('contracts/detect/', views.detect_contract_view, name='detect_contract'),
     
-    # Temporary seed endpoint for production
-    path('seed-data/', views.seed_data_view, name='seed_data'),
     
     # Finance Module Views
     path('finance/dashboard/', views.finance_dashboard, name='finance_dashboard'),

@@ -31,6 +31,8 @@ import PaymentCancel from "@/pages/PaymentCancel";
 import NotFound from "@/pages/not-found";
 import NotificationCenter from "@/pages/NotificationCenter";
 import AdminConfig from "@/pages/AdminConfig";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import { useEffect } from "react";
 
 type UserRole = 
@@ -64,8 +66,8 @@ const routePermissions: Record<string, UserRole[]> = {
   '/service-history': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'TECHNICIAN'],
   '/accounts-finance': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'ACCOUNTS_MANAGER', 'ACCOUNTANT'],
   '/admin': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
-  '/notification-center': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER'],
-  '/hrms': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'HR_MANAGER'],
+  '/notification-center': ['SUPER_ADMIN', 'CEO_OWNER', 'REGIONAL_MANAGER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SUPERVISOR', 'SERVICE_ADVISOR', 'SERVICE_ENGINEER', 'SALES_EXECUTIVE', 'ACCOUNTANT', 'INVENTORY_MANAGER', 'HR_MANAGER', 'TECHNICIAN', 'CRM_EXECUTIVE'],
+  '/hrms': ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'HR_MANAGER', 'SERVICE_MANAGER'],
   '/config-center': ['SUPER_ADMIN', 'CEO_OWNER'],
 };
 
@@ -119,6 +121,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} allowedRoles={routePermissions['/']} />} />

@@ -90,10 +90,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS - restrict to known origins
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    origin.strip() for origin in
-    os.environ.get('CORS_ALLOWED_ORIGINS', 'https://*.replit.dev,https://*.replit.app').split(',')
-]
+CORS_ALLOWED_ORIGINS = []
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.replit\.dev$",
     r"^https://.*\.replit\.app$",
@@ -131,6 +128,16 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# Email settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('SMTP_PORT', 587))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('SMTP_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('SMTP_PASS', '')
+DEFAULT_FROM_EMAIL = os.environ.get('SMTP_USER', 'noreply@autoserv.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', '')
 
 # Media settings
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

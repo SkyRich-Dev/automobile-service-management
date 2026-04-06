@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "@/lib/settings-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -112,6 +112,12 @@ export default function Login() {
                   t('auth.signIn', 'Sign In')
                 )}
               </Button>
+
+              <div className="text-center">
+                <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary hover:underline" data-testid="link-forgot-password">
+                  Forgot password?
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>

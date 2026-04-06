@@ -747,11 +747,17 @@ class Payment(models.Model):
     notes = models.TextField(blank=True)
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
         if not self.payment_number:
             self.payment_number = f"PAY-{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
-        self.invoice.amount_paid += self.amount
-        self.invoice.save()
+        if is_new:
+            self.invoice.amount_paid += self.amount
+            if self.invoice.amount_paid >= self.invoice.grand_total:
+                self.invoice.payment_status = 'Paid'
+            else:
+                self.invoice.payment_status = 'Partially Paid'
+            self.invoice.save()
 
     def __str__(self):
         return f"{self.payment_number} - {self.amount}"

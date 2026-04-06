@@ -105,3 +105,21 @@ The system is divided into a backend and a frontend:
 - **SEC-007**: PartCategoryViewSet, BrandViewSet, DesignationViewSet, HsnSacCodeViewSet changed from AllowAny to IsAuthenticated+RoleBasedPermission; RESOURCE_PERMISSIONS entries added
 - **SEC-008**: CUSTOMER role data isolation added to JobCardViewSet, CustomerViewSet, VehicleViewSet, InvoiceViewSet, AppointmentViewSet, EnhancedInvoiceViewSet, and Customer360ViewSet — customers can only see their own data
 - **HIGH-004**: SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE set to True when not in DEBUG mode
+
+## v2 QA Bug Fixes (BUG-V2-001 through BUG-V2-020)
+- **BUG-V2-001**: Fixed Notification.objects.create() crashes — corrected field name (job_card not related_job_card), valid notification_type (NotificationType.GENERAL/APPROVAL_REQUIRED), removed non-existent priority field
+- **BUG-V2-002**: Fixed Payment.save() double-counting — invoice amount_paid only updated on creation (is_new check), payment_status set correctly
+- **BUG-V2-003**: Fixed CORS wildcard strings — CORS_ALLOWED_ORIGINS set to empty list, relies on CORS_ALLOWED_ORIGIN_REGEXES for pattern matching
+- **BUG-V2-004**: Added CUSTOMER data isolation to ContractViewSet and CustomerInteractionViewSet (VehicleViewSet and CustomerProfile360ViewSet were already fixed)
+- **BUG-V2-005**: Estimate approval now syncs financials to JobCard (labor_amount, parts_amount, estimated_amount) and creates PartReservation records for approved parts, wrapped in transaction.atomic
+- **BUG-V2-006**: Workflow transition preconditions added — QC requires completed tasks, BILLING checks for QC_FAILED tasks, DELIVERY requires paid/approved invoice
+- **BUG-V2-007**: GST calculation wired into EnhancedInvoiceViewSet.perform_create() via _recalculate_invoice_gst() calling utils_tax.get_gst_components()
+- **BUG-V2-008**: EnhancedPayment confirm() uses aggregate Sum instead of += to prevent double-counting, calculates balance_due
+- **BUG-V2-009**: Notification center route permissions expanded to all 16 staff roles (excluding CUSTOMER)
+- **BUG-V2-010**: SERVICE_MANAGER added to /hrms route permissions
+- **BUG-V2-011**: ForgotPassword.tsx and ResetPassword.tsx pages created with routes in App.tsx
+- **BUG-V2-012**: Email sending added to forgot_password_view with SMTP settings in settings.py (requires SMTP_HOST, SMTP_USER, SMTP_PASS env vars)
+- **BUG-V2-019**: Login page shows lockout message with remaining minutes when account is locked
+- **BUG-V2-020**: Seed data endpoint removed from urls.py (use management command instead: python manage.py seed_sample_data)
+- **Frontend Pages Added:** client/src/pages/ForgotPassword.tsx, client/src/pages/ResetPassword.tsx
+- **Login.tsx:** Added "Forgot password?" link below submit button

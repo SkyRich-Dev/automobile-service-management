@@ -59,6 +59,10 @@ async function loginUser(credentials: { username: string; password: string }): P
 
   if (!response.ok) {
     const data = await response.json();
+    if (data.locked) {
+      const mins = Math.ceil((data.seconds_remaining || 60) / 60);
+      throw new Error(`Account locked due to too many failed attempts. Try again in ${mins} minute(s).`);
+    }
     throw new Error(data.error || "Login failed");
   }
 

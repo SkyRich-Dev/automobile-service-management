@@ -5,9 +5,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.db.models import Q, Count, Sum, F
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from decimal import Decimal
 import os
 
 from .models import (
@@ -15,7 +17,7 @@ from .models import (
     ServiceEvent, Estimate, EstimateLine, PartIssue, Invoice, Payment,
     DigitalInspection, Bay, TechnicianMetrics, TimelineEvent,
     WorkflowStage, UserRole, ServiceEventType, StockMovementType,
-    Notification, Contract, ContractStatus, ContractVehicle, ContractCoverageRule,
+    Notification, NotificationType, Contract, ContractStatus, ContractVehicle, ContractCoverageRule,
     ContractConsumption, ContractApproval, ContractApprovalStatus, ContractAuditLog, ContractAuditAction,
     Supplier, PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus,
     PartReservation, ReservationStatus, GoodsReceiptNote, GRNLine, GRNStatus,
@@ -595,13 +597,36 @@ class JobCardViewSet(viewsets.ModelViewSet):
             comment = serializer.validated_data.get('comment', '')
             
             try:
+                self._validate_transition_preconditions(job_card, new_stage, request.user)
                 job_card.transition_to(new_stage, request.user, comment)
                 return Response(JobCardDetailSerializer(job_card).data)
             except ValidationError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    def _validate_transition_preconditions(self, job_card, new_stage, user):
+        profile = getattr(user, 'profile', None)
+        role = profile.role if profile else ''
+        supervisor_roles = ['SUPER_ADMIN', 'CEO_OWNER', 'BRANCH_MANAGER', 'SERVICE_MANAGER', 'SUPERVISOR']
+
+        if new_stage == WorkflowStage.QC:
+            completed = Task.objects.filter(job_card=job_card, status='COMPLETED').count()
+            if not completed:
+                raise ValidationError('Cannot move to QC: at least one task must be completed first.')
+
+        elif new_stage == WorkflowStage.BILLING:
+            failed = Task.objects.filter(job_card=job_card, status='QC_FAILED').count()
+            if failed > 0 and role not in supervisor_roles:
+                raise ValidationError(f'{failed} task(s) failed QC. Resolve or request supervisor override.')
+
+        elif new_stage == WorkflowStage.DELIVERY:
+            inv = EnhancedInvoice.objects.filter(job_card=job_card).first()
+            if not inv:
+                raise ValidationError('No invoice found. Generate invoice before delivery.')
+            if inv.status not in [InvoiceStatus.PAID, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.APPROVED]:
+                raise ValidationError(f'Invoice must be paid before delivery. Current status: {inv.status}')
+
     @action(detail=True, methods=['get'])
     def allowed_transitions(self, request, pk=None):
         job_card = self.get_object()
@@ -673,8 +698,9 @@ class JobCardViewSet(viewsets.ModelViewSet):
             recipient=request.user,
             title=f'Customer Notification Sent - {job_card.job_card_number}',
             message=f'Notification sent to {job_card.customer.name} via {channel}',
-            notification_type='INFO',
-            related_job_card=job_card
+            notification_type=NotificationType.GENERAL,
+            job_card=job_card,
+            metadata={'channel': channel}
         )
         
         return Response({
@@ -726,9 +752,8 @@ class JobCardViewSet(viewsets.ModelViewSet):
                 recipient=manager_profile.user,
                 title=f'Escalation - {job_card.job_card_number}',
                 message=f'Job card escalated by {request.user.get_full_name() or request.user.username}: {reason[:100]}',
-                notification_type='ALERT',
-                priority='HIGH',
-                related_job_card=job_card
+                notification_type=NotificationType.APPROVAL_REQUIRED,
+                job_card=job_card
             )
         
         if not managers.exists():
@@ -736,9 +761,8 @@ class JobCardViewSet(viewsets.ModelViewSet):
                 recipient=request.user,
                 title=f'Escalation Created - {job_card.job_card_number}',
                 message=f'Job card escalated to {escalation_level}. No managers found to notify.',
-                notification_type='WARNING',
-                priority='HIGH',
-                related_job_card=job_card
+                notification_type=NotificationType.GENERAL,
+                job_card=job_card
             )
         
         return Response({'message': f'Job card escalated to {escalation_level}', 'managers_notified': managers.count()})
@@ -877,6 +901,7 @@ class EstimateViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
     
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def approve(self, request, pk=None):
         estimate = self.get_object()
         comment = request.data.get('comment', '')
@@ -886,12 +911,32 @@ class EstimateViewSet(viewsets.ModelViewSet):
         estimate.approval_date = timezone.now()
         estimate.approval_comment = comment
         estimate.save()
+
+        job_card = estimate.job_card
+        labor_lines = estimate.lines.filter(line_type='LABOR')
+        parts_lines = estimate.lines.filter(line_type='PART')
+        job_card.labor_amount = sum(l.total for l in labor_lines) or Decimal('0')
+        job_card.parts_amount = sum(l.total for l in parts_lines) or Decimal('0')
+        job_card.estimated_amount = estimate.grand_total
+        job_card.save(update_fields=['labor_amount', 'parts_amount', 'estimated_amount'])
+
+        for line in parts_lines:
+            if line.part and line.is_approved:
+                PartReservation.objects.get_or_create(
+                    job_card=job_card,
+                    part=line.part,
+                    defaults={
+                        'quantity': int(line.quantity),
+                        'status': 'ACTIVE',
+                        'reserved_by': request.user,
+                    }
+                )
         
         ServiceEvent.objects.create(
-            job_card=estimate.job_card,
+            job_card=job_card,
             event_type=ServiceEventType.ESTIMATE_APPROVED,
             actor=request.user,
-            new_value=f'Estimate v{estimate.version} approved',
+            new_value=f'Estimate v{estimate.version} approved — JC updated',
             metadata={'estimate_id': estimate.id, 'total': float(estimate.grand_total)},
             comment=comment
         )
@@ -1231,6 +1276,17 @@ class ContractViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Contract.objects.select_related('customer', 'branch', 'vehicle', 'created_by', 'approved_by')\
             .prefetch_related('coverage_rules', 'contract_vehicles__vehicle')
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj)
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         customer_id = self.request.query_params.get('customer_id', None)
         vehicle_id = self.request.query_params.get('vehicle_id', None)
         contract_type = self.request.query_params.get('contract_type', None)
@@ -3129,7 +3185,17 @@ class CustomerInteractionViewSet(viewsets.ModelViewSet):
         queryset = CustomerInteraction.objects.select_related(
             'customer', 'lead', 'job_card', 'handled_by', 'initiated_by'
         ).all()
-        
+
+        try:
+            profile = Profile.objects.get(user=self.request.user)
+            if profile.role == 'CUSTOMER':
+                customer_obj = Customer.objects.filter(user=self.request.user).first()
+                if customer_obj:
+                    return queryset.filter(customer=customer_obj)
+                return queryset.none()
+        except Profile.DoesNotExist:
+            pass
+
         customer_id = self.request.query_params.get('customer_id')
         lead_id = self.request.query_params.get('lead_id')
         interaction_type = self.request.query_params.get('type')
@@ -3885,7 +3951,33 @@ class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
                     f'Cannot create enhanced invoice. Job card must be at BILLING stage or later. '
                     f'Current stage: {job_card.get_workflow_stage_display()}'
                 )
-        serializer.save(created_by=self.request.user)
+        invoice = serializer.save(created_by=self.request.user)
+        self._recalculate_invoice_gst(invoice)
+
+    def _recalculate_invoice_gst(self, invoice):
+        from .utils_tax import get_gst_components
+        seller_gstin = getattr(invoice.branch, 'gstin', '') if invoice.branch else ''
+        buyer_gstin = getattr(invoice.customer, 'gst_number', '') if invoice.customer else ''
+        total_cgst = total_sgst = total_igst = Decimal('0')
+        for line in invoice.lines.all():
+            tax_rate = float((line.cgst_rate or 0) + (line.sgst_rate or 0) + (line.igst_rate or 0))
+            if tax_rate <= 0:
+                tax_rate = float(getattr(line, 'tax_rate', 0) or 0)
+            if tax_rate > 0:
+                components = get_gst_components(seller_gstin or '', buyer_gstin or '', tax_rate)
+                line.cgst_rate = Decimal(str(components['cgst']))
+                line.sgst_rate = Decimal(str(components['sgst']))
+                line.igst_rate = Decimal(str(components['igst']))
+                line.save()
+            total_cgst += line.cgst_amount or Decimal('0')
+            total_sgst += line.sgst_amount or Decimal('0')
+            total_igst += line.igst_amount or Decimal('0')
+        invoice.cgst_amount = total_cgst
+        invoice.sgst_amount = total_sgst
+        invoice.igst_amount = total_igst
+        invoice.is_igst = total_igst > 0
+        invoice.total_tax = total_cgst + total_sgst + total_igst
+        invoice.save(update_fields=['cgst_amount', 'sgst_amount', 'igst_amount', 'is_igst', 'total_tax'])
     
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -4043,8 +4135,13 @@ class EnhancedPaymentViewSet(viewsets.ModelViewSet):
         payment.status = EnhancedPayment.PaymentStatus.COMPLETED
         payment.save()
         if payment.invoice:
-            payment.invoice.amount_paid += payment.amount
-            if payment.invoice.amount_paid >= payment.invoice.grand_total:
+            total_paid = EnhancedPayment.objects.filter(
+                invoice=payment.invoice,
+                status=EnhancedPayment.PaymentStatus.COMPLETED
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            payment.invoice.amount_paid = total_paid
+            payment.invoice.balance_due = payment.invoice.grand_total - total_paid
+            if payment.invoice.balance_due <= 0:
                 payment.invoice.status = InvoiceStatus.PAID
             else:
                 payment.invoice.status = InvoiceStatus.PARTIALLY_PAID
@@ -4053,7 +4150,7 @@ class EnhancedPaymentViewSet(viewsets.ModelViewSet):
                 receivable = payment.invoice.receivable
                 receivable.outstanding_amount = payment.invoice.balance_due
                 receivable.save()
-            except:
+            except Exception:
                 pass
         return Response(EnhancedPaymentSerializer(payment).data)
     
@@ -7927,6 +8024,20 @@ def forgot_password_view(request):
                 user=user,
                 expires_at=timezone.now() + timedelta(hours=1)
             )
+            frontend_url = getattr(settings, 'FRONTEND_URL', '')
+            if frontend_url:
+                try:
+                    from django.core.mail import send_mail
+                    reset_url = f"{frontend_url}/reset-password?token={token.token}"
+                    send_mail(
+                        subject='AutoServ — Reset Your Password',
+                        message=f'Click this link to reset your password (expires in 1 hour):\n{reset_url}',
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[user.email],
+                        fail_silently=True,
+                    )
+                except Exception:
+                    pass
             return Response({
                 'message': 'If an account exists with this email, reset instructions will be sent.'
             })
