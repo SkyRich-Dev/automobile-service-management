@@ -1,0 +1,54 @@
+<!DOCTYPE html><html><head><meta charset='UTF-8'>
+<style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
+.header{display:flex;justify-content:space-between;margin-bottom:20px}
+.title{font-size:20px;font-weight:bold;color:#1e3a5f}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th{background:#1e3a5f;color:white;padding:6px;text-align:left}
+td{padding:6px;border-bottom:1px solid #eee}
+.total-row{font-weight:bold;font-size:13px}
+.gst-section{margin-top:10px;padding:8px;background:#f8f8f8;border-radius:4px}
+.qr-section{text-align:right;margin-top:15px}
+.footer{margin-top:20px;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:10px}
+</style></head><body>
+<div class='header'>
+<div><div class='title'>{{invoice.branch.name}}</div>
+<div>{{invoice.branch.address}}</div>
+<div>GSTIN: {{invoice.branch.gstin}}</div></div>
+<div style='text-align:right'><div class='title'>TAX INVOICE</div>
+<div>Invoice #: {{invoice.invoice_number}}</div>
+<div>Date: {{invoice.invoice_date}}</div>
+<div>Due: {{invoice.due_date|default:'On Receipt'}}</div></div>
+</div>
+<div style='margin-bottom:15px'>
+<strong>Bill To:</strong><br>{{invoice.customer.name}}<br>
+{{invoice.customer.email}}<br>{{invoice.customer.phone}}
+{% if invoice.customer.gst_number %}<br>GSTIN: {{invoice.customer.gst_number}}{% endif %}
+</div>
+<table><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th>
+<th>Qty</th><th>Unit Price</th><th>Taxable Amt</th><th>GST</th><th>Total</th></tr></thead>
+<tbody>{% for line in lines %}<tr>
+<td>{{forloop.counter}}</td><td>{{line.description}}</td>
+<td>{{line.hsn_sac_code|default:'-'}}</td><td>{{line.quantity}}</td>
+<td>{{line.unit_price}}</td><td>{{line.taxable_amount}}</td>
+<td>{% widthratio line.cgst_amount 1 1 %}</td>
+<td>{{line.total_amount}}</td></tr>{% endfor %}</tbody></table>
+<div class='gst-section'>
+<div style='display:flex;justify-content:space-between'>
+<span>Subtotal</span><span>{{invoice.subtotal}}</span></div>
+{% if invoice.cgst_amount %}<div style='display:flex;justify-content:space-between'>
+<span>CGST</span><span>{{invoice.cgst_amount}}</span></div>{% endif %}
+{% if invoice.sgst_amount %}<div style='display:flex;justify-content:space-between'>
+<span>SGST</span><span>{{invoice.sgst_amount}}</span></div>{% endif %}
+{% if invoice.igst_amount %}<div style='display:flex;justify-content:space-between'>
+<span>IGST</span><span>{{invoice.igst_amount}}</span></div>{% endif %}
+<div class='total-row' style='display:flex;justify-content:space-between;margin-top:8px'>
+<span>Grand Total</span><span>₹{{invoice.grand_total}}</span></div>
+<div style='display:flex;justify-content:space-between;color:#888'>
+<span>Amount Paid</span><span>₹{{invoice.amount_paid}}</span></div>
+<div class='total-row' style='display:flex;justify-content:space-between;color:#c0392b'>
+<span>Balance Due</span><span>₹{{invoice.balance_due}}</span></div></div>
+{% if upi_qr %}<div class='qr-section'>
+<p style='font-size:10px;color:#888'>Scan to pay</p>
+<img src='{{upi_qr}}' width='80' height='80' /></div>{% endif %}
+<div class='footer'>Thank you for your business. This is a computer generated invoice.</div>
+</body></html>

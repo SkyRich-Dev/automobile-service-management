@@ -33,6 +33,13 @@ import NotificationCenter from "@/pages/NotificationCenter";
 import AdminConfig from "@/pages/AdminConfig";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import CustomerDashboard from "@/pages/customer/CustomerDashboard";
+import CustomerAppointments from "@/pages/customer/CustomerAppointments";
+import CustomerServiceHistory from "@/pages/customer/CustomerServiceHistory";
+import CustomerInvoices from "@/pages/customer/CustomerInvoices";
+import CustomerVehicles from "@/pages/customer/CustomerVehicles";
+import CustomerPortalProfile from "@/pages/customer/CustomerProfile";
+import { CustomerRoute } from "@/components/customer-route";
 import { useEffect } from "react";
 
 type UserRole = 
@@ -100,8 +107,12 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
     return <LoadingScreen />;
   }
 
+  const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
+  if (userRole === 'CUSTOMER') {
+    return <Redirect to="/customer" />;
+  }
+
   if (allowedRoles && allowedRoles.length > 0) {
-    const userRole = (profile?.role || 'TECHNICIAN') as UserRole;
     if (!allowedRoles.includes(userRole)) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background">
@@ -145,6 +156,12 @@ function Router() {
       <Route path="/settings" component={() => <ProtectedRoute component={AdminPanel} allowedRoles={routePermissions['/admin']} />} />
       <Route path="/notification-center" component={() => <ProtectedRoute component={NotificationCenter} allowedRoles={routePermissions['/notification-center']} />} />
       <Route path="/config-center" component={() => <ProtectedRoute component={AdminConfig} allowedRoles={routePermissions['/config-center']} />} />
+      <Route path="/customer" component={() => <CustomerRoute><CustomerDashboard /></CustomerRoute>} />
+      <Route path="/customer/appointments" component={() => <CustomerRoute><CustomerAppointments /></CustomerRoute>} />
+      <Route path="/customer/history" component={() => <CustomerRoute><CustomerServiceHistory /></CustomerRoute>} />
+      <Route path="/customer/invoices" component={() => <CustomerRoute><CustomerInvoices /></CustomerRoute>} />
+      <Route path="/customer/vehicles" component={() => <CustomerRoute><CustomerVehicles /></CustomerRoute>} />
+      <Route path="/customer/profile" component={() => <CustomerRoute><CustomerPortalProfile /></CustomerRoute>} />
       <Route component={NotFound} />
     </Switch>
   );

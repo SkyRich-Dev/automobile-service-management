@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action, permission_classes
+from rest_framework.decorators import api_view, action, permission_classes, parser_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -102,6 +103,43 @@ from .serializers import (
     DocumentNumberSequenceSerializer, WhatsAppTemplateSerializer, HsnSacCodeSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ChangePasswordSerializer
 )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def upload_media(request):
+    file = request.FILES.get('file')
+    if not file:
+        return Response({'error': 'No file provided'}, status=400)
+    ALLOWED_IMAGE = {'image/jpeg','image/png','image/webp','image/gif'}
+    ALLOWED_VIDEO = {'video/mp4','video/quicktime','video/x-msvideo','video/avi'}
+    ALLOWED_DOC = {'application/pdf'}
+    mime = file.content_type
+    is_image = mime in ALLOWED_IMAGE
+    is_video = mime in ALLOWED_VIDEO
+    is_doc = mime in ALLOWED_DOC
+    if not (is_image or is_video or is_doc):
+        return Response({'error': f'File type {mime} not allowed. Use JPEG/PNG/WebP/MP4/MOV/PDF'}, status=400)
+    max_size = 10*1024*1024 if is_image else (100*1024*1024 if is_video else 20*1024*1024)
+    if file.size > max_size:
+        return Response({'error': f'File too large. Max {max_size//1024//1024}MB allowed'}, status=400)
+    import uuid as _uuid
+    from django.core.files.storage import default_storage
+    entity_type = request.data.get('entity_type', 'general')
+    entity_id = request.data.get('entity_id', '0')
+    ext = os.path.splitext(file.name)[1].lower()
+    filename = f'{_uuid.uuid4().hex}{ext}'
+    path = f'uploads/{entity_type}/{entity_id}/{filename}'
+    saved_path = default_storage.save(path, file)
+    url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+    return Response({
+        'url': url,
+        'filename': filename,
+        'path': saved_path,
+        'size': file.size,
+        'type': 'image' if is_image else ('video' if is_video else 'document')
+    }, status=201)
 
 
 @api_view(['POST'])
@@ -599,6 +637,20 @@ class JobCardViewSet(viewsets.ModelViewSet):
             try:
                 self._validate_transition_preconditions(job_card, new_stage, request.user)
                 job_card.transition_to(new_stage, request.user, comment)
+                try:
+                    from .sse_manager import get_manager
+                    get_manager().broadcast_to_branch(
+                        job_card.branch_id,
+                        {
+                            'type': 'job_card_updated',
+                            'id': job_card.id,
+                            'stage': new_stage,
+                            'job_number': job_card.job_card_number,
+                            'vehicle': f'{job_card.vehicle.make} {job_card.vehicle.model}' if job_card.vehicle else '',
+                        }
+                    )
+                except Exception:
+                    pass
                 return Response(JobCardDetailSerializer(job_card).data)
             except ValidationError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1459,7 +1511,38 @@ class ContractViewSet(viewsets.ModelViewSet):
         )
         
         return Response(ContractSerializer(contract).data)
-    
+
+    @action(detail=True, methods=['post'])
+    def renew(self, request, pk=None):
+        original = self.get_object()
+        if original.status not in ['ACTIVE', 'EXPIRED', 'SUSPENDED']:
+            return Response({'error': 'Only ACTIVE/EXPIRED/SUSPENDED contracts can be renewed'}, status=400)
+        from datetime import timedelta
+        months = original.coverage_period_months or 12
+        new_start = original.end_date + timedelta(days=1)
+        from dateutil.relativedelta import relativedelta
+        new_end = new_start + relativedelta(months=months) - timedelta(days=1)
+        renewal = Contract.objects.create(
+            customer=original.customer,
+            branch=original.branch,
+            contract_type=original.contract_type,
+            status='DRAFT',
+            start_date=new_start,
+            end_date=new_end,
+            coverage_period_months=months,
+            contract_value=original.contract_value,
+            renewal_contract=original,
+            created_by=request.user,
+            auto_renewal=original.auto_renewal,
+        )
+        original.status = 'RENEWED'
+        original.save()
+        ContractAuditLog.objects.create(
+            contract=original, action='RENEWED', actor=request.user,
+            notes=f'Renewed as {renewal.contract_number}'
+        )
+        return Response(ContractSerializer(renewal).data, status=201)
+
     @action(detail=True, methods=['post'])
     def suspend(self, request, pk=None):
         contract = self.get_object()
@@ -2587,6 +2670,61 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         appointment.notes = request.data.get('reason', appointment.notes)
         appointment.save()
         return Response(AppointmentSerializer(appointment).data)
+
+    @action(detail=False, methods=['get'])
+    def available_slots(self, request):
+        branch_id = request.query_params.get('branch_id')
+        date_str = request.query_params.get('date')
+        if not branch_id or not date_str:
+            return Response({'error': 'branch_id and date are required'}, status=400)
+        try:
+            from datetime import datetime, time as dtime
+            appt_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD'}, status=400)
+        max_concurrent = Bay.objects.filter(
+            branch_id=branch_id, is_available=True).count() or 3
+        slots = []
+        for hour in range(9, 18):
+            slot_time = dtime(hour, 0)
+            booked = Appointment.objects.filter(
+                branch_id=branch_id,
+                appointment_date=appt_date,
+                appointment_time=slot_time,
+                status__in=['SCHEDULED', 'CONFIRMED']
+            ).count()
+            slots.append({
+                'time': f'{hour:02d}:00',
+                'available': booked < max_concurrent,
+                'slots_remaining': max(0, max_concurrent - booked)
+            })
+        return Response({
+            'date': date_str,
+            'branch_id': branch_id,
+            'max_concurrent': max_concurrent,
+            'slots': slots
+        })
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        branch = serializer.validated_data.get('branch')
+        appt_date = serializer.validated_data.get('appointment_date')
+        appt_time = serializer.validated_data.get('appointment_time')
+        if branch and appt_date and appt_time:
+            max_concurrent = Bay.objects.filter(
+                branch=branch, is_available=True).count() or 3
+            existing = Appointment.objects.select_for_update().filter(
+                branch=branch,
+                appointment_date=appt_date,
+                appointment_time=appt_time,
+                status__in=['SCHEDULED', 'CONFIRMED']
+            ).count()
+            if existing >= max_concurrent:
+                from rest_framework.exceptions import ValidationError as DRFError
+                raise DRFError({
+                    'appointment_time': f'This time slot is fully booked ({existing}/{max_concurrent}). Please choose another time.'
+                })
+        serializer.save()
 
 
 class AnalyticsSnapshotViewSet(viewsets.ModelViewSet):
@@ -4048,6 +4186,20 @@ class EnhancedInvoiceViewSet(viewsets.ModelViewSet):
             due_date=invoice.due_date or invoice.invoice_date
         )
     
+    @action(detail=True, methods=['get'])
+    def download_pdf(self, request, pk=None):
+        invoice = self.get_object()
+        from .pdf_generator import generate_invoice_pdf
+        from django.http import HttpResponse
+        try:
+            pdf_bytes = generate_invoice_pdf(invoice)
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            fname = invoice.invoice_number.replace('/', '-')
+            response['Content-Disposition'] = f'attachment; filename="{fname}.pdf"'
+            return response
+        except Exception as e:
+            return Response({'error': f'PDF generation failed: {str(e)}'}, status=500)
+
     def _log_finance_audit(self, action, invoice, user, reason=''):
         try:
             profile = user.profile
@@ -4878,11 +5030,36 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         leave_request = self.get_object()
-        leave_request.status = 'APPROVED'
-        leave_request.reviewed_by = request.user
-        leave_request.reviewed_at = timezone.now()
-        leave_request.save()
-        return Response({'status': 'approved'})
+        if leave_request.status != 'PENDING':
+            return Response(
+                {'error': f'Cannot approve a leave request with status {leave_request.status}'},
+                status=400
+            )
+        with transaction.atomic():
+            leave_request.status = 'APPROVED'
+            leave_request.reviewed_by = request.user
+            leave_request.reviewed_at = timezone.now()
+            leave_request.save()
+            balance, created = LeaveBalance.objects.get_or_create(
+                employee=leave_request.employee,
+                leave_type=leave_request.leave_type,
+                year=leave_request.start_date.year,
+                defaults={
+                    'opening_balance': leave_request.leave_type.annual_quota,
+                    'accrued': leave_request.leave_type.annual_quota,
+                    'used': Decimal('0'),
+                    'lapsed': Decimal('0'),
+                    'carried_forward': Decimal('0'),
+                }
+            )
+            balance.used = (balance.used or Decimal('0')) + leave_request.days_count
+            balance.save()
+        return Response({
+            'status': 'approved',
+            'days_deducted': float(leave_request.days_count),
+            'leave_type': leave_request.leave_type.name,
+            'employee': leave_request.employee.user.get_full_name() or leave_request.employee.user.username
+        })
     
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -4993,6 +5170,42 @@ class PayrollViewSet(viewsets.ModelViewSet):
         if year:
             queryset = queryset.filter(year=int(year))
         return queryset.order_by('-year', '-month')
+
+    def perform_create(self, serializer):
+        from .payroll_calculator import calculate_statutory_deductions
+        payroll = serializer.save()
+        try:
+            emp_detail = getattr(payroll.employee, 'employee_details', None)
+            annual_gross = float(emp_detail.gross_salary) if emp_detail else float(payroll.basic_salary)
+            deductions = calculate_statutory_deductions(
+                float(payroll.basic_salary),
+                annual_gross
+            )
+            payroll.pf_deduction = deductions['pf_employee']
+            payroll.esi_deduction = deductions['esi_employee']
+            payroll.tds_deduction = deductions['tds']
+            payroll.save(update_fields=['pf_deduction', 'esi_deduction', 'tds_deduction'])
+        except Exception as e:
+            import logging
+            logging.getLogger('hrms').warning(f'Payroll deduction calculation failed: {e}')
+
+    @action(detail=True, methods=['get'])
+    def download_payslip(self, request, pk=None):
+        payroll = self.get_object()
+        from django.template.loader import render_to_string
+        from django.http import HttpResponse
+        try:
+            from weasyprint import HTML
+            html = render_to_string('pdf/payslip.html', {'payroll': payroll})
+            pdf = HTML(string=html).write_pdf()
+            response = HttpResponse(pdf, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="payslip-{payroll.employee.user.username}-{payroll.month}-{payroll.year}.pdf"'
+            return response
+        except ImportError:
+            html = render_to_string('pdf/payslip.html', {'payroll': payroll})
+            return HttpResponse(html, content_type='text/html')
+        except Exception as e:
+            return Response({'error': f'Payslip generation failed: {str(e)}'}, status=500)
 
 
 class SkillAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -7537,6 +7750,12 @@ class NotificationCenterViewSet(viewsets.GenericViewSet):
     """Enterprise Notification Center - Centralized control for all notifications"""
     permission_classes = [IsAuthenticated]
 
+    def _get_approved_wa_template(self, template_code: str):
+        return WhatsAppTemplate.objects.filter(
+            template_name=template_code,
+            approval_status='APPROVED'
+        ).first()
+
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """Get notification center dashboard metrics"""
@@ -8025,19 +8244,33 @@ def forgot_password_view(request):
                 expires_at=timezone.now() + timedelta(hours=1)
             )
             frontend_url = getattr(settings, 'FRONTEND_URL', '')
-            if frontend_url:
+            import logging
+            auth_log = logging.getLogger('django.security.auth')
+            if not frontend_url:
+                auth_log.error(
+                    'FRONTEND_URL not configured in environment. '
+                    'Password reset email cannot be sent. '
+                    'Add FRONTEND_URL to Replit Secrets.'
+                )
+            else:
                 try:
                     from django.core.mail import send_mail
-                    reset_url = f"{frontend_url}/reset-password?token={token.token}"
+                    reset_url = f'{frontend_url}/reset-password?token={token.token}'
                     send_mail(
                         subject='AutoServ — Reset Your Password',
-                        message=f'Click this link to reset your password (expires in 1 hour):\n{reset_url}',
+                        message=(
+                            f'Hello,\n\n'
+                            f'Click this link to reset your password (expires in 1 hour):\n'
+                            f'{reset_url}\n\n'
+                            f'If you did not request this, ignore this email.\n\n'
+                            f'AutoServ Enterprise'
+                        ),
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[user.email],
-                        fail_silently=True,
+                        fail_silently=False,
                     )
-                except Exception:
-                    pass
+                except Exception as email_err:
+                    auth_log.error(f'Password reset email failed for {user.email}: {email_err}')
             return Response({
                 'message': 'If an account exists with this email, reset instructions will be sent.'
             })
@@ -8165,3 +8398,59 @@ class HsnSacCodeViewSet(viewsets.ModelViewSet):
         if search:
             qs = qs.filter(Q(code__icontains=search) | Q(description__icontains=search))
         return qs
+
+
+class GSTReportViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminOrManager]
+
+    @action(detail=False, methods=['get'])
+    def gstr1(self, request):
+        branch = request.query_params.get('branch')
+        period_month = int(request.query_params.get('month', timezone.now().month))
+        period_year = int(request.query_params.get('year', timezone.now().year))
+        invoices = EnhancedInvoice.objects.filter(
+            invoice_date__month=period_month, invoice_date__year=period_year,
+            status__in=['ISSUED', 'PAID', 'PARTIALLY_PAID']
+        )
+        if branch:
+            invoices = invoices.filter(branch_id=branch)
+        b2b = invoices.filter(customer__gst_number__isnull=False).exclude(customer__gst_number='')
+        b2c = invoices.filter(Q(customer__gst_number__isnull=True) | Q(customer__gst_number=''))
+        return Response({
+            'period': f'{period_month:02d}/{period_year}',
+            'b2b_count': b2b.count(),
+            'b2b_taxable': b2b.aggregate(Sum('taxable_amount'))['taxable_amount__sum'] or 0,
+            'b2b_cgst': b2b.aggregate(Sum('cgst_amount'))['cgst_amount__sum'] or 0,
+            'b2b_sgst': b2b.aggregate(Sum('sgst_amount'))['sgst_amount__sum'] or 0,
+            'b2b_igst': b2b.aggregate(Sum('igst_amount'))['igst_amount__sum'] or 0,
+            'b2c_count': b2c.count(),
+            'b2c_total': b2c.aggregate(Sum('grand_total'))['grand_total__sum'] or 0,
+        })
+
+    @action(detail=False, methods=['get'])
+    def gstr3b(self, request):
+        branch = request.query_params.get('branch')
+        period_month = int(request.query_params.get('month', timezone.now().month))
+        period_year = int(request.query_params.get('year', timezone.now().year))
+        invoices = EnhancedInvoice.objects.filter(
+            invoice_date__month=period_month, invoice_date__year=period_year,
+            status__in=['ISSUED', 'PAID', 'PARTIALLY_PAID']
+        )
+        if branch:
+            invoices = invoices.filter(branch_id=branch)
+        totals = invoices.aggregate(
+            total_taxable=Sum('taxable_amount'),
+            total_cgst=Sum('cgst_amount'),
+            total_sgst=Sum('sgst_amount'),
+            total_igst=Sum('igst_amount'),
+            total_amount=Sum('grand_total'),
+        )
+        return Response({
+            'period': f'{period_month:02d}/{period_year}',
+            'outward_taxable': totals['total_taxable'] or 0,
+            'cgst_payable': totals['total_cgst'] or 0,
+            'sgst_payable': totals['total_sgst'] or 0,
+            'igst_payable': totals['total_igst'] or 0,
+            'total_tax_liability': (totals['total_cgst'] or 0) + (totals['total_sgst'] or 0) + (totals['total_igst'] or 0),
+            'total_turnover': totals['total_amount'] or 0,
+        })

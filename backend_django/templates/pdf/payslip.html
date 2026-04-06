@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><meta charset='UTF-8'>
+<style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
+.title{font-size:18px;font-weight:bold;color:#1e3a5f;margin-bottom:15px;text-align:center}
+.section{margin-bottom:12px;padding:8px;border:1px solid #eee;border-radius:4px}
+.section-title{font-weight:bold;font-size:13px;margin-bottom:6px;color:#1e3a5f}
+table{width:100%;border-collapse:collapse}
+td{padding:4px 8px}
+.label{color:#666;width:50%}
+.value{text-align:right;font-weight:500}
+.total-row{font-weight:bold;font-size:14px;border-top:2px solid #1e3a5f;padding-top:8px;margin-top:8px}
+.footer{margin-top:20px;font-size:10px;color:#888;text-align:center;border-top:1px solid #ddd;padding-top:10px}
+</style></head><body>
+<div class='title'>PAYSLIP</div>
+<div class='section'>
+<div class='section-title'>Employee Details</div>
+<table>
+<tr><td class='label'>Name:</td><td class='value'>{{payroll.employee.user.get_full_name|default:payroll.employee.user.username}}</td></tr>
+<tr><td class='label'>Employee ID:</td><td class='value'>{{payroll.employee.employee_id|default:payroll.employee.id}}</td></tr>
+<tr><td class='label'>Period:</td><td class='value'>{{payroll.month}}/{{payroll.year}}</td></tr>
+<tr><td class='label'>Status:</td><td class='value'>{{payroll.status}}</td></tr>
+</table></div>
+<div class='section'>
+<div class='section-title'>Earnings</div>
+<table>
+<tr><td class='label'>Basic Salary</td><td class='value'>₹{{payroll.basic_salary}}</td></tr>
+<tr><td class='label'>HRA</td><td class='value'>₹{{payroll.hra|default:"0"}}</td></tr>
+<tr><td class='label'>Allowances</td><td class='value'>₹{{payroll.allowances|default:"0"}}</td></tr>
+<tr><td class='label'>Overtime</td><td class='value'>₹{{payroll.overtime_amount|default:"0"}}</td></tr>
+<tr><td class='label'>Incentives</td><td class='value'>₹{{payroll.incentive_amount|default:"0"}}</td></tr>
+</table></div>
+<div class='section'>
+<div class='section-title'>Deductions</div>
+<table>
+<tr><td class='label'>PF (Employee)</td><td class='value'>₹{{payroll.pf_deduction|default:"0"}}</td></tr>
+<tr><td class='label'>ESI (Employee)</td><td class='value'>₹{{payroll.esi_deduction|default:"0"}}</td></tr>
+<tr><td class='label'>TDS</td><td class='value'>₹{{payroll.tds_deduction|default:"0"}}</td></tr>
+<tr><td class='label'>Other Deductions</td><td class='value'>₹{{payroll.other_deductions|default:"0"}}</td></tr>
+</table></div>
+<div class='section'>
+<div class='total-row'>
+<table><tr><td class='label'>Net Salary</td><td class='value'>₹{{payroll.net_salary}}</td></tr></table>
+</div></div>
+<div class='footer'>This is a system-generated payslip. No signature required.</div>
+</body></html>

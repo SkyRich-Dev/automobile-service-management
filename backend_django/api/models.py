@@ -504,6 +504,14 @@ class Part(models.Model):
     category = models.CharField(max_length=100)
     subcategory = models.CharField(max_length=100, blank=True)
     brand = models.CharField(max_length=100, blank=True)
+    part_category = models.ForeignKey(
+        'PartCategory', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='parts'
+    )
+    part_brand = models.ForeignKey(
+        'Brand', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='parts'
+    )
     item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.SPARE_PART)
     is_oem = models.BooleanField(default=True)
     unit = models.CharField(max_length=50, default='Nos')
@@ -939,6 +947,11 @@ class Contract(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='contracts', null=True, blank=True)
+    renewal_contract = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='renewed_from'
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -1554,29 +1567,8 @@ class StockAdjustment(models.Model):
 
     def approve(self, user):
         if self.status == StockAdjustmentStatus.PENDING_APPROVAL:
-            self.status = StockAdjustmentStatus.APPROVED
-            self.approved_by = user
-            self.approval_date = timezone.now()
-            if self.adjustment_type in [StockAdjustmentType.INCREASE, StockAdjustmentType.OPENING_STOCK, StockAdjustmentType.CORRECTION]:
-                self.part.stock += abs(self.quantity)
-            else:
-                self.part.stock = max(0, self.part.stock - abs(self.quantity))
-            self.stock_after = self.part.stock
-            self.part.save()
-            self.save()
-            InventoryAuditLog.objects.create(
-                part=self.part,
-                branch=self.branch,
-                action='ADJUSTMENT',
-                quantity=self.quantity,
-                stock_before=self.stock_before,
-                stock_after=self.stock_after,
-                reference_type='ADJUSTMENT',
-                reference_id=self.id,
-                reference_number=self.adjustment_number,
-                reason=self.reason,
-                performed_by=user
-            )
+            from .stock_service import StockService
+            StockService.process_adjustment(self, user)
 
     def __str__(self):
         return f"{self.adjustment_number} - {self.part.name}"

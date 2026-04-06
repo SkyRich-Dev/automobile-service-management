@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'drf_spectacular',
     'api',
 ]
 
@@ -104,6 +105,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'api.pagination.StandardPagination',
     'PAGE_SIZE': 20,
@@ -148,3 +150,9 @@ CSRF_TRUSTED_ORIGINS = ['https://*.replit.dev', 'https://*.replit.app']
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
 CSRF_USE_SESSIONS = False  # Store CSRF token in cookie, not session
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AutoServ Enterprise API',
+    'DESCRIPTION': 'Automobile Service Management System API',
+    'VERSION': '3.0.0',
+}

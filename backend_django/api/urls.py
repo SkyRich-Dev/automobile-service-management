@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from . import views_sse
 
 router = DefaultRouter()
 router.register(r'branches', views.BranchViewSet, basename='branches')
@@ -138,6 +139,7 @@ router.register(r'finance/bank-accounts', views.BankAccountViewSet, basename='ba
 router.register(r'admin-config/document-sequences', views.DocumentNumberSequenceViewSet, basename='document-sequences')
 router.register(r'whatsapp-templates', views.WhatsAppTemplateViewSet, basename='whatsapp-templates')
 router.register(r'finance/hsn-sac-codes', views.HsnSacCodeViewSet, basename='hsn-sac-codes')
+router.register(r'finance/gst-reports', views.GSTReportViewSet, basename='gst-reports')
 
 urlpatterns = [
     path('auth/register/', views.register_view, name='register'),
@@ -176,6 +178,9 @@ urlpatterns = [
     
     # Finance Module Views
     path('finance/dashboard/', views.finance_dashboard, name='finance_dashboard'),
-    
+
+    path('media/upload/', views.upload_media, name='media_upload'),
+    path('events/stream/', views_sse.event_stream, name='event_stream'),
+
     path('', include(router.urls)),
 ]
